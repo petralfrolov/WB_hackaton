@@ -98,4 +98,5 @@ export interface CostScenario {
 export interface RiskSettings {
   economyThreshold: number
   maxWaitMinutes: number
+  idleCostPerMinute: number
 }

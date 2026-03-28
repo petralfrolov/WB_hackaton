@@ -37,11 +37,11 @@ export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProp
   const graph = useMemo<ProcessedGraph>(() => {
     const gen = d3Sankey<SankeyNodeDatum, SankeyLinkDatum>()
       .nodeId(d => d.id)
-      .nodeWidth(10)
-      .nodePadding(16)
+      .nodeWidth(12)
+      .nodePadding(18)
       .extent([
-        [1, 1],
-        [width - 1, height - 1],
+        [8, 44],
+        [width - 16, height - 10],
       ])
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,8 +87,10 @@ export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProp
       {graph.nodes.map(node => {
         const nodeWidth = node.x1 - node.x0
         const nodeHeight = node.y1 - node.y0
-        const cy = node.y0 + nodeHeight / 2
-        const isLeft = node.x0 < width / 2
+        const cx = node.x0 + nodeWidth / 2
+        const labelParts = node.label.includes(' ')
+          ? [node.label.split(' ').slice(0, -1).join(' '), node.label.split(' ').slice(-1).join('')]
+          : [node.label]
 
         return (
           <g key={node.id}>
@@ -103,25 +105,25 @@ export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProp
             />
             {/* Label */}
             <text
-              x={isLeft ? node.x1 + 7 : node.x0 - 7}
-              y={cy - 5}
-              textAnchor={isLeft ? 'start' : 'end'}
-              dominantBaseline="middle"
+              x={cx}
+              y={labelParts.length > 1 ? 16 : 22}
+              textAnchor="middle"
               fill="#E6EDF3"
               fontSize={10}
               fontFamily="Inter, sans-serif"
-              fontWeight={500}
+              fontWeight={600}
             >
-              {node.label}
+              {labelParts.map((part, idx) => (
+                <tspan key={idx} x={cx} dy={idx === 0 ? 0 : 11}>{part}</tspan>
+              ))}
             </text>
             {/* Value */}
             <text
-              x={isLeft ? node.x1 + 7 : node.x0 - 7}
-              y={cy + 7}
-              textAnchor={isLeft ? 'start' : 'end'}
-              dominantBaseline="middle"
+              x={cx}
+              y={labelParts.length > 1 ? 40 : 34}
+              textAnchor="middle"
               fill="#7D8590"
-              fontSize={9}
+              fontSize={10}
               fontFamily="JetBrains Mono, monospace"
             >
               {fmt(node.value)}

@@ -35,6 +35,7 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
     coordinates: [50, 57],
     zoom: 1,
   })
+  const markerScale = Math.max(0.45, Math.min(1.15, 1 / Math.sqrt(position.zoom || 1)))
 
   const handleMarkerEnter = useCallback(
     (e: React.MouseEvent<SVGGElement>, warehouse: Warehouse) => {
@@ -97,17 +98,17 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
               <g>
                 {/* Pulse ring */}
                 {wh.status === 'critical' && (
-                  <circle r={9} fill={color} fillOpacity={0.4} className="pulse-fast" />
+                  <circle r={9 * markerScale} fill={color} fillOpacity={0.4} className="pulse-fast" />
                 )}
                 {wh.status === 'warning' && (
-                  <circle r={9} fill={color} fillOpacity={0.3} className="pulse-slow" />
+                  <circle r={9 * markerScale} fill={color} fillOpacity={0.3} className="pulse-slow" />
                 )}
                 {/* Core dot */}
                 <circle
-                  r={6}
+                  r={6 * markerScale}
                   fill={color}
                   stroke="#0D1117"
-                  strokeWidth={1.5}
+                  strokeWidth={1.5 * markerScale}
                 />
               </g>
             </Marker>

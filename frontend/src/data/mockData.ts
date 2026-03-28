@@ -29,7 +29,7 @@ function makeForecast(base: number, hours = 8, startHour = 14): ForecastPoint[] 
 
 function makeSankey(
   accepted: number,
-  bottleneckAt?: 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting',
+  bottleneckAt?: 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting' | 'ready',
 ): SankeyData {
   const nodes: SankeyData['nodes'] = [
     { id: 'accepted', label: 'Принят' },
@@ -39,11 +39,11 @@ function makeSankey(
     { id: 'shelf', label: 'Стеллаж' },
     { id: 'shipping', label: 'Зона отгрузки' },
     { id: 'waiting', label: 'Ожидание ТС' },
-    { id: 'shipped', label: 'Отгружен' },
+    { id: 'ready', label: 'Готов к отгрузке' },
   ]
 
   type SrcId = 'accepted' | 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting'
-  type TgtId = 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting' | 'shipped'
+  type TgtId = 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting' | 'ready'
 
   const seq: Array<[SrcId, TgtId]> = [
     ['accepted', 'sorting'],
@@ -52,7 +52,7 @@ function makeSankey(
     ['quality', 'shelf'],
     ['shelf', 'shipping'],
     ['shipping', 'waiting'],
-    ['waiting', 'shipped'],
+    ['waiting', 'ready'],
   ]
 
   let cur = accepted
@@ -144,7 +144,7 @@ export const warehouses: Warehouse[] = [
   {
     id: 'w05', name: 'Казань-Логистик', city: 'Казань',
     lat: 55.79, lng: 49.12, status: 'warning', readyToShip: 445,
-    forecast: makeForecast(440, 8, 15), sankeyData: makeSankey(1600, 'waiting'), vehicles: LIMITED_VEHICLES,
+    forecast: makeForecast(440, 8, 15), sankeyData: makeSankey(1600, 'ready'), vehicles: LIMITED_VEHICLES,
   },
   {
     id: 'w06', name: 'НН-Южный', city: 'Нижний Новгород',
@@ -445,4 +445,5 @@ export function getCostScenarios(recommendationId: string, forecast = 300): Cost
 export const defaultRiskSettings: RiskSettings = {
   economyThreshold: 65,
   maxWaitMinutes: 55,
+  idleCostPerMinute: 8,
 }

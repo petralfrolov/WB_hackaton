@@ -3,6 +3,7 @@ import type { RiskSettings } from '../../types'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Input } from '../ui/input'
 import { Check } from 'lucide-react'
 import { fmt } from '../../lib/utils'
 
@@ -35,10 +36,10 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
 
   return (
     <div className="space-y-3">
-      {/* Slider 1: Economy threshold */}
+      {/* Slider 1: Fill threshold */}
       <Card>
         <CardHeader>
-          <CardTitle>Экономика</CardTitle>
+          <CardTitle>Заполняемость</CardTitle>
           <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
             Мин. заполняемость: <strong>{fmt(economyPct)}%</strong>
           </span>
@@ -54,6 +55,31 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
             загрузка ниже&nbsp;
             <span className="text-accent font-mono">{fmt(economyPct)}%</span>.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Input: idle cost */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Цена простоя</CardTitle>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
+            <strong>{fmt(local.idleCostPerMinute)}</strong> ₽/мин
+          </span>
+        </CardHeader>
+        <CardContent>
+          <label className="text-xs text-muted mb-1.5 block">
+            Цена минуты простоя единицы товара в статусе "Готов к отправке"
+          </label>
+          <Input
+            type="number"
+            min="0"
+            step="1"
+            value={String(local.idleCostPerMinute)}
+            onChange={e => {
+              const value = Number(e.target.value)
+              update('idleCostPerMinute', Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0)
+            }}
+          />
         </CardContent>
       </Card>
 

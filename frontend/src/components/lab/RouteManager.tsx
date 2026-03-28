@@ -10,7 +10,7 @@ import {
 } from '../ui/table'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Trash2, Plus, Check, X, RouteIcon } from 'lucide-react'
+import { Trash2, Plus, Check, X, RouteIcon, Pencil } from 'lucide-react'
 import { fmt } from '../../lib/utils'
 
 interface RouteManagerProps {
@@ -22,6 +22,8 @@ export function RouteManager({ warehouses, initialRoutes }: RouteManagerProps) {
   const [routes, setRoutes] = useState<RouteDistance[]>(initialRoutes)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ fromId: '', toId: '', distanceKm: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ fromId: '', toId: '', distanceKm: '' })
 
   const warehouseOptions = warehouses.map(w => ({ id: w.id, label: `${w.city} — ${w.name}` }))
 
@@ -48,6 +50,48 @@ export function RouteManager({ warehouses, initialRoutes }: RouteManagerProps) {
 
   const deleteRoute = (id: string) => {
     setRoutes(prev => prev.filter(r => r.id !== id))
+    if (editingId === id) {
+      setEditingId(null)
+      setEditForm({ fromId: '', toId: '', distanceKm: '' })
+    }
+  }
+
+  const startEdit = (route: RouteDistance) => {
+    setAdding(false)
+    setEditingId(route.id)
+    setEditForm({
+      fromId: route.fromId,
+      toId: route.toId,
+      distanceKm: String(route.distanceKm),
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditForm({ fromId: '', toId: '', distanceKm: '' })
+  }
+
+  const saveEdit = (id: string) => {
+    const dist = parseInt(editForm.distanceKm, 10)
+    if (!editForm.fromId || !editForm.toId || editForm.fromId === editForm.toId || isNaN(dist) || dist <= 0) return
+
+    const from = warehouses.find(w => w.id === editForm.fromId)
+    const to = warehouses.find(w => w.id === editForm.toId)
+    if (!from || !to) return
+
+    setRoutes(prev => prev.map(r => (
+      r.id === id
+        ? {
+            ...r,
+            fromId: editForm.fromId,
+            toId: editForm.toId,
+            fromCity: from.city,
+            toCity: to.city,
+            distanceKm: dist,
+          }
+        : r
+    )))
+    cancelEdit()
   }
 
   return (
@@ -119,55 +163,128 @@ export function RouteManager({ warehouses, initialRoutes }: RouteManagerProps) {
       )}
 
       {/* Routes table */}
-      <div className="bg-surface border border-border rounded-lg overflow-hidden flex-1">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Откуда</TableHead>
-              <TableHead>Куда</TableHead>
-              <TableHead className="text-right">Расстояние</TableHead>
-              <TableHead className="text-center w-12">—</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {routes.map(r => (
-              <TableRow key={r.id}>
-                <TableCell>
-                  <span className="font-medium text-foreground">{r.fromCity}</span>
-                  <span className="text-xs text-muted block">
-                    {warehouses.find(w => w.id === r.fromId)?.name}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span className="font-medium text-foreground">{r.toCity}</span>
-                  <span className="text-xs text-muted block">
-                    {warehouses.find(w => w.id === r.toId)?.name}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className="font-mono text-accent font-semibold">{fmt(r.distanceKm)}</span>
-                  <span className="text-muted text-xs ml-1">км</span>
-                </TableCell>
-                <TableCell className="text-center">
-                  <button
-                    onClick={() => deleteRoute(r.id)}
-                    className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors"
-                    aria-label="Удалить маршрут"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {routes.length === 0 && (
+      <div className="bg-surface border border-border rounded-lg overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell className="text-center text-muted py-8" colSpan={4}>
-                  Нет маршрутов. Нажмите «+ Добавить маршрут».
-                </TableCell>
+                <TableHead>Откуда</TableHead>
+                <TableHead>Куда</TableHead>
+                <TableHead className="text-right">Расстояние</TableHead>
+                <TableHead className="text-center w-24">Действия</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {routes.map(r => {
+                const isEditing = editingId === r.id
+
+                if (isEditing) {
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        <select
+                          className="w-full h-8 rounded bg-elevated border border-border px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                          value={editForm.fromId}
+                          onChange={e => setEditForm(p => ({ ...p, fromId: e.target.value }))}
+                        >
+                          <option value="">Выберите склад...</option>
+                          {warehouseOptions.map(o => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <select
+                          className="w-full h-8 rounded bg-elevated border border-border px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                          value={editForm.toId}
+                          onChange={e => setEditForm(p => ({ ...p, toId: e.target.value }))}
+                        >
+                          <option value="">Выберите склад...</option>
+                          {warehouseOptions.filter(o => o.id !== editForm.fromId).map(o => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={editForm.distanceKm}
+                          onChange={e => setEditForm(p => ({ ...p, distanceKm: e.target.value }))}
+                          className="text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => saveEdit(r.id)}
+                            className="p-1 rounded hover:bg-status-green/15 text-muted hover:text-status-green transition-colors"
+                            aria-label="Сохранить маршрут"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors"
+                            aria-label="Отменить редактирование"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                }
+
+                return (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <span className="font-medium text-foreground">{r.fromCity}</span>
+                      <span className="text-xs text-muted block">
+                        {warehouses.find(w => w.id === r.fromId)?.name}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium text-foreground">{r.toCity}</span>
+                      <span className="text-xs text-muted block">
+                        {warehouses.find(w => w.id === r.toId)?.name}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-accent font-semibold">{fmt(r.distanceKm)}</span>
+                      <span className="text-muted text-xs ml-1">км</span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => startEdit(r)}
+                          className="p-1 rounded hover:bg-accent/15 text-muted hover:text-accent transition-colors"
+                          aria-label="Редактировать маршрут"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteRoute(r.id)}
+                          className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors"
+                          aria-label="Удалить маршрут"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {routes.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-center text-muted py-8" colSpan={4}>
+                    Нет маршрутов. Нажмите «+ Добавить маршрут».
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   )

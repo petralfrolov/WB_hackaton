@@ -23,6 +23,7 @@ export function OptimizerPage() {
   const warehouseName = warehouseFilter
     ? warehouses.find(w => w.id === warehouseFilter)?.name ?? warehouseFilter
     : null
+  const warehouseLabelById = Object.fromEntries(warehouses.map(w => [w.id, w.name]))
 
   const handleSelect = useCallback((rec: TransportRecommendation) => {
     setSelectedRec(rec)
@@ -74,6 +75,7 @@ export function OptimizerPage() {
             onSelect={handleSelect}
             onCall={handleCall}
             warehouseFilter={warehouseFilter || undefined}
+            warehouseLabelById={warehouseLabelById}
           />
         </div>
 

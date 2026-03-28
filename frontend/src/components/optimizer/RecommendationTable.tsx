@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { TransportRecommendation } from '../../types'
 import {
   Table,
@@ -14,7 +14,7 @@ import { Button } from '../ui/button'
 import { fmt } from '../../lib/utils'
 import { CheckCircle2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
-type SortField = 'route' | 'forecast' | 'status'
+type SortField = 'from' | 'to' | 'forecast' | 'status'
 type SortDir = 'asc' | 'desc'
 
 const STATUS_BADGE: Record<TransportRecommendation['status'], BadgeVariant> = {
@@ -41,6 +41,15 @@ interface RecommendationTableProps {
   onSelect: (rec: TransportRecommendation) => void
   onCall: (id: string) => void
   warehouseFilter?: string
+  warehouseLabelById?: Record<string, string>
+}
+
+function splitRoute(route: string): { from: string; to: string } {
+  const parts = route.split('→').map(s => s.trim())
+  return {
+    from: parts[0] ?? route,
+    to: parts[1] ?? '—',
+  }
 }
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField | null; sortDir: SortDir }) {
@@ -56,11 +65,16 @@ export function RecommendationTable({
   onSelect,
   onCall,
   warehouseFilter,
+  warehouseLabelById,
 }: RecommendationTableProps) {
-  const [filterRoute, setFilterRoute] = useState('')
+  const [filterFromId, setFilterFromId] = useState(warehouseFilter ?? '')
   const [filterStatus, setFilterStatus] = useState<'' | TransportRecommendation['status']>('')
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  useEffect(() => {
+    setFilterFromId(warehouseFilter ?? '')
+  }, [warehouseFilter])
 
   const handleSortClick = (field: SortField) => {
     if (sortField === field) {
@@ -73,12 +87,8 @@ export function RecommendationTable({
 
   const filtered = useMemo(() => {
     let result = recommendations
-    if (warehouseFilter) {
-      result = result.filter(r => r.warehouseId === warehouseFilter)
-    }
-    if (filterRoute.trim()) {
-      const q = filterRoute.trim().toLowerCase()
-      result = result.filter(r => r.route.toLowerCase().includes(q))
+    if (filterFromId) {
+      result = result.filter(r => r.warehouseId === filterFromId)
     }
     if (filterStatus) {
       result = result.filter(r => r.status === filterStatus)
@@ -88,35 +98,50 @@ export function RecommendationTable({
       if (!sortField) {
         return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
       }
+      const aRoute = splitRoute(a.route)
+      const bRoute = splitRoute(b.route)
+      const aFrom = warehouseLabelById?.[a.warehouseId] ?? aRoute.from
+      const bFrom = warehouseLabelById?.[b.warehouseId] ?? bRoute.from
+
       let cmp = 0
-      if (sortField === 'route') cmp = a.route.localeCompare(b.route)
+      if (sortField === 'from') cmp = aFrom.localeCompare(bFrom)
+      else if (sortField === 'to') cmp = aRoute.to.localeCompare(bRoute.to)
       else if (sortField === 'forecast') cmp = a.forecast - b.forecast
       else if (sortField === 'status') cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
       return sortDir === 'asc' ? cmp : -cmp
     })
     return result
-  }, [recommendations, warehouseFilter, filterRoute, filterStatus, sortField, sortDir])
+  }, [recommendations, filterFromId, filterStatus, sortField, sortDir, warehouseLabelById])
+
+  const fromOptions = useMemo(() => {
+    return Array.from(new Set(recommendations.map(r => r.warehouseId)))
+      .map(id => ({ id, label: warehouseLabelById?.[id] ?? splitRoute(recommendations.find(r => r.warehouseId === id)?.route ?? id).from }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [recommendations, warehouseLabelById])
 
   return (
     <div className="bg-surface rounded-lg border border-border overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
         <span className="section-label">Рекомендации оптимизатора</span>
-        {warehouseFilter && (
+        {filterFromId && (
           <span className="text-xs text-accent font-mono bg-accent/10 rounded px-2 py-0.5">
-            Склад: {warehouseFilter}
+            Откуда: {warehouseLabelById?.[filterFromId] ?? filterFromId}
           </span>
         )}
       </div>
 
       {/* Filter row */}
       <div className="px-4 py-2 border-b border-border flex items-center gap-3 bg-elevated/40">
-        <input
-          type="text"
-          placeholder="Фильтр по маршруту…"
-          value={filterRoute}
-          onChange={e => setFilterRoute(e.target.value)}
-          className="flex-1 text-xs bg-elevated border border-border rounded px-2 py-1.5 text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
-        />
+        <select
+          value={filterFromId}
+          onChange={e => setFilterFromId(e.target.value)}
+          className="flex-1 text-xs bg-elevated border border-border rounded px-2 py-1.5 text-foreground focus:outline-none focus:border-accent"
+        >
+          <option value="">Откуда: все склады</option>
+          {fromOptions.map(o => (
+            <option key={o.id} value={o.id}>{o.label}</option>
+          ))}
+        </select>
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value as typeof filterStatus)}
@@ -127,9 +152,9 @@ export function RecommendationTable({
           <option value="pending">Ожидает</option>
           <option value="called">Вызван</option>
         </select>
-        {(filterRoute || filterStatus) && (
+        {(filterFromId || filterStatus) && (
           <button
-            onClick={() => { setFilterRoute(''); setFilterStatus('') }}
+            onClick={() => { setFilterFromId(''); setFilterStatus('') }}
             className="text-xs text-muted hover:text-foreground transition-colors px-1"
           >
             Сбросить
@@ -142,10 +167,18 @@ export function RecommendationTable({
           <TableRow>
             <TableHead>
               <button
-                onClick={() => handleSortClick('route')}
+                onClick={() => handleSortClick('from')}
                 className="flex items-center text-left hover:text-foreground transition-colors"
               >
-                Маршрут <SortIcon field="route" sortField={sortField} sortDir={sortDir} />
+                Откуда <SortIcon field="from" sortField={sortField} sortDir={sortDir} />
+              </button>
+            </TableHead>
+            <TableHead>
+              <button
+                onClick={() => handleSortClick('to')}
+                className="flex items-center text-left hover:text-foreground transition-colors"
+              >
+                Куда <SortIcon field="to" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
             <TableHead className="text-right">
@@ -171,7 +204,7 @@ export function RecommendationTable({
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted py-8 text-sm">
+              <TableCell colSpan={6} className="text-center text-muted py-8 text-sm">
                 Нет данных по выбранным фильтрам
               </TableCell>
             </TableRow>
@@ -183,7 +216,12 @@ export function RecommendationTable({
                 selected={rec.id === selectedId}
               >
                 <TableCell>
-                  <span className="font-medium text-foreground">{rec.route}</span>
+                  <span className="font-medium text-foreground">
+                    {warehouseLabelById?.[rec.warehouseId] ?? splitRoute(rec.route).from}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted">{splitRoute(rec.route).to}</span>
                 </TableCell>
                 <TableCell className="text-right">
                   <span className="font-mono">{fmt(rec.forecast)}</span>
