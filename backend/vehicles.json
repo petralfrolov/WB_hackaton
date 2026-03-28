@@ -1,0 +1,6 @@
+[
+  { "vehicle_type": "gazelle_s",   "capacity_units": 18, "cost_per_trip": 80  },
+  { "vehicle_type": "gazelle_l",   "capacity_units": 26, "cost_per_trip": 110 },
+  { "vehicle_type": "truck_m",     "capacity_units": 40, "cost_per_trip": 150 },
+  { "vehicle_type": "truck_l",     "capacity_units": 60, "cost_per_trip": 210 }
+]
