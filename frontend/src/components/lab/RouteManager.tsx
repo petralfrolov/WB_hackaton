@@ -15,11 +15,11 @@ import { fmt } from '../../lib/utils'
 
 interface RouteManagerProps {
   warehouses: Warehouse[]
-  initialRoutes: RouteDistance[]
+  routes: RouteDistance[]
+  onChangeRoutes: (routes: RouteDistance[]) => void
 }
 
-export function RouteManager({ warehouses, initialRoutes }: RouteManagerProps) {
-  const [routes, setRoutes] = useState<RouteDistance[]>(initialRoutes)
+export function RouteManager({ warehouses, routes, onChangeRoutes }: RouteManagerProps) {
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ fromId: '', toId: '', distanceKm: '' })
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -43,13 +43,13 @@ export function RouteManager({ warehouses, initialRoutes }: RouteManagerProps) {
       toCity: to.city,
       distanceKm: dist,
     }
-    setRoutes(prev => [...prev, newRoute])
+    onChangeRoutes([...routes, newRoute])
     setAdding(false)
     setForm({ fromId: '', toId: '', distanceKm: '' })
   }
 
   const deleteRoute = (id: string) => {
-    setRoutes(prev => prev.filter(r => r.id !== id))
+    onChangeRoutes(routes.filter(r => r.id !== id))
     if (editingId === id) {
       setEditingId(null)
       setEditForm({ fromId: '', toId: '', distanceKm: '' })
@@ -79,7 +79,7 @@ export function RouteManager({ warehouses, initialRoutes }: RouteManagerProps) {
     const to = warehouses.find(w => w.id === editForm.toId)
     if (!from || !to) return
 
-    setRoutes(prev => prev.map(r => (
+    onChangeRoutes(routes.map(r => (
       r.id === id
         ? {
             ...r,

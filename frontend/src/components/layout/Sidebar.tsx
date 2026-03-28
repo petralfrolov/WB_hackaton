@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { Globe, BarChart2, FlaskConical } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useSimulationContext } from '../../context/SimulationContext'
 
 interface NavItem {
   to: string
@@ -15,6 +16,8 @@ const navItems: NavItem[] = [
 ]
 
 export function Sidebar() {
+  const { analysisDateTime, setAnalysisDateTime } = useSimulationContext()
+
   return (
     <aside
       className={cn(
@@ -59,6 +62,17 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <div className="p-2 border-t border-border space-y-1.5">
+        <label className="text-[10px] text-muted px-1 block">Дата и время анализа</label>
+        <input
+          type="datetime-local"
+          step={1800}
+          value={analysisDateTime}
+          onChange={e => setAnalysisDateTime(e.target.value)}
+          className="w-full h-8 rounded bg-elevated border border-border px-2 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+      </div>
 
       {/* Version badge */}
       <div className="p-2 border-t border-border">

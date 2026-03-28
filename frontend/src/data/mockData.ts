@@ -71,11 +71,11 @@ function makeSankey(
 const COMMON_VEHICLES: VehicleType[] = [
   {
     id: 'v-gazel', name: 'Газель', capacity: 50, costPerKm: 28, available: 8,
-    incoming: [{ id: 'inc-gz-1', name: 'Газель', arrivalMinutes: 25, count: 2 }],
+    incoming: [{ id: 'inc-gz-1', name: 'Газель', arrivalMinutes: 30, count: 2 }],
   },
   {
     id: 'v-largus', name: 'Ларгус', capacity: 20, costPerKm: 18, available: 5,
-    incoming: [{ id: 'inc-lr-1', name: 'Ларгус', arrivalMinutes: 55, count: 1 }],
+    incoming: [{ id: 'inc-lr-1', name: 'Ларгус', arrivalMinutes: 60, count: 1 }],
   },
   {
     id: 'v-fura', name: 'Фура', capacity: 500, costPerKm: 55, available: 3,
@@ -83,7 +83,7 @@ const COMMON_VEHICLES: VehicleType[] = [
   },
   {
     id: 'v-micro', name: 'Микроавтобус', capacity: 30, costPerKm: 22, available: 4,
-    incoming: [{ id: 'inc-mb-1', name: 'Микроавтобус', arrivalMinutes: 40, count: 1 }],
+    incoming: [{ id: 'inc-mb-1', name: 'Микроавтобус', arrivalMinutes: 30, count: 1 }],
   },
 ]
 
@@ -101,7 +101,7 @@ const LIMITED_VEHICLES: VehicleType[] = [
 const SOUTH_VEHICLES: VehicleType[] = [
   {
     id: 'v-gazel', name: 'Газель', capacity: 50, costPerKm: 28, available: 6,
-    incoming: [{ id: 'inc-gz-3', name: 'Газель', arrivalMinutes: 45, count: 2 }],
+    incoming: [{ id: 'inc-gz-3', name: 'Газель', arrivalMinutes: 60, count: 2 }],
   },
   {
     id: 'v-largus', name: 'Ларгус', capacity: 20, costPerKm: 18, available: 7,
@@ -109,7 +109,7 @@ const SOUTH_VEHICLES: VehicleType[] = [
   },
   {
     id: 'v-ref', name: 'Рефрижератор', capacity: 200, costPerKm: 48, available: 2,
-    incoming: [{ id: 'inc-ref-1', name: 'Рефрижератор', arrivalMinutes: 80, count: 1 }],
+    incoming: [{ id: 'inc-ref-1', name: 'Рефрижератор', arrivalMinutes: 90, count: 1 }],
   },
 ]
 
@@ -131,7 +131,7 @@ export const warehouses: Warehouse[] = [
     lat: 55.89, lng: 37.43, status: 'critical', readyToShip: 891,
     forecast: makeForecast(880, 8, 12), sankeyData: makeSankey(2400, 'shipping'),
     vehicles: [
-      { id: 'v-gazel', name: 'Газель', capacity: 50, costPerKm: 28, available: 12, incoming: [{ id: 'inc-gz-c', name: 'Газель', arrivalMinutes: 15, count: 3 }] },
+      { id: 'v-gazel', name: 'Газель', capacity: 50, costPerKm: 28, available: 12, incoming: [{ id: 'inc-gz-c', name: 'Газель', arrivalMinutes: 30, count: 3 }] },
       { id: 'v-largus', name: 'Ларгус', capacity: 20, costPerKm: 18, available: 6, incoming: [] },
       { id: 'v-fura', name: 'Фура', capacity: 500, costPerKm: 55, available: 4, incoming: [{ id: 'inc-fu-c', name: 'Фура', arrivalMinutes: 60, count: 1 }] },
     ],
@@ -409,35 +409,82 @@ export const costScenariosMap: Record<string, CostScenario[]> = {
   ],
 }
 
+interface ScenarioOptions {
+  riskSettings?: RiskSettings
+  itemsReadyNow?: number
+}
+
+const FIXED_SCENARIO_META = [
+  { id: 'a', name: 'Вариант А', waitMinutes: 0, time: 'Сейчас', description: 'Вызвать машины сейчас' },
+  { id: 'b', name: 'Вариант Б', waitMinutes: 120, time: '+2 ч', description: 'Вызвать через 2 часа' },
+  { id: 'c', name: 'Вариант В', waitMinutes: 240, time: '+4 ч', description: 'Вызвать через 4 часа' },
+  { id: 'd', name: 'Вариант Г', waitMinutes: 360, time: '+6 ч', description: 'Вызвать через 6 часов' },
+] as const
+
+function vehicleMixLabel(vehicles: CostBreakdown['vehicles']): string {
+  return vehicles.map(v => `${v.count}× ${v.name}`).join(' + ')
+}
+
 function defaultScenarios(forecast: number): CostScenario[] {
   return [
     {
-      id: 'a', name: 'Вариант А', description: '2× Газель + 1× Ларгус, +40 мин', cost: 11200, time: '+40 мин',
+      id: 'a', name: 'Вариант А', description: 'Базовый микс', cost: 11200, time: 'Сейчас',
       breakdown: makeBreakdown([
         { name: 'Газель', count: 2, fixedCost: 2800, capacity: 50, load: 45 },
         { name: 'Ларгус', count: 1, fixedCost: 1800, capacity: 20, load: 16 },
-      ], 0.8, 1.2, 40, forecast),
-    },
-    {
-      id: 'b', name: 'Вариант Б', description: '1× Газель + 2× Ларгус, +15 мин', cost: 13800, time: '+15 мин',
-      breakdown: makeBreakdown([
-        { name: 'Газель', count: 1, fixedCost: 2800, capacity: 50, load: 44 },
-        { name: 'Ларгус', count: 2, fixedCost: 1800, capacity: 20, load: 17 },
-      ], 0.8, 1.2, 15, forecast),
-    },
-    {
-      id: 'c', name: 'Вариант В', description: '1× Фура, немедленно', cost: 18000, time: 'Сейчас',
-      breakdown: makeBreakdown([
-        { name: 'Фура', count: 1, fixedCost: 8500, capacity: 500, load: forecast },
-      ], 0.8, 0, 0, forecast),
+      ], 0.8, 1.2, 0, forecast),
     },
   ]
 }
 
-export function getCostScenarios(recommendationId: string, forecast = 300): CostScenario[] {
-  const scenarios = costScenariosMap[recommendationId]
-  if (!scenarios) return defaultScenarios(forecast)
-  return [...scenarios].sort((a, b) => a.cost - b.cost)
+function makeFixedScenarioSet(
+  source: CostScenario[],
+  forecast: number,
+  options?: ScenarioOptions,
+): CostScenario[] {
+  const base = source[0] ?? defaultScenarios(forecast)[0]
+  const risk = options?.riskSettings ?? defaultRiskSettings
+  const waitingItems = options?.itemsReadyNow ?? base.breakdown.itemsWaiting ?? forecast
+  const baseVehicles = base.breakdown.vehicles
+
+  return FIXED_SCENARIO_META.map((meta, idx) => {
+    const vehicles = baseVehicles.map(v => {
+      const headroom = Math.max(0, v.capacity - v.load)
+      const loaded = Math.min(
+        v.capacity,
+        Math.round(v.load + headroom * Math.min(idx * 0.35, 1)),
+      )
+      return { ...v, load: loaded }
+    })
+
+    const breakdown: CostBreakdown = {
+      ...base.breakdown,
+      vehicles,
+      wEcon: Math.max(0.2, risk.economyThreshold / 100),
+      pEmpty: risk.emptyPenaltyPerUnit,
+      pDelay: risk.idleCostPerMinute,
+      avgWaitMinutes: meta.waitMinutes,
+      itemsWaiting: waitingItems,
+    }
+
+    return {
+      id: meta.id,
+      name: meta.name,
+      description: `${vehicleMixLabel(vehicles)} · ${meta.description}`,
+      cost: computeCostFromBreakdown(breakdown),
+      time: meta.time,
+      breakdown,
+    }
+  })
+}
+
+export function getCostScenarios(
+  recommendationId: string,
+  forecast = 300,
+  options?: ScenarioOptions,
+): CostScenario[] {
+  const scenarios = costScenariosMap[recommendationId] ?? defaultScenarios(forecast)
+  return makeFixedScenarioSet(scenarios, forecast, options)
 }
 
 // ─── Default risk settings ────────────────────────────────────────────────────
@@ -446,4 +493,5 @@ export const defaultRiskSettings: RiskSettings = {
   economyThreshold: 65,
   maxWaitMinutes: 55,
   idleCostPerMinute: 8,
+  emptyPenaltyPerUnit: 12,
 }

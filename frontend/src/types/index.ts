@@ -99,4 +99,5 @@ export interface RiskSettings {
   economyThreshold: number
   maxWaitMinutes: number
   idleCostPerMinute: number
+  emptyPenaltyPerUnit: number
 }

@@ -5,9 +5,11 @@ import { WarehouseMap } from '../components/map/WarehouseMap'
 import { WarehouseDrawer } from '../components/map/WarehouseDrawer'
 import { Card, CardContent } from '../components/ui/card'
 import { fmt } from '../lib/utils'
+import { useSimulationContext } from '../context/SimulationContext'
 
 export function MapPage() {
   const [selected, setSelected] = useState<Warehouse | null>(null)
+  const { routes } = useSimulationContext()
 
   const handleSelect = useCallback((wh: Warehouse) => setSelected(wh), [])
   const handleClose = useCallback(() => setSelected(null), [])
@@ -40,7 +42,7 @@ export function MapPage() {
       {/* Map + Drawer */}
       <div className="relative flex-1 overflow-hidden">
         <WarehouseMap warehouses={warehouses} onSelect={handleSelect} />
-        <WarehouseDrawer warehouse={selected} onClose={handleClose} />
+        <WarehouseDrawer warehouse={selected} onClose={handleClose} routes={routes} />
       </div>
     </div>
   )

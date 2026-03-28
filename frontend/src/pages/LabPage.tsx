@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import type { RiskSettings } from '../types'
-import { defaultRiskSettings, warehouses, routeDistances } from '../data/mockData'
+import { warehouses } from '../data/mockData'
 import { RiskSettingsPanel } from '../components/lab/RiskSettings'
 import { FleetManager } from '../components/lab/FleetManager'
 import { RouteManager } from '../components/lab/RouteManager'
+import { useSimulationContext } from '../context/SimulationContext'
 
 type LabTab = 'fleet' | 'routes'
 
 export function LabPage() {
-  const [riskSettings, setRiskSettings] = useState<RiskSettings>(defaultRiskSettings)
   const [activeTab, setActiveTab] = useState<LabTab>('fleet')
+  const { riskSettings, setRiskSettings, routes, setRoutes } = useSimulationContext()
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -53,7 +53,7 @@ export function LabPage() {
             {activeTab === 'fleet' ? (
               <FleetManager warehouses={warehouses} />
             ) : (
-              <RouteManager warehouses={warehouses} initialRoutes={routeDistances} />
+              <RouteManager warehouses={warehouses} routes={routes} onChangeRoutes={setRoutes} />
             )}
           </div>
         </div>

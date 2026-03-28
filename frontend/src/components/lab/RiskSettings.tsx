@@ -83,6 +83,30 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Штраф недозагрузки</CardTitle>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
+            <strong>{fmt(local.emptyPenaltyPerUnit)}</strong> ₽/ед.
+          </span>
+        </CardHeader>
+        <CardContent>
+          <label className="text-xs text-muted mb-1.5 block">
+            Размер штрафа за каждую недогруженную единицу товара
+          </label>
+          <Input
+            type="number"
+            min="0"
+            step="1"
+            value={String(local.emptyPenaltyPerUnit)}
+            onChange={e => {
+              const value = Number(e.target.value)
+              update('emptyPenaltyPerUnit', Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0)
+            }}
+          />
+        </CardContent>
+      </Card>
+
       {/* Slider 2: Urgency / max wait */}
       <Card>
         <CardHeader>

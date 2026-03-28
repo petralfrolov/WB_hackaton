@@ -4,9 +4,11 @@ import type { TransportRecommendation, CostScenario } from '../types'
 import { recommendations as initialRecs, getCostScenarios, warehouses } from '../data/mockData'
 import { RecommendationTable } from '../components/optimizer/RecommendationTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
+import { useSimulationContext } from '../context/SimulationContext'
 
 export function OptimizerPage() {
   const [searchParams] = useSearchParams()
+  const { riskSettings } = useSimulationContext()
   const [recs, setRecs] = useState<TransportRecommendation[]>(initialRecs)
   const [selectedRec, setSelectedRec] = useState<TransportRecommendation | null>(null)
   const [scenarios, setScenarios] = useState<CostScenario[]>([])
@@ -20,6 +22,11 @@ export function OptimizerPage() {
     setWarehouseFilter(id)
   }, [searchParams])
 
+  useEffect(() => {
+    if (!selectedRec) return
+    setScenarios(getCostScenarios(selectedRec.id, selectedRec.forecast, { riskSettings }))
+  }, [riskSettings, selectedRec])
+
   const warehouseName = warehouseFilter
     ? warehouses.find(w => w.id === warehouseFilter)?.name ?? warehouseFilter
     : null
@@ -27,8 +34,8 @@ export function OptimizerPage() {
 
   const handleSelect = useCallback((rec: TransportRecommendation) => {
     setSelectedRec(rec)
-    setScenarios(getCostScenarios(rec.id))
-  }, [])
+    setScenarios(getCostScenarios(rec.id, rec.forecast, { riskSettings }))
+  }, [riskSettings])
 
   const handleCall = useCallback((id: string) => {
     setRecs(prev =>

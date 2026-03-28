@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, ArrowRight } from 'lucide-react'
-import type { Warehouse } from '../../types'
+import type { Warehouse, RouteDistance } from '../../types'
 import { Badge } from '../ui/badge'
 import type { BadgeVariant } from '../ui/badge'
 import { ForecastChart } from './ForecastChart'
@@ -12,6 +12,7 @@ import { Button } from '../ui/button'
 interface WarehouseDrawerProps {
   warehouse: Warehouse | null
   onClose: () => void
+  routes: RouteDistance[]
 }
 
 const STATUS_LABEL: Record<Warehouse['status'], string> = {
@@ -26,9 +27,10 @@ const STATUS_BADGE: Record<Warehouse['status'], BadgeVariant> = {
   critical: 'critical',
 }
 
-export function WarehouseDrawer({ warehouse, onClose }: WarehouseDrawerProps) {
+export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const [selectedRouteId, setSelectedRouteId] = useState('')
 
   // Close on Escape
   useEffect(() => {
@@ -40,6 +42,17 @@ export function WarehouseDrawer({ warehouse, onClose }: WarehouseDrawerProps) {
   }, [onClose])
 
   if (!warehouse) return null
+
+  const warehouseRoutes = useMemo(
+    () => routes.filter(r => r.fromId === warehouse.id),
+    [routes, warehouse.id],
+  )
+
+  useEffect(() => {
+    setSelectedRouteId(warehouseRoutes[0]?.id ?? '')
+  }, [warehouse.id, warehouseRoutes])
+
+  const selectedRoute = warehouseRoutes.find(r => r.id === selectedRouteId) ?? null
 
   const forecast4h = warehouse.forecast.slice(0, 4).reduce((s, p) => s + p.value, 0)
 
@@ -114,6 +127,29 @@ export function WarehouseDrawer({ warehouse, onClose }: WarehouseDrawerProps) {
           {/* ── Sankey ──────────────────────────────────────────────────────── */}
           <section>
             <div className="section-label mb-3">Движение товаров по статусам</div>
+            <div className="bg-elevated rounded-lg p-3 mb-2 border border-border/60">
+              <label className="text-[11px] text-muted block mb-1">Маршрут из выбранного склада</label>
+              <select
+                value={selectedRouteId}
+                onChange={e => setSelectedRouteId(e.target.value)}
+                className="w-full h-8 rounded bg-surface border border-border px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                {warehouseRoutes.length === 0 ? (
+                  <option value="">Нет маршрутов из этого склада</option>
+                ) : (
+                  warehouseRoutes.map(route => (
+                    <option key={route.id} value={route.id}>
+                      {route.fromCity} → {route.toCity} · {route.distanceKm} км
+                    </option>
+                  ))
+                )}
+              </select>
+              {selectedRoute && (
+                <div className="text-[11px] text-muted mt-1.5">
+                  Выбран маршрут: <span className="text-foreground">{selectedRoute.fromCity} → {selectedRoute.toCity}</span>
+                </div>
+              )}
+            </div>
             <div className="bg-elevated rounded-lg p-4 overflow-x-auto">
               <SankeyChart data={warehouse.sankeyData} width={588} height={260} />
             </div>

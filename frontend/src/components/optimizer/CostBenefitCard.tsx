@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -159,6 +159,31 @@ const SCENARIO_COLORS = ['#3FB950', '#58A6FF', '#D29922']
 
 export function CostBenefitCard({ recommendation, scenarios }: CostBenefitCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [readyNow, setReadyNow] = useState(0)
+
+  useEffect(() => {
+    if (!recommendation) {
+      setReadyNow(0)
+      return
+    }
+    setReadyNow(recommendation.forecast)
+  }, [recommendation])
+
+  const effectiveScenarios = useMemo(() => {
+    return scenarios.map(sc => {
+      const breakdown = {
+        ...sc.breakdown,
+        itemsWaiting: readyNow,
+      }
+      return {
+        ...sc,
+        breakdown,
+        cost: computeCostFromBreakdown(breakdown),
+      }
+    })
+  }, [readyNow, scenarios])
+
+  const chartData = effectiveScenarios.map(sc => ({ ...sc }))
 
   if (!recommendation) {
     return (
@@ -172,13 +197,30 @@ export function CostBenefitCard({ recommendation, scenarios }: CostBenefitCardPr
     )
   }
 
-  const chartData = scenarios.map(sc => ({ ...sc }))
-
   return (
     <div className="bg-surface border border-border rounded-lg flex flex-col overflow-hidden h-full">
       <div className="px-4 py-3 border-b border-border shrink-0">
-        <div className="section-label mb-0.5">Анализ стоимости</div>
-        <div className="text-sm font-semibold text-foreground">{recommendation.route}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="section-label mb-0.5">Анализ стоимости</div>
+            <div className="text-sm font-semibold text-foreground">{recommendation.route}</div>
+          </div>
+          <div className="w-[220px] shrink-0">
+            <label className="text-[10px] text-muted block mb-1 text-right">
+              Сейчас готово к отгрузке на маршруте
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={readyNow}
+              onChange={e => {
+                const val = Number(e.target.value)
+                setReadyNow(Number.isFinite(val) ? Math.max(0, Math.round(val)) : 0)
+              }}
+              className="w-full h-8 rounded bg-elevated border border-border px-2 text-sm text-foreground text-right focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
@@ -224,7 +266,7 @@ export function CostBenefitCard({ recommendation, scenarios }: CostBenefitCardPr
 
         <div className="space-y-2">
           <div className="section-label">Расчет стоимости варианта</div>
-          {scenarios.map((sc, i) => {
+          {effectiveScenarios.map((sc, i) => {
             const isOpen = expandedId === sc.id
             return (
               <div
