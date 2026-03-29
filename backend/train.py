@@ -186,3 +186,4 @@ def build_submission(test_pred_df, X_test, inference_ts, test_df, bias_factor=1.
     result = result.rename(columns={"forecast": "y_pred"})
     assert result["id"].isna().sum() == 0, "Missing IDs in submission!"
     return result
+ #   1 5 9 модель
