@@ -91,7 +91,8 @@ def build_plan(route_id: str, timestamp: str, preds: Dict[str, float], vehicles_
     cohorts = [(init_stock, 0)]  # (size, arrival_minute)
     rows = []
 
-    for label, demand, horizon_min in horizons:
+    for label, demand_raw, horizon_min in horizons:
+        demand = math.ceil(demand_raw)
         counts = optimize_horizon(demand, caps, costs, under_penalty, limits)
         covered = float(np.dot(counts, caps))
         # Штрафуем незаполненную вместимость: сколько места осталось пустым.
