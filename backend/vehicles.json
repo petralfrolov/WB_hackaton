@@ -1,9 +1,9 @@
 {
   "vehicles": [
-    { "vehicle_type": "gazelle_s", "capacity_units": 18, "cost_per_km": 40 },
-    { "vehicle_type": "gazelle_l", "capacity_units": 26, "cost_per_km": 45 },
-    { "vehicle_type": "truck_m",   "capacity_units": 40, "cost_per_km": 60 },
-    { "vehicle_type": "truck_l",   "capacity_units": 60, "cost_per_km": 70 }
+    { "vehicle_type": "gazelle_s", "capacity_units": 18, "cost_per_km": 40, "available": 5 },
+    { "vehicle_type": "gazelle_l", "capacity_units": 26, "cost_per_km": 45, "available": 4 },
+    { "vehicle_type": "truck_m",   "capacity_units": 40, "cost_per_km": 60, "available": 3 },
+    { "vehicle_type": "truck_l",   "capacity_units": 60, "cost_per_km": 70, "available": 2 }
   ],
   "underload_penalty_per_unit": 5,
   "wait_penalty_per_minute": 8,
