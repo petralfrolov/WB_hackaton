@@ -42,6 +42,7 @@ export function RouteManager({ warehouses, routes, onChangeRoutes }: RouteManage
       fromCity: from.city,
       toCity: to.city,
       distanceKm: dist,
+      readyToShip: 0,
     }
     onChangeRoutes([...routes, newRoute])
     setAdding(false)
@@ -88,6 +89,7 @@ export function RouteManager({ warehouses, routes, onChangeRoutes }: RouteManage
             fromCity: from.city,
             toCity: to.city,
             distanceKm: dist,
+            readyToShip: r.readyToShip,
           }
         : r
     )))

@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { Warehouse, RouteDistance, ApiDispatchResponse } from '../../types'
 import {
   Table,
@@ -16,6 +17,9 @@ interface RouteTableProps {
   dispatchResult: ApiDispatchResponse | null
   loading: boolean
   error: string | null
+  selectedRouteId: string | null
+  onSelectRoute: (routeId: string) => void
+  onChangeReadyToShip: (routeId: string, value: number) => void
 }
 
 interface RouteRow {
@@ -29,27 +33,37 @@ interface RouteRow {
   h2: number | null  // 4–6h
 }
 
-export function RouteTable({ warehouse, warehouseRoutes, dispatchResult, loading, error }: RouteTableProps) {
+export function RouteTable({
+  warehouse,
+  warehouseRoutes,
+  dispatchResult,
+  loading,
+  error,
+  selectedRouteId,
+  onSelectRoute,
+  onChangeReadyToShip,
+}: RouteTableProps) {
+  const [draftReady, setDraftReady] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(warehouseRoutes.map(route => [route.id, String(route.readyToShip)]))
+    setDraftReady(nextDrafts)
+  }, [warehouseRoutes])
+
   // Build lookup: route_id → forecast by horizon
-  const forecastMap = new Map<string, { ready: number; h0: number; h1: number; h2: number; cost: number }>()
+  const forecastMap = new Map<string, { h0: number; h1: number; h2: number }>()
   if (dispatchResult) {
     for (const rp of dispatchResult.routes) {
-      const hA = rp.plan.find(r => r.horizon === 'A: now')
       const hB = rp.plan.find(r => r.horizon === 'B: +2h')
       const hC = rp.plan.find(r => r.horizon === 'C: +4h')
+      const hD = rp.plan.find(r => r.horizon === 'D: +6h')
       forecastMap.set(rp.route_id, {
-        ready: hA?.total_available ?? 0,
-        h0: hA?.demand_new ?? 0,
-        h1: hB?.demand_new ?? 0,
-        h2: hC?.demand_new ?? 0,
-        cost: rp.plan.reduce((s, r) => s + r.cost_total, 0),
+        h0: hB?.demand_new ?? 0,
+        h1: hC?.demand_new ?? 0,
+        h2: hD?.demand_new ?? 0,
       })
     }
   }
-
-  const readyPerRoute = warehouse
-    ? Math.round((warehouse.readyToShip) / Math.max(warehouseRoutes.length, 1))
-    : 0
 
   const rows: RouteRow[] = warehouseRoutes.map(r => {
     const fd = forecastMap.get(r.id)
@@ -58,7 +72,7 @@ export function RouteTable({ warehouse, warehouseRoutes, dispatchResult, loading
       fromCity: r.fromCity,
       toCity: r.toCity,
       distanceKm: r.distanceKm,
-      readyToShip: fd?.ready ?? readyPerRoute,
+      readyToShip: r.readyToShip,
       h0: fd?.h0 ?? null,
       h1: fd?.h1 ?? null,
       h2: fd?.h2 ?? null,
@@ -123,7 +137,12 @@ export function RouteTable({ warehouse, warehouseRoutes, dispatchResult, loading
               </TableRow>
             ) : (
               rows.map(row => (
-                <TableRow key={row.routeId}>
+                <TableRow
+                  key={row.routeId}
+                  selected={row.routeId === selectedRouteId}
+                  onClick={() => onSelectRoute(row.routeId)}
+                  className="cursor-pointer"
+                >
                   <TableCell>
                     <div>
                       <span className="font-mono text-[11px] text-muted">#{row.routeId}</span>
@@ -134,7 +153,25 @@ export function RouteTable({ warehouse, warehouseRoutes, dispatchResult, loading
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    <span className="text-status-green font-semibold">{fmt(row.readyToShip)}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftReady[row.routeId] ?? String(row.readyToShip)}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => {
+                        const value = e.target.value
+                        setDraftReady(prev => ({ ...prev, [row.routeId]: value }))
+                      }}
+                      onBlur={() => {
+                        const parsed = Number(draftReady[row.routeId] ?? row.readyToShip)
+                        const nextValue = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0
+                        setDraftReady(prev => ({ ...prev, [row.routeId]: String(nextValue) }))
+                        if (nextValue !== row.readyToShip) {
+                          onChangeReadyToShip(row.routeId, nextValue)
+                        }
+                      }}
+                      className="w-24 h-8 rounded bg-elevated border border-border px-2 text-right text-sm text-status-green font-semibold focus:outline-none focus:border-accent"
+                    />
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {row.h0 !== null ? fmt(Math.round(row.h0)) : <span className="text-muted">—</span>}

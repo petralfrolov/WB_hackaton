@@ -24,6 +24,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
     route_ids: List[str] = warehouse["route_ids"]
     office_from_id: str = warehouse["office_from_id"]
     ts_str = req.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    route_meta = {str(route["id"]): route for route in state.route_distances}
 
     # ── 2. Build config, apply request-level overrides ───────────────────────
     cfg = copy.deepcopy(state.vehicles_cfg)
@@ -41,10 +42,9 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         else state.incoming_cfg
     )
 
-    init_stock = float(cfg.get("initial_stock_units", 0))
-
     # ── 3. ML forecasts for all routes ───────────────────────────────────────
     demands: Dict[str, List[float]] = {}
+    route_distances: Dict[str, float] = {}
     missing_routes: List[str] = []
     # All routes from this office are loaded together for correct office-level features
     office_routes = state.office_routes_map.get(office_from_id, [])
@@ -60,12 +60,15 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
             timestamp=ts_str,
             office_routes=office_routes,
         )
+        route_cfg = route_meta.get(str(rid), {})
+        ready_to_ship = float(route_cfg.get("ready_to_ship", 0))
         demands[rid] = [
-            init_stock,
+            ready_to_ship,
             preds["pred_0_2h"],
             preds["pred_2_4h"],
             preds["pred_4_6h"],
         ]
+        route_distances[rid] = float(route_cfg.get("distance_km", cfg.get("route_distance_km", 15.0)))
 
     if not demands:
         raise HTTPException(
@@ -79,6 +82,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         demands=demands,
         vehicles_cfg=cfg,
         office_id=office_from_id,
+        route_distances=route_distances,
         global_fleet=req.global_fleet,
         incoming_vehicles=incoming,
     )

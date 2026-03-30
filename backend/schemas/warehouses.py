@@ -19,6 +19,7 @@ class RouteDistance(BaseModel):
     from_city: str
     to_city: str
     distance_km: float
+    ready_to_ship: int = 0
 
 
 WarehouseStatus = Literal["ok", "warning", "critical"]

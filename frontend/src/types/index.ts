@@ -66,6 +66,7 @@ export interface RouteDistance {
   fromCity: string
   toCity: string
   distanceKm: number
+  readyToShip: number
 }
 
 export interface CostBreakdownVehicle {
@@ -130,6 +131,7 @@ export interface ApiRouteDistance {
   from_city: string
   to_city: string
   distance_km: number
+  ready_to_ship: number
 }
 
 export interface ApiVehicle {

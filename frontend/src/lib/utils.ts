@@ -184,6 +184,7 @@ export function apiRouteDistanceToRouteDistance(r: ApiRouteDistance): RouteDista
     fromCity: r.from_city,
     toCity: r.to_city,
     distanceKm: r.distance_km,
+    readyToShip: r.ready_to_ship,
   }
 }
 
@@ -195,6 +196,7 @@ export function routeDistanceToApi(r: RouteDistance): ApiRouteDistance {
     from_city: r.fromCity,
     to_city: r.toCity,
     distance_km: r.distanceKm,
+    ready_to_ship: r.readyToShip,
   }
 }
 

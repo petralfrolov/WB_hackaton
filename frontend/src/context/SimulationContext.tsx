@@ -7,6 +7,7 @@ import {
   apiWarehouseToWarehouse,
   apiRouteDistanceToRouteDistance,
   apiVehicleToVehicleType,
+  makeSankey,
 } from '../lib/utils'
 
 interface SimulationContextValue {
@@ -25,6 +26,20 @@ interface SimulationContextValue {
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null)
+
+function applyRouteTotalsToWarehouses(warehouses: Warehouse[], routes: RouteDistance[]): Warehouse[] {
+  return warehouses.map(warehouse => {
+    const totalReady = routes
+      .filter(route => route.fromId === warehouse.id)
+      .reduce((sum, route) => sum + route.readyToShip, 0)
+
+    return {
+      ...warehouse,
+      readyToShip: totalReady,
+      sankeyData: makeSankey(totalReady * 4),
+    }
+  })
+}
 
 function toDateTimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -57,20 +72,24 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null)
   const [incomingVehicles, setIncomingVehicles] = useState<ApiIncomingVehicle[]>([])
 
+  const setRoutesAndSyncWarehouses = (nextRoutes: RouteDistance[]) => {
+    setRoutes(nextRoutes)
+    setWarehouses(prev => applyRouteTotalsToWarehouses(prev, nextRoutes))
+  }
+
   // Load initial data from backend
   useEffect(() => {
     // Load warehouses and vehicles together so we can attach vehicleTypes to each warehouse
-    Promise.all([getWarehouses(), getVehicles()])
-      .then(([warehouseList, vehicleList]) => {
+    Promise.all([getWarehouses(), getVehicles(), getRouteDistances()])
+      .then(([warehouseList, vehicleList, routeList]) => {
         const vTypes = vehicleList.map(apiVehicleToVehicleType)
+        const mappedRoutes = routeList.map(apiRouteDistanceToRouteDistance)
+        const mappedWarehouses = warehouseList.map(w => ({ ...apiWarehouseToWarehouse(w), vehicles: vTypes }))
         setVehicleTypes(vTypes)
-        setWarehouses(warehouseList.map(w => ({ ...apiWarehouseToWarehouse(w), vehicles: vTypes })))
+        setRoutes(mappedRoutes)
+        setWarehouses(applyRouteTotalsToWarehouses(mappedWarehouses, mappedRoutes))
       })
       .catch(() => {/* backend not available, stay empty */})
-
-    getRouteDistances()
-      .then(list => setRoutes(list.map(apiRouteDistanceToRouteDistance)))
-      .catch(() => {})
 
     getConfig()
       .then(cfg => {
@@ -111,7 +130,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     () => ({
       warehouses,
       routes,
-      setRoutes,
+      setRoutes: setRoutesAndSyncWarehouses,
       vehicleTypes,
       riskSettings,
       setRiskSettings,

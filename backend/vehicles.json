@@ -25,8 +25,8 @@
       "available": 2
     }
   ],
-  "underload_penalty_per_unit": 5.0,
-  "wait_penalty_per_minute": 10.0,
+  "underload_penalty_per_unit": 50.0,
+  "wait_penalty_per_minute": 5.0,
   "initial_stock_units": 150,
   "route_distance_km": 15,
   "economy_threshold": 65.0,

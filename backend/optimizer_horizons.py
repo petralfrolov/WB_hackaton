@@ -9,8 +9,8 @@ Workflow:
       s.t.
         (1) Баланс потока  : y[r,t] + s[r,t] − s[r,t−1] = D[r,t]   ∀r,t
         (2) Вместимость ТС : Σ_v Cap_v·x[r,v,t] = y[r,t] + u[r,t]  ∀r,t
-        (3) Общий автопарк : Σ_r x[r,v,t] ≤ MaxV_v                  ∀v,t
-            (при --global_fleet: Σ_{r,t} x[r,v,t] ≤ MaxV_v          ∀v)
+        (3) Общий автопарк : Σ_r x[r,v,t] ≤ MaxV_v[v,t]             ∀v,t
+            (при --global_fleet: Σ_{r,τ≤t} x[r,v,τ] ≤ MaxV_v[v,t]  ∀v,t)
         (4) x ∈ Z≥0,  y,s,u ≥ 0
   Переменные:
         x[r,v,t]  — кол-во ТС типа v на маршруте r в горизонте t (целое)
@@ -202,15 +202,16 @@ def solve_irp_milp(
 
     # (3) Общий автопарк с учётом прибывающих ТС
     if global_fleet:
-        # Σ_{r,t} x[r,v,t] ≤ Σ_t MaxV_v[v,t]  (долгий рейс — суммируем по горизонтам)
-        # Используем минимальный лимит по горизонтам, т.к. ТС занята всё окно
+        # Для каждого горизонта t накопленная сумма отправленных ТС (от 0 до t включительно)
+        # не должна превышать флот, доступный именно в момент t.
+        # Это исключает отправку машин, которые физически ещё не прибыли на склад.
         for vi in range(nV):
-            row = np.zeros(n_tot)
-            for r in range(nR):
-                for t in range(nT):
-                    row[ix(r, vi, t)] = 1.0
-            # в режиме global fleet ТС занята всё окно → берём лимит на последний горизонт
-            A_rows.append(row); lb_c.append(-np.inf); ub_c.append(max_fleet[vi, -1])
+            for t in range(nT):
+                row = np.zeros(n_tot)
+                for r in range(nR):
+                    for tau in range(t + 1):
+                        row[ix(r, vi, tau)] = 1.0
+                A_rows.append(row); lb_c.append(-np.inf); ub_c.append(max_fleet[vi, t])
     else:
         # Σ_r x[r,v,t] ≤ MaxV_v[v,t]  для каждого (v, t)  (короткий рейс)
         for vi in range(nV):
