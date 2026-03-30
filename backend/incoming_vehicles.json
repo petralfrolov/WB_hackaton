@@ -1,10 +1,10 @@
 {
   "_comment": "ТС, которые прибудут к складу в течение планового окна и станут доступны начиная с указанного горизонта. horizon: 1=B(+2h), 2=C(+4h), 3=D(+6h).",
   "incoming": [
-    { "horizon_idx": 1, "vehicle_type": "gazelle_s", "count": 2 },
-    { "horizon_idx": 1, "vehicle_type": "gazelle_l", "count": 1 },
-    { "horizon_idx": 2, "vehicle_type": "truck_m",   "count": 1 },
-    { "horizon_idx": 3, "vehicle_type": "gazelle_s", "count": 1 },
-    { "horizon_idx": 3, "vehicle_type": "truck_l",   "count": 1 }
+    { "horizon_idx": 1, "vehicle_type": "Lada Largus", "count": 4 },
+    { "horizon_idx": 1, "vehicle_type": "AMBERTRUCK JL", "count": 3 },
+    { "horizon_idx": 2, "vehicle_type": "ISUZU ELF 7.5 Long",   "count": 1 },
+    { "horizon_idx": 3, "vehicle_type": "ГАЗон NEXT 10 т", "count": 1 },
+    { "horizon_idx": 3, "vehicle_type": "FUSO Canter TF 7.5/8.55",   "count": 1 }
   ]
 }

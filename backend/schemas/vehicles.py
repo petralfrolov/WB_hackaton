@@ -12,6 +12,12 @@ class Vehicle(BaseModel):
     available: int
 
 
+class VehicleUpdate(BaseModel):
+    capacity_units: Optional[float] = None
+    cost_per_km: Optional[float] = None
+    available: Optional[int] = None
+
+
 class IncomingVehicle(BaseModel):
     horizon_idx: int = Field(..., ge=0, le=3)
     vehicle_type: str
