@@ -154,6 +154,8 @@ export interface ApiSettings {
   wait_penalty_per_minute: number
   initial_stock_units: number
   route_distance_km: number
+  economy_threshold?: number
+  max_wait_minutes?: number
 }
 
 export interface ApiPlanRow {

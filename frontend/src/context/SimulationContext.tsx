@@ -59,8 +59,13 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
   // Load initial data from backend
   useEffect(() => {
-    getWarehouses()
-      .then(list => setWarehouses(list.map(apiWarehouseToWarehouse)))
+    // Load warehouses and vehicles together so we can attach vehicleTypes to each warehouse
+    Promise.all([getWarehouses(), getVehicles()])
+      .then(([warehouseList, vehicleList]) => {
+        const vTypes = vehicleList.map(apiVehicleToVehicleType)
+        setVehicleTypes(vTypes)
+        setWarehouses(warehouseList.map(w => ({ ...apiWarehouseToWarehouse(w), vehicles: vTypes })))
+      })
       .catch(() => {/* backend not available, stay empty */})
 
     getRouteDistances()
@@ -69,18 +74,22 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
     getConfig()
       .then(cfg => {
-        const idleCost = typeof cfg.wait_penalty_per_minute === 'number'
-          ? cfg.wait_penalty_per_minute
-          : defaultRiskSettings.idleCostPerMinute
-        const emptyPenalty = typeof cfg.underload_penalty_per_unit === 'number'
-          ? cfg.underload_penalty_per_unit
-          : defaultRiskSettings.emptyPenaltyPerUnit
-        setRiskSettingsState(prev => ({ ...prev, idleCostPerMinute: idleCost, emptyPenaltyPerUnit: emptyPenalty }))
+        setRiskSettingsState(prev => ({
+          ...prev,
+          idleCostPerMinute: typeof cfg.wait_penalty_per_minute === 'number'
+            ? cfg.wait_penalty_per_minute
+            : prev.idleCostPerMinute,
+          emptyPenaltyPerUnit: typeof cfg.underload_penalty_per_unit === 'number'
+            ? cfg.underload_penalty_per_unit
+            : prev.emptyPenaltyPerUnit,
+          economyThreshold: typeof cfg.economy_threshold === 'number'
+            ? cfg.economy_threshold
+            : prev.economyThreshold,
+          maxWaitMinutes: typeof cfg.max_wait_minutes === 'number'
+            ? cfg.max_wait_minutes
+            : prev.maxWaitMinutes,
+        }))
       })
-      .catch(() => {})
-
-    getVehicles()
-      .then(list => setVehicleTypes(list.map(apiVehicleToVehicleType)))
       .catch(() => {})
   }, [])
 
@@ -93,6 +102,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     patchSettings({
       wait_penalty_per_minute: settings.idleCostPerMinute,
       underload_penalty_per_unit: settings.emptyPenaltyPerUnit,
+      economy_threshold: settings.economyThreshold,
+      max_wait_minutes: settings.maxWaitMinutes,
     }).catch(() => {})
   }
 

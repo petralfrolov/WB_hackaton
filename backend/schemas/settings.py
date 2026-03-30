@@ -10,3 +10,5 @@ class Settings(BaseModel):
     wait_penalty_per_minute: Optional[float] = None
     initial_stock_units: Optional[float] = None
     route_distance_km: Optional[float] = None
+    economy_threshold: Optional[float] = None
+    max_wait_minutes: Optional[int] = None
