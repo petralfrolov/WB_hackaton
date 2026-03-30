@@ -101,3 +101,100 @@ export interface RiskSettings {
   idleCostPerMinute: number
   emptyPenaltyPerUnit: number
 }
+
+// ── Backend API types (mirrors Pydantic schemas) ─────────────────────────────
+
+export interface ApiWarehouseInfo {
+  id: string
+  name: string
+  city: string
+  lat: number
+  lng: number
+  office_from_id: string
+  route_ids: string[]
+  status: 'ok' | 'warning' | 'critical'
+  ready_to_ship: number
+}
+
+export interface ApiForecastPoint {
+  time: string
+  value: number
+  lower: number
+  upper: number
+}
+
+export interface ApiRouteDistance {
+  id: string
+  from_id: string
+  to_id: string
+  from_city: string
+  to_city: string
+  distance_km: number
+}
+
+export interface ApiVehicle {
+  vehicle_type: string
+  capacity_units: number
+  cost_per_km: number
+  available: number
+}
+
+export interface ApiIncomingVehicle {
+  horizon_idx: 0 | 1 | 2 | 3
+  vehicle_type: string
+  count: number
+}
+
+export interface ApiIncomingVehicleList {
+  incoming: ApiIncomingVehicle[]
+}
+
+export interface ApiSettings {
+  underload_penalty_per_unit: number
+  wait_penalty_per_minute: number
+  initial_stock_units: number
+  route_distance_km: number
+}
+
+export interface ApiPlanRow {
+  office_from_id: string | null
+  route_id: string
+  timestamp: string
+  horizon: string
+  vehicle_type: string
+  vehicles_count: number
+  demand_new: number
+  demand_carried_over: number
+  total_available: number
+  actually_shipped: number
+  leftover_stock: number
+  empty_capacity_units: number
+  cost_fixed: number
+  cost_underload: number
+  cost_wait: number
+  cost_total: number
+}
+
+export interface ApiRoutePlan {
+  route_id: string
+  plan: ApiPlanRow[]
+  coverage_min: number
+}
+
+export interface ApiDispatchRequest {
+  warehouse_id: string
+  timestamp: string
+  vehicles_override?: ApiVehicle[]
+  incoming_vehicles?: ApiIncomingVehicle[]
+  wait_penalty_per_minute?: number
+  underload_penalty_per_unit?: number
+  global_fleet?: boolean
+}
+
+export interface ApiDispatchResponse {
+  warehouse_id: string
+  office_from_id: string
+  timestamp: string
+  routes: ApiRoutePlan[]
+  total_cost: number
+}

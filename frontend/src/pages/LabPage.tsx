@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { warehouses } from '../data/mockData'
 import { RiskSettingsPanel } from '../components/lab/RiskSettings'
 import { FleetManager } from '../components/lab/FleetManager'
 import { RouteManager } from '../components/lab/RouteManager'
@@ -9,7 +8,7 @@ type LabTab = 'fleet' | 'routes'
 
 export function LabPage() {
   const [activeTab, setActiveTab] = useState<LabTab>('fleet')
-  const { riskSettings, setRiskSettings, routes, setRoutes } = useSimulationContext()
+  const { warehouses, riskSettings, setRiskSettings, routes, setRoutes } = useSimulationContext()
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

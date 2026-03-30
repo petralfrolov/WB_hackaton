@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
 import type { Warehouse } from '../types'
-import { warehouses } from '../data/mockData'
 import { WarehouseMap } from '../components/map/WarehouseMap'
 import { WarehouseDrawer } from '../components/map/WarehouseDrawer'
 import { Card, CardContent } from '../components/ui/card'
@@ -9,7 +8,7 @@ import { useSimulationContext } from '../context/SimulationContext'
 
 export function MapPage() {
   const [selected, setSelected] = useState<Warehouse | null>(null)
-  const { routes } = useSimulationContext()
+  const { warehouses, routes } = useSimulationContext()
 
   const handleSelect = useCallback((wh: Warehouse) => setSelected(wh), [])
   const handleClose = useCallback(() => setSelected(null), [])

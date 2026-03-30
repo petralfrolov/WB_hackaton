@@ -2,3 +2,5 @@ frontend/node_modules/
 backend/models/exp_best_features_full/
 backend/__pycache__/
 backend/tests/__pycache__/
+backend/schemas/__pycache__/
+backend/routers/__pycache__/

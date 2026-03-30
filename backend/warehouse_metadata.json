@@ -1,0 +1,169 @@
+{
+  "warehouses": [
+    {
+      "id": "w01",
+      "name": "Москва-Восток",
+      "city": "Москва",
+      "lat": 55.7558,
+      "lng": 37.6176,
+      "office_from_id": "1",
+      "route_ids": ["857", "496", "226", "33", "599"],
+      "status": "ok",
+      "ready_to_ship": 234
+    },
+    {
+      "id": "w02",
+      "name": "Подольск-1",
+      "city": "Подольск",
+      "lat": 55.4288,
+      "lng": 37.544,
+      "office_from_id": "2",
+      "route_ids": ["814", "467", "303", "653", "634"],
+      "status": "warning",
+      "ready_to_ship": 567
+    },
+    {
+      "id": "w03",
+      "name": "Химки-Центр",
+      "city": "Химки",
+      "lat": 55.8883,
+      "lng": 37.4304,
+      "office_from_id": "3",
+      "route_ids": ["202", "421", "119", "852", "209"],
+      "status": "critical",
+      "ready_to_ship": 891
+    },
+    {
+      "id": "w04",
+      "name": "Северная-1",
+      "city": "Санкт-Петербург",
+      "lat": 59.93,
+      "lng": 30.32,
+      "office_from_id": "4",
+      "route_ids": ["29", "642", "930", "949", "830"],
+      "status": "ok",
+      "ready_to_ship": 312
+    },
+    {
+      "id": "w05",
+      "name": "Казань-Логистик",
+      "city": "Казань",
+      "lat": 55.7887,
+      "lng": 49.1221,
+      "office_from_id": "5",
+      "route_ids": ["809", "387", "381", "566"],
+      "status": "warning",
+      "ready_to_ship": 445
+    },
+    {
+      "id": "w06",
+      "name": "НН-Южный",
+      "city": "Нижний Новгород",
+      "lat": 56.2965,
+      "lng": 43.9361,
+      "office_from_id": "6",
+      "route_ids": ["629", "555", "248", "557", "659"],
+      "status": "ok",
+      "ready_to_ship": 198
+    },
+    {
+      "id": "w07",
+      "name": "Урал-Хаб",
+      "city": "Екатеринбург",
+      "lat": 56.8389,
+      "lng": 60.6057,
+      "office_from_id": "7",
+      "route_ids": ["198", "586", "915", "944", "867"],
+      "status": "ok",
+      "ready_to_ship": 523
+    },
+    {
+      "id": "w08",
+      "name": "Самара-1",
+      "city": "Самара",
+      "lat": 53.1959,
+      "lng": 50.1501,
+      "office_from_id": "8",
+      "route_ids": ["637", "603", "635", "225", "322"],
+      "status": "warning",
+      "ready_to_ship": 334
+    },
+    {
+      "id": "w09",
+      "name": "Ростов-Юг",
+      "city": "Ростов-на-Дону",
+      "lat": 47.2357,
+      "lng": 39.7015,
+      "office_from_id": "9",
+      "route_ids": ["464", "102"],
+      "status": "ok",
+      "ready_to_ship": 276
+    },
+    {
+      "id": "w10",
+      "name": "Краснодар-1",
+      "city": "Краснодар",
+      "lat": 45.0355,
+      "lng": 38.9753,
+      "office_from_id": "10",
+      "route_ids": ["65", "938", "19", "699", "554"],
+      "status": "ok",
+      "ready_to_ship": 189
+    },
+    {
+      "id": "w11",
+      "name": "Воронеж-Центральный",
+      "city": "Воронеж",
+      "lat": 51.6607,
+      "lng": 39.2003,
+      "office_from_id": "11",
+      "route_ids": ["385", "539", "383", "245", "877"],
+      "status": "ok",
+      "ready_to_ship": 421
+    },
+    {
+      "id": "w12",
+      "name": "Ярославль-1",
+      "city": "Ярославль",
+      "lat": 57.6261,
+      "lng": 39.8845,
+      "office_from_id": "12",
+      "route_ids": ["558", "730", "442", "155", "513"],
+      "status": "warning",
+      "ready_to_ship": 388
+    },
+    {
+      "id": "w13",
+      "name": "Тула-Логистик",
+      "city": "Тула",
+      "lat": 54.193,
+      "lng": 37.6177,
+      "office_from_id": "13",
+      "route_ids": ["624", "264", "258", "825", "276"],
+      "status": "ok",
+      "ready_to_ship": 156
+    },
+    {
+      "id": "w14",
+      "name": "Саратов-1",
+      "city": "Саратов",
+      "lat": 51.5339,
+      "lng": 46.0343,
+      "office_from_id": "14",
+      "route_ids": ["190", "791", "595", "382", "355"],
+      "status": "ok",
+      "ready_to_ship": 267
+    },
+    {
+      "id": "w15",
+      "name": "Уфа-Восток",
+      "city": "Уфа",
+      "lat": 54.7388,
+      "lng": 55.9721,
+      "office_from_id": "15",
+      "route_ids": ["577", "874", "454", "775", "126"],
+      "status": "ok",
+      "ready_to_ship": 345
+    }
+  ]
+}

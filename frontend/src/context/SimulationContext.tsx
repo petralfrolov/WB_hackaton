@@ -1,15 +1,27 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { RouteDistance, RiskSettings } from '../types'
-import { routeDistances, defaultRiskSettings } from '../data/mockData'
+import type { ApiIncomingVehicle, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
+import { getWarehouses, getRouteDistances, getConfig, getVehicles, patchSettings } from '../api'
+import {
+  defaultRiskSettings,
+  apiWarehouseToWarehouse,
+  apiRouteDistanceToRouteDistance,
+  apiVehicleToVehicleType,
+} from '../lib/utils'
 
 interface SimulationContextValue {
+  warehouses: Warehouse[]
   routes: RouteDistance[]
   setRoutes: (routes: RouteDistance[]) => void
+  vehicleTypes: VehicleType[]
   riskSettings: RiskSettings
   setRiskSettings: (settings: RiskSettings) => void
   analysisDateTime: string
   setAnalysisDateTime: (value: string) => void
+  selectedWarehouseId: string | null
+  setSelectedWarehouseId: (id: string | null) => void
+  incomingVehicles: ApiIncomingVehicle[]
+  setIncomingVehicles: (list: ApiIncomingVehicle[]) => void
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null)
@@ -37,24 +49,69 @@ function normalizeToHalfHour(value: string): string {
 }
 
 export function SimulationProvider({ children }: { children: ReactNode }) {
-  const [routes, setRoutes] = useState<RouteDistance[]>(routeDistances)
-  const [riskSettings, setRiskSettings] = useState<RiskSettings>(defaultRiskSettings)
-  const [analysisDateTime, setAnalysisDateTime] = useState<string>(() => normalizeToHalfHour(toDateTimeLocalValue(new Date())))
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [routes, setRoutes] = useState<RouteDistance[]>([])
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([])
+  const [riskSettings, setRiskSettingsState] = useState<RiskSettings>(defaultRiskSettings)
+  const [analysisDateTime, setAnalysisDateTime] = useState<string>('2025-03-13T11:00')
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null)
+  const [incomingVehicles, setIncomingVehicles] = useState<ApiIncomingVehicle[]>([])
+
+  // Load initial data from backend
+  useEffect(() => {
+    getWarehouses()
+      .then(list => setWarehouses(list.map(apiWarehouseToWarehouse)))
+      .catch(() => {/* backend not available, stay empty */})
+
+    getRouteDistances()
+      .then(list => setRoutes(list.map(apiRouteDistanceToRouteDistance)))
+      .catch(() => {})
+
+    getConfig()
+      .then(cfg => {
+        const idleCost = typeof cfg.wait_penalty_per_minute === 'number'
+          ? cfg.wait_penalty_per_minute
+          : defaultRiskSettings.idleCostPerMinute
+        const emptyPenalty = typeof cfg.underload_penalty_per_unit === 'number'
+          ? cfg.underload_penalty_per_unit
+          : defaultRiskSettings.emptyPenaltyPerUnit
+        setRiskSettingsState(prev => ({ ...prev, idleCostPerMinute: idleCost, emptyPenaltyPerUnit: emptyPenalty }))
+      })
+      .catch(() => {})
+
+    getVehicles()
+      .then(list => setVehicleTypes(list.map(apiVehicleToVehicleType)))
+      .catch(() => {})
+  }, [])
 
   const setAnalysisDateTimeRounded = (value: string) => {
     setAnalysisDateTime(normalizeToHalfHour(value))
   }
 
+  const setRiskSettings = (settings: RiskSettings) => {
+    setRiskSettingsState(settings)
+    patchSettings({
+      wait_penalty_per_minute: settings.idleCostPerMinute,
+      underload_penalty_per_unit: settings.emptyPenaltyPerUnit,
+    }).catch(() => {})
+  }
+
   const value = useMemo(
     () => ({
+      warehouses,
       routes,
       setRoutes,
+      vehicleTypes,
       riskSettings,
       setRiskSettings,
       analysisDateTime,
       setAnalysisDateTime: setAnalysisDateTimeRounded,
+      selectedWarehouseId,
+      setSelectedWarehouseId,
+      incomingVehicles,
+      setIncomingVehicles,
     }),
-    [routes, riskSettings, analysisDateTime],
+    [warehouses, routes, vehicleTypes, riskSettings, analysisDateTime, selectedWarehouseId, incomingVehicles],
   )
 
   return (
@@ -71,3 +128,4 @@ export function useSimulationContext(): SimulationContextValue {
   }
   return ctx
 }
+

@@ -8,6 +8,7 @@ import { ForecastChart } from './ForecastChart'
 import { SankeyChart } from './SankeyChart'
 import { fmt } from '../../lib/utils'
 import { Button } from '../ui/button'
+import { useSimulationContext } from '../../context/SimulationContext'
 
 interface WarehouseDrawerProps {
   warehouse: Warehouse | null
@@ -31,6 +32,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   const drawerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const [selectedRouteId, setSelectedRouteId] = useState('')
+  const { vehicleTypes } = useSimulationContext()
 
   // Close on Escape
   useEffect(() => {
@@ -41,16 +43,16 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  if (!warehouse) return null
-
   const warehouseRoutes = useMemo(
-    () => routes.filter(r => r.fromId === warehouse.id),
-    [routes, warehouse.id],
+    () => (warehouse ? routes.filter(r => r.fromId === warehouse.id) : []),
+    [routes, warehouse],
   )
 
   useEffect(() => {
     setSelectedRouteId(warehouseRoutes[0]?.id ?? '')
-  }, [warehouse.id, warehouseRoutes])
+  }, [warehouse?.id, warehouseRoutes])
+
+  if (!warehouse) return null
 
   const selectedRoute = warehouseRoutes.find(r => r.id === selectedRouteId) ?? null
 
@@ -172,7 +174,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                   </tr>
                 </thead>
                 <tbody>
-                  {warehouse.vehicles.map(v => (
+                  {vehicleTypes.map(v => (
                     <tr key={v.id} className="border-b border-border/50 last:border-0">
                       <td className="px-3 py-2 text-foreground">{v.name}</td>
                       <td className="px-3 py-2 text-right font-mono text-muted">{fmt(v.capacity)}</td>

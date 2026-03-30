@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react'
-import type { Warehouse, VehicleType } from '../../types'
+import { useState, useCallback, useEffect } from 'react'
+import type { Warehouse } from '../../types'
+import type { ApiIncomingVehicle } from '../../types'
 import { Input } from '../ui/input'
-import { Button } from '../ui/button'
 import {
   Table,
   TableBody,
@@ -10,38 +10,31 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
-import { Trash2, Plus, Check, X, Clock } from 'lucide-react'
+import { Trash2, Plus, Clock, RefreshCw } from 'lucide-react'
 import { fmt } from '../../lib/utils'
 import { cn } from '../../lib/utils'
+import { getIncomingVehicles, putIncomingVehicles } from '../../api'
+import { useSimulationContext } from '../../context/SimulationContext'
 
 interface FleetManagerProps {
   warehouses: Warehouse[]
 }
 
-type WarehouseFleet = Record<string, VehicleType[]>
-
-interface NewVehicleForm {
-  name: string
-  capacity: string
-  costPerKm: string
-  available: string
-}
-
-const EMPTY_FORM: NewVehicleForm = {
-  name: '',
-  capacity: '',
-  costPerKm: '',
-  available: '',
-}
+const HORIZON_LABELS = ['Сейчас (A)', '+2ч (B)', '+4ч (C)', '+6ч (D)'] as const
 
 export function FleetManager({ warehouses }: FleetManagerProps) {
+  const { incomingVehicles, setIncomingVehicles } = useSimulationContext()
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string>(warehouses[0]?.id ?? '')
-  const [fleet, setFleet] = useState<WarehouseFleet>(() =>
-    Object.fromEntries(warehouses.map(w => [w.id, [...w.vehicles]])),
-  )
-  const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState<NewVehicleForm>(EMPTY_FORM)
+  const [incomingSaving, setIncomingSaving] = useState(false)
+  const [incomingError, setIncomingError] = useState<string | null>(null)
+
+  // Load incoming vehicles from API on mount
+  useEffect(() => {
+    getIncomingVehicles()
+      .then(res => setIncomingVehicles(res.incoming))
+      .catch(() => { /* silently fall back to context state */ })
+  }, [])
 
   const filtered = warehouses.filter(
     w =>
@@ -49,37 +42,37 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       w.city.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const vehicles = fleet[selectedId] ?? []
+  const vehicles = warehouses.find(w => w.id === selectedId)?.vehicles ?? []
 
-  const deleteVehicle = useCallback((vehicleId: string) => {
-    setFleet(prev => ({
-      ...prev,
-      [selectedId]: (prev[selectedId] ?? []).filter(v => v.id !== vehicleId),
-    }))
-  }, [selectedId])
-
-  const saveVehicle = useCallback(() => {
-    const capacity = parseInt(form.capacity, 10)
-    const costPerKm = parseInt(form.costPerKm, 10)
-    const available = parseInt(form.available, 10)
-
-    if (!form.name.trim() || isNaN(capacity) || isNaN(costPerKm) || isNaN(available)) return
-
-    const newVehicle: VehicleType = {
-      id: `v-custom-${Date.now()}`,
-      name: form.name.trim(),
-      capacity,
-      costPerKm,
-      available,
+  const saveIncoming = useCallback(async () => {
+    setIncomingSaving(true)
+    setIncomingError(null)
+    try {
+      const res = await putIncomingVehicles(incomingVehicles)
+      setIncomingVehicles(res.incoming)
+    } catch (err) {
+      setIncomingError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIncomingSaving(false)
     }
+  }, [incomingVehicles])
 
-    setFleet(prev => ({
-      ...prev,
-      [selectedId]: [...(prev[selectedId] ?? []), newVehicle],
-    }))
-    setAdding(false)
-    setForm(EMPTY_FORM)
-  }, [form, selectedId])
+  const addIncomingRow = useCallback(() => {
+    setIncomingVehicles([
+      ...incomingVehicles,
+      { horizon_idx: 1, vehicle_type: '', count: 1 },
+    ])
+  }, [incomingVehicles])
+
+  const removeIncomingRow = useCallback((idx: number) => {
+    setIncomingVehicles(incomingVehicles.filter((_, i) => i !== idx))
+  }, [incomingVehicles])
+
+  const updateIncomingRow = useCallback((idx: number, patch: Partial<ApiIncomingVehicle>) => {
+    setIncomingVehicles(
+      incomingVehicles.map((row, i) => i === idx ? { ...row, ...patch } : row),
+    )
+  }, [incomingVehicles])
 
   return (
     <div className="flex gap-4 h-full">
@@ -96,8 +89,6 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
               key={w.id}
               onClick={() => {
                 setSelectedId(w.id)
-                setAdding(false)
-                setForm(EMPTY_FORM)
               }}
               className={cn(
                 'w-full text-left px-3 py-2.5 text-sm transition-colors',
@@ -118,14 +109,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
 
       {/* Fleet table */}
       <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <div className="section-label">
-            {warehouses.find(w => w.id === selectedId)?.name ?? '—'} · Парк ТС
-          </div>
-          <Button size="sm" variant="outline" onClick={() => { setAdding(v => !v); setForm(EMPTY_FORM) }}>
-            <Plus className="w-3.5 h-3.5" />
-            Добавить ТС
-          </Button>
+        <div className="section-label">
+          {warehouses.find(w => w.id === selectedId)?.name ?? '—'} · Парк ТС
         </div>
 
         {/* ── Ожидают на складе ─────────────────────────────────────────── */}
@@ -142,7 +127,6 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                   <TableHead className="text-right">Вместимость</TableHead>
                   <TableHead className="text-right">₽/км</TableHead>
                   <TableHead className="text-right">Доступно</TableHead>
-                  <TableHead className="text-center w-12">—</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -154,50 +138,13 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                     <TableCell className="text-right font-mono text-status-green font-semibold">
                       {v.available}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <button
-                        onClick={() => deleteVehicle(v.id)}
-                        className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors"
-                        aria-label="Удалить"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </TableCell>
                   </TableRow>
                 ))}
 
-                {/* Add row */}
-                {adding && (
+                {vehicles.length === 0 && (
                   <TableRow>
-                    <TableCell>
-                      <Input placeholder="Название" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} autoFocus />
-                    </TableCell>
-                    <TableCell>
-                      <Input placeholder="0" type="number" min="1" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} className="text-right" />
-                    </TableCell>
-                    <TableCell>
-                      <Input placeholder="0" type="number" min="1" value={form.costPerKm} onChange={e => setForm(p => ({ ...p, costPerKm: e.target.value }))} className="text-right" />
-                    </TableCell>
-                    <TableCell>
-                      <Input placeholder="0" type="number" min="0" value={form.available} onChange={e => setForm(p => ({ ...p, available: e.target.value }))} className="text-right" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex gap-1 justify-center">
-                        <button onClick={saveVehicle} className="p-1 rounded hover:bg-status-green/15 text-muted hover:text-status-green transition-colors" aria-label="Сохранить">
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => { setAdding(false); setForm(EMPTY_FORM) }} className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors" aria-label="Отмена">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-
-                {vehicles.length === 0 && !adding && (
-                  <TableRow>
-                    <TableCell className="text-center text-muted py-6" colSpan={5}>
-                      Нет ТС на складе. Нажмите «+ Добавить ТС».
+                    <TableCell className="text-center text-muted py-6" colSpan={4}>
+                      Нет ТС на складе.
                     </TableCell>
                   </TableRow>
                 )}
@@ -206,59 +153,95 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
           </div>
         </div>
 
-        {/* ── Скоро прибудут ────────────────────────────────────────────── */}
-        {(() => {
-          const incoming = vehicles.flatMap(v =>
-            (v.incoming ?? []).map(inc => ({
-              vehicleName: v.name,
-              capacity: v.capacity,
-              costPerKm: v.costPerKm,
-              ...inc,
-            })),
-          ).filter(inc => inc.count > 0)
-
-          if (incoming.length === 0) return null
-
-          return (
-            <div>
-              <div className="section-label mb-1.5 flex items-center gap-1.5">
-                <Clock className="w-3 h-3 text-status-yellow" />
-                Скоро прибудут
-              </div>
-              <div className="bg-surface border border-border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ТС</TableHead>
-                      <TableHead className="text-right">Вместимость</TableHead>
-                      <TableHead className="text-right">₽/км</TableHead>
-                      <TableHead className="text-right">Кол-во</TableHead>
-                      <TableHead className="text-right">Прибытие</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {incoming.map(inc => (
-                      <TableRow key={inc.id}>
-                        <TableCell>{inc.vehicleName}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(inc.capacity)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(inc.costPerKm)}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-status-yellow">
-                          {inc.count}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="flex items-center justify-end gap-1 text-status-yellow font-mono text-sm">
-                            <Clock className="w-3 h-3" />
-                            ~{inc.arrivalMinutes} мин
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+        {/* ── Прибывающие ТС (редактор) ─────────────────────────────── */}
+        <div>
+          <div className="section-label mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-status-yellow" />
+              Прибывающие ТС
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={addIncomingRow}
+                className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Добавить
+              </button>
+              <button
+                onClick={saveIncoming}
+                disabled={incomingSaving}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw className={cn('w-3 h-3', incomingSaving && 'animate-spin')} />
+                {incomingSaving ? 'Сохранение…' : 'Сохранить'}
+              </button>
             </div>
-          )
-        })()}
+          </div>
+          {incomingError && (
+            <p className="text-xs text-status-red mb-1">{incomingError}</p>
+          )}
+          <div className="bg-surface border border-border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Тип ТС</TableHead>
+                  <TableHead>Горизонт</TableHead>
+                  <TableHead className="text-right">Кол-во</TableHead>
+                  <TableHead className="text-center w-10">—</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {incomingVehicles.map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      <Input
+                        placeholder="gazelle_s"
+                        value={row.vehicle_type}
+                        onChange={e => updateIncomingRow(idx, { vehicle_type: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <select
+                        value={row.horizon_idx}
+                        onChange={e => updateIncomingRow(idx, { horizon_idx: Number(e.target.value) as 0|1|2|3 })}
+                        className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
+                      >
+                        {HORIZON_LABELS.map((label, hi) => (
+                          <option key={hi} value={hi}>{label}</option>
+                        ))}
+                      </select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={row.count}
+                        onChange={e => updateIncomingRow(idx, { count: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="text-right"
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button
+                        onClick={() => removeIncomingRow(idx)}
+                        className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {incomingVehicles.length === 0 && (
+                  <TableRow>
+                    <TableCell className="text-center text-muted py-4" colSpan={4}>
+                      Нет прибывающих ТС. Нажмите «Добавить».
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
     </div>
   )

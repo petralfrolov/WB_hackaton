@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import joblib
 import lightgbm as lgb  # noqa: F401 - needed for unpickling LGB models
@@ -320,6 +320,75 @@ def predict_for_route_timestamp(
         "pred_4_6h_std": float(np.std(p_step9)),
     }
     return out
+
+
+# ---------------------------------------------------------------------------
+# Lazy inference: load only the required parquet window per request
+# ---------------------------------------------------------------------------
+
+#: Max lag used in feature engineering (target_lag_672 = 672 × 30 min = 14 days)
+_MAX_LAG_STEPS = 672
+_LAG_MINUTES = _MAX_LAG_STEPS * 30  # 20 160 min ≈ 14 days
+_LOOKBACK_DAYS = _LAG_MINUTES // (60 * 24) + 2  # 16 days for headroom
+
+
+def prepare_feature_matrix_for_route(
+    train_path: Path,
+    route_id: str,
+    timestamp: str,
+    office_routes: Optional[List[str]] = None,
+) -> Tuple["pd.DataFrame", List[str]]:
+    """Load a small time window for *route_id* (and same-office peers) and build features.
+
+    Only reads rows where route_id is in the relevant set and timestamp is within
+    the lookback window — much cheaper than loading the full parquet at startup.
+    """
+    ts = pd.to_datetime(timestamp)
+    min_ts = ts - pd.Timedelta(days=_LOOKBACK_DAYS)
+
+    routes_to_load = list({str(route_id)} | {str(r) for r in (office_routes or [])})
+
+    # Predicate pushdown: prune row-groups by route_id and timestamp range
+    df = pd.read_parquet(
+        train_path,
+        filters=[
+            ("route_id", "in", routes_to_load),
+        ],
+    )
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df[(df["timestamp"] >= min_ts) & (df["timestamp"] <= ts)]
+    df = df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
+
+    if df.empty or str(route_id) not in df["route_id"].astype(str).values:
+        raise ValueError(
+            f"No data found for route_id={route_id} in window [{min_ts}, {ts}]. "
+            "Verify that the timestamp exists in the training parquet."
+        )
+
+    df = make_features(df, extended=True)
+    df = add_winning_features(df)
+    feature_cols = build_feature_cols(df)
+
+    keep = feature_cols + ["timestamp"]
+    return df[keep].copy(), feature_cols
+
+
+def predict_lazy(
+    train_path: Path,
+    models: List[Dict[str, object]],
+    route_id: str,
+    timestamp: str,
+    office_routes: Optional[List[str]] = None,
+) -> Dict[str, float]:
+    """End-to-end lazy prediction: read parquet window → build features → ensemble predict.
+
+    Uses the same ``predict_for_route_timestamp`` logic but avoids pre-loading
+    the entire feature matrix at application startup.
+    """
+    X_all, feature_cols = prepare_feature_matrix_for_route(
+        train_path, route_id, timestamp, office_routes
+    )
+    return predict_for_route_timestamp(X_all, feature_cols, models, route_id, timestamp)
 
 
 def main() -> None:

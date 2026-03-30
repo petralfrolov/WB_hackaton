@@ -11,7 +11,7 @@ import {
   LabelList,
 } from 'recharts'
 import type { TransportRecommendation, CostScenario } from '../../types'
-import { computeCostFromBreakdown } from '../../data/mockData'
+import { computeCostFromBreakdown } from '../../lib/utils'
 import { fmtCurrency, fmt } from '../../lib/utils'
 import { Clock, TrendingDown, ChevronDown, ChevronUp, Calculator } from 'lucide-react'
 

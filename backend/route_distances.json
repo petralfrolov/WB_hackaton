@@ -1,0 +1,16 @@
+{
+  "route_distances": [
+    { "id": "rd01", "from_id": "w03", "to_id": "w01", "from_city": "Химки", "to_city": "Москва-Восток", "distance_km": 42 },
+    { "id": "rd02", "from_id": "w02", "to_id": "w01", "from_city": "Подольск", "to_city": "Москва-Восток", "distance_km": 38 },
+    { "id": "rd03", "from_id": "w13", "to_id": "w01", "from_city": "Тула", "to_city": "Москва-Восток", "distance_km": 193 },
+    { "id": "rd04", "from_id": "w12", "to_id": "w01", "from_city": "Ярославль", "to_city": "Москва-Восток", "distance_km": 265 },
+    { "id": "rd05", "from_id": "w04", "to_id": "w01", "from_city": "Санкт-Петербург", "to_city": "Москва-Восток", "distance_km": 714 },
+    { "id": "rd06", "from_id": "w11", "to_id": "w01", "from_city": "Воронеж", "to_city": "Москва-Восток", "distance_km": 520 },
+    { "id": "rd07", "from_id": "w05", "to_id": "w06", "from_city": "Казань", "to_city": "Нижний Новгород", "distance_km": 395 },
+    { "id": "rd08", "from_id": "w08", "to_id": "w07", "from_city": "Самара", "to_city": "Екатеринбург", "distance_km": 655 },
+    { "id": "rd09", "from_id": "w09", "to_id": "w10", "from_city": "Ростов-на-Дону", "to_city": "Краснодар", "distance_km": 218 },
+    { "id": "rd10", "from_id": "w14", "to_id": "w11", "from_city": "Саратов", "to_city": "Воронеж", "distance_km": 410 },
+    { "id": "rd11", "from_id": "w15", "to_id": "w07", "from_city": "Уфа", "to_city": "Екатеринбург", "distance_km": 340 },
+    { "id": "rd12", "from_id": "w06", "to_id": "w01", "from_city": "Нижний Новгород", "to_city": "Москва-Восток", "distance_km": 410 }
+  ]
+}
