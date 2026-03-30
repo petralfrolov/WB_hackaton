@@ -1,1 +1,6 @@
 frontend/node_modules/
+backend/models/exp_best_features_full/
+backend/__pycache__/
+backend/tests/__pycache__/
+backend/dispatch_plan_office4_global.csv
+backend/dispatch_plan_office4.csv
