@@ -348,14 +348,25 @@ def prepare_feature_matrix_for_route(
 
     routes_to_load = list({str(route_id)} | {str(r) for r in (office_routes or [])})
 
-    # Predicate pushdown: prune row-groups by route_id and timestamp range
-    df = pd.read_parquet(
-        train_path,
-        filters=[
-            ("route_id", "in", routes_to_load),
-        ],
-    )
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    # Predicate pushdown: prune row-groups by route_id when dtype is compatible.
+    # Some parquet builds store route_id as int64; passing string filters then crashes
+    # inside pyarrow (e.g. ArrowNotImplementedError: string vs int64 compare).
+    try:
+        df = pd.read_parquet(
+            train_path,
+            filters=[
+                ("route_id", "in", routes_to_load),
+            ],
+        )
+    except Exception:
+        # Fallback path: read then normalize/filter in pandas (robust to mixed dtypes).
+        df = pd.read_parquet(train_path)
+
+    # Normalize key columns before filtering.
+    df["route_id"] = df["route_id"].astype(str)
+    df = df[df["route_id"].isin(routes_to_load)]
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df[df["timestamp"].notna()]
     df = df[(df["timestamp"] >= min_ts) & (df["timestamp"] <= ts)]
     df = df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
 

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, ArrowRight } from 'lucide-react'
-import type { Warehouse, RouteDistance } from '../../types'
+import { X, ArrowRight, Loader2 } from 'lucide-react'
+import type { Warehouse, RouteDistance, ForecastPoint } from '../../types'
 import { Badge } from '../ui/badge'
 import type { BadgeVariant } from '../ui/badge'
 import { ForecastChart } from './ForecastChart'
 import { SankeyChart } from './SankeyChart'
-import { fmt } from '../../lib/utils'
+import { fmt, makeSankey } from '../../lib/utils'
 import { Button } from '../ui/button'
 import { useSimulationContext } from '../../context/SimulationContext'
+import { getWarehouseForecast } from '../../api'
 
 interface WarehouseDrawerProps {
   warehouse: Warehouse | null
@@ -31,8 +32,24 @@ const STATUS_BADGE: Record<Warehouse['status'], BadgeVariant> = {
 export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  // '' = aggregate (все маршруты), otherwise specific route id
   const [selectedRouteId, setSelectedRouteId] = useState('')
-  const { vehicleTypes } = useSimulationContext()
+  const { vehicleTypes, analysisDateTime } = useSimulationContext()
+
+  // ── Forecast fetch on warehouse open ────────────────────────────────────
+  const [forecastData, setForecastData] = useState<ForecastPoint[]>([])
+  const [forecastLoading, setForecastLoading] = useState(false)
+
+  useEffect(() => {
+    if (!warehouse) return
+    setForecastData([])
+    setForecastLoading(true)
+    const ts = analysisDateTime.replace('T', ' ') + ':00'
+    getWarehouseForecast(warehouse.id, ts)
+      .then(pts => setForecastData(pts))
+      .catch(() => setForecastData(warehouse.forecast))
+      .finally(() => setForecastLoading(false))
+  }, [warehouse?.id, analysisDateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close on Escape
   useEffect(() => {
@@ -48,15 +65,28 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     [routes, warehouse],
   )
 
+  // Reset to "all" when warehouse changes
   useEffect(() => {
-    setSelectedRouteId(warehouseRoutes[0]?.id ?? '')
-  }, [warehouse?.id, warehouseRoutes])
-
-  if (!warehouse) return null
+    setSelectedRouteId('')
+  }, [warehouse?.id])
 
   const selectedRoute = warehouseRoutes.find(r => r.id === selectedRouteId) ?? null
 
-  const forecast4h = warehouse.forecast.slice(0, 4).reduce((s, p) => s + p.value, 0)
+  // Sankey: aggregate for warehouse or per-route
+  const sankeyData = useMemo(() => {
+    if (!warehouse) return makeSankey(0)
+    if (!selectedRouteId || !selectedRoute) {
+      // Aggregate: use the warehouse-level sankey (sum across routes)
+      return warehouse.sankeyData
+    }
+    // Per-route: scale down proportionally from warehouse total
+    const perRouteValue = Math.round(warehouse.readyToShip * 4 / Math.max(warehouseRoutes.length, 1))
+    return makeSankey(perRouteValue)
+  }, [selectedRouteId, selectedRoute, warehouse, warehouseRoutes.length])
+
+  if (!warehouse) return null
+
+  const forecast4h = forecastData.slice(0, 4).reduce((s, p) => s + p.value, 0)
 
   return (
     <>
@@ -120,9 +150,17 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
 
           {/* ── Forecast Chart ───────────────────────────────────────────────── */}
           <section>
-            <div className="section-label mb-3">Прогноз отгрузок — ближайшие 8 часов</div>
+            <div className="section-label mb-3 flex items-center gap-2">
+              Прогноз отгрузок — ближайшие 6 часов
+              {forecastLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />}
+            </div>
             <div className="bg-elevated rounded-lg p-3">
-              <ForecastChart data={warehouse.forecast} />
+              {forecastData.length > 0
+                ? <ForecastChart data={forecastData} />
+                : forecastLoading
+                  ? <div className="h-[200px] flex items-center justify-center text-muted text-xs">Загрузка прогноза…</div>
+                  : <div className="h-[200px] flex items-center justify-center text-muted text-xs">Нет данных прогноза</div>
+              }
             </div>
           </section>
 
@@ -130,7 +168,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
           <section>
             <div className="section-label mb-3">Движение товаров по статусам</div>
             <div className="bg-elevated rounded-lg p-3 mb-2 border border-border/60">
-              <label className="text-[11px] text-muted block mb-1">Маршрут из выбранного склада</label>
+              <label className="text-[11px] text-muted block mb-1">Режим отображения</label>
               <select
                 value={selectedRouteId}
                 onChange={e => setSelectedRouteId(e.target.value)}
@@ -139,21 +177,29 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                 {warehouseRoutes.length === 0 ? (
                   <option value="">Нет маршрутов из этого склада</option>
                 ) : (
-                  warehouseRoutes.map(route => (
-                    <option key={route.id} value={route.id}>
-                      {route.fromCity} → {route.toCity} · {route.distanceKm} км
-                    </option>
-                  ))
+                  <>
+                    <option value="">Все маршруты (сумма)</option>
+                    {warehouseRoutes.map(route => (
+                      <option key={route.id} value={route.id}>
+                        #{route.id}: {route.fromCity} → {route.toCity} · {route.distanceKm} км
+                      </option>
+                    ))}
+                  </>
                 )}
               </select>
+              {!selectedRoute && warehouseRoutes.length > 0 && (
+                <div className="text-[11px] text-muted mt-1.5">
+                  Показана суммарная диаграмма по всем маршрутам склада
+                </div>
+              )}
               {selectedRoute && (
                 <div className="text-[11px] text-muted mt-1.5">
-                  Выбран маршрут: <span className="text-foreground">{selectedRoute.fromCity} → {selectedRoute.toCity}</span>
+                  Выбран маршрут: <span className="text-foreground">#{selectedRoute.id} · {selectedRoute.fromCity} → {selectedRoute.toCity}</span>
                 </div>
               )}
             </div>
             <div className="bg-elevated rounded-lg p-4 overflow-x-auto">
-              <SankeyChart data={warehouse.sankeyData} width={588} height={260} />
+              <SankeyChart data={sankeyData} width={588} height={260} />
             </div>
             <p className="text-[11px] text-muted mt-2">
               <span style={{ color: '#D29922' }}>⬛</span> Жёлтый поток — критический отвал (&gt;30% потерь на переходе)
