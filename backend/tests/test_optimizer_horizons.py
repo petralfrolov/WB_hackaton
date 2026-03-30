@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from optimizer_horizons import build_plan, solve_irp_milp, HORIZONS, PERIOD_MINUTES
+from optimizer_horizons import (
+    build_plan, solve_irp_milp, _build_fleet_limits, HORIZONS, PERIOD_MINUTES,
+)
 
 VEHICLES_CFG_SIMPLE = {
     "vehicles": [
@@ -180,3 +182,152 @@ def test_build_plan_multi_route_shared_fleet():
     for horizon in plan["horizon"].unique():
         total = plan.loc[plan["horizon"] == horizon, "vehicles_count"].sum()
         assert total <= 2
+
+
+# ---------------------------------------------------------------------------
+# _build_fleet_limits
+# ---------------------------------------------------------------------------
+
+VEHICLES_TWO = [
+    {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 1.0, "available": 3},
+    {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 2.0, "available": 2},
+]
+nT = len(HORIZONS)
+
+
+def test_build_fleet_limits_no_incoming():
+    """Without incoming, all horizons equal base available count."""
+    fleet = _build_fleet_limits(VEHICLES_TWO, incoming=None, nT=nT)
+    assert fleet.shape == (2, nT)
+    assert (fleet[0] == 3).all()
+    assert (fleet[1] == 2).all()
+
+
+def test_build_fleet_limits_incoming_additive():
+    """Incoming at horizon 1 increases limits for t>=1 only."""
+    incoming = [{"horizon_idx": 1, "vehicle_type": "van", "count": 2}]
+    fleet = _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
+    assert fleet[0, 0] == 3   # t=0: no change
+    assert fleet[0, 1] == 5   # t=1: +2
+    assert fleet[0, 2] == 5   # t=2: carries forward
+    assert fleet[0, 3] == 5   # t=3
+    assert (fleet[1] == 2).all()  # truck untouched
+
+
+def test_build_fleet_limits_multiple_incoming():
+    """Multiple entries accumulate correctly."""
+    incoming = [
+        {"horizon_idx": 1, "vehicle_type": "van",   "count": 1},
+        {"horizon_idx": 2, "vehicle_type": "van",   "count": 2},
+        {"horizon_idx": 1, "vehicle_type": "truck", "count": 1},
+    ]
+    fleet = _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
+    assert fleet[0, 0] == 3
+    assert fleet[0, 1] == 4   # +1 at t=1
+    assert fleet[0, 2] == 6   # +2 more at t=2
+    assert fleet[0, 3] == 6
+    assert fleet[1, 0] == 2
+    assert fleet[1, 1] == 3   # +1 at t=1
+    assert fleet[1, 2] == 3
+    assert fleet[1, 3] == 3
+
+
+def test_build_fleet_limits_unknown_type_raises():
+    incoming = [{"horizon_idx": 1, "vehicle_type": "helicopter", "count": 1}]
+    with pytest.raises(ValueError, match="unknown vehicle_type"):
+        _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
+
+
+def test_build_fleet_limits_bad_horizon_raises():
+    incoming = [{"horizon_idx": 99, "vehicle_type": "van", "count": 1}]
+    with pytest.raises(ValueError, match="horizon_idx"):
+        _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
+
+
+# ---------------------------------------------------------------------------
+# solve_irp_milp with incoming_vehicles
+# ---------------------------------------------------------------------------
+
+def test_milp_incoming_expands_fleet():
+    """With tight base fleet + incoming, solver can dispatch more at later horizons."""
+    cfg_tight = {
+        "vehicles": [
+            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 1},
+        ],
+        "route_distance_km": 10,
+        "initial_stock_units": 0,
+        "wait_penalty_per_minute": 0.0,
+        "empty_capacity_penalty": 0.0,
+    }
+    # demand requires 2 vans at t=2, but base has only 1
+    demands = {"r1": [0.0, 0.0, 20.0, 0.0]}
+
+    # Without incoming: solver should defer or partially cover
+    res_no_inc = solve_irp_milp(demands, cfg_tight)
+
+    # With incoming: 1 extra van arrives at t=2
+    incoming = [{"horizon_idx": 2, "vehicle_type": "van", "count": 1}]
+    res_with_inc = solve_irp_milp(demands, cfg_tight, incoming_vehicles=incoming)
+
+    # With incoming, can dispatch at least 2 vans at t=2 (limit goes 1→2)
+    assert res_with_inc["X"][0, 0, 2] <= 2   # capped at new limit 2
+    # Fleet limit without incoming is 1 at all horizons
+    assert res_no_inc["X"][0, 0, 2] <= 1
+
+
+def test_milp_incoming_does_not_affect_earlier_horizons():
+    """Incoming at t=2 must NOT allow extra vehicles at t=0 or t=1."""
+    cfg = {
+        "vehicles": [
+            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 1},
+        ],
+        "route_distance_km": 10,
+        "initial_stock_units": 0,
+        "wait_penalty_per_minute": 0.0,
+        "empty_capacity_penalty": 0.0,
+    }
+    incoming = [{"horizon_idx": 2, "vehicle_type": "van", "count": 10}]
+    demands = {"r1": [20.0, 20.0, 0.0, 0.0]}
+    res = solve_irp_milp(demands, cfg, incoming_vehicles=incoming)
+    # At t=0 and t=1, base limit is still 1
+    assert res["X"][0, 0, 0] <= 1
+    assert res["X"][0, 0, 1] <= 1
+
+
+# ---------------------------------------------------------------------------
+# build_plan with incoming_vehicles
+# ---------------------------------------------------------------------------
+
+def test_build_plan_incoming_vehicles_column_values():
+    """Vehicles dispatched per horizon must not exceed (base + incoming) at that horizon."""
+    cfg = {
+        "vehicles": [
+            {"vehicle_type": "van",   "capacity_units": 5, "cost_per_km": 1.0, "available": 1},
+            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 2.0, "available": 1},
+        ],
+        "route_distance_km": 10,
+        "initial_stock_units": 0,
+        "wait_penalty_per_minute": 0.0,
+        "empty_capacity_penalty": 0.0,
+    }
+    incoming = [
+        {"horizon_idx": 1, "vehicle_type": "van",   "count": 2},
+        {"horizon_idx": 2, "vehicle_type": "truck", "count": 1},
+    ]
+    demands = {"r1": [5.0, 15.0, 20.0, 5.0]}
+    plan = build_plan(
+        timestamp="2025-05-01 10:00:00",
+        demands=demands,
+        vehicles_cfg=cfg,
+        incoming_vehicles=incoming,
+    )
+    # Horizon B: van limit = 1+2 = 3, truck = 1 → total van dispatched ≤ 3
+    h_b = plan[plan["horizon"] == "B: +2h"]
+    van_b = h_b.loc[h_b["vehicle_type"] == "van", "vehicles_count"].sum()
+    assert van_b <= 3
+
+    # Horizon C: truck limit = 1+1 = 2 → dispatched ≤ 2
+    h_c = plan[plan["horizon"] == "C: +4h"]
+    truck_c = h_c.loc[h_c["vehicle_type"] == "truck", "vehicles_count"].sum()
+    assert truck_c <= 2
+

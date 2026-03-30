@@ -123,8 +123,10 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
             df["status_last"] = df[status_cols[-1]]
             df["status_last_ratio"] = df["status_last"] / (df["status_sum"] + 1e-6)
 
-    # Deconvolution features
+    # Deconvolution features — собираем новые столбцы отдельно, затем pd.concat
     n_deconv_pairs = 12
+    extra_lag_cols: dict = {}
+    deconv_cols: dict = {}
     for offset, name in [(0, "s_t0"), (1, "s_t1"), (2, "s_t2"), (3, "s_t3")]:
         terms = []
         for k in range(n_deconv_pairs):
@@ -132,17 +134,23 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
             lag_sub = offset + 4 * k + 1
             lag_add_name = f"target_lag_{lag_add}"
             lag_sub_name = f"target_lag_{lag_sub}"
-            if lag_add_name not in df.columns:
-                df[lag_add_name] = g[TARGET_COL].shift(lag_add)
-            if lag_sub_name not in df.columns:
-                df[lag_sub_name] = g[TARGET_COL].shift(lag_sub)
-            terms.append(df[lag_add_name])
-            terms.append(-df[lag_sub_name])
+            if lag_add_name not in df.columns and lag_add_name not in extra_lag_cols:
+                extra_lag_cols[lag_add_name] = g[TARGET_COL].shift(lag_add)
+            if lag_sub_name not in df.columns and lag_sub_name not in extra_lag_cols:
+                extra_lag_cols[lag_sub_name] = g[TARGET_COL].shift(lag_sub)
+            lag_add_series = df[lag_add_name] if lag_add_name in df.columns else extra_lag_cols[lag_add_name]
+            lag_sub_series = df[lag_sub_name] if lag_sub_name in df.columns else extra_lag_cols[lag_sub_name]
+            terms.append(lag_add_series)
+            terms.append(-lag_sub_series)
 
         s = terms[0]
         for t in terms[1:]:
             s = s + t
-        df[f"deconv_{name}"] = s.clip(lower=0)
+        deconv_cols[f"deconv_{name}"] = s.clip(lower=0)
+
+    new_cols = {**extra_lag_cols, **deconv_cols}
+    if new_cols:
+        df = pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
 
     # Office-level agg
     office_agg = (

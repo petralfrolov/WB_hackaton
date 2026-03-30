@@ -56,11 +56,40 @@ def load_route_office_map(train_path: Path) -> Dict[str, str]:
     return {str(r): str(o) for r, o in zip(df["route_id"], df["office_from_id"])}
 
 
+def _build_fleet_limits(
+    vehicles: List[Dict],
+    incoming: Optional[List[Dict]],
+    nT: int,
+) -> np.ndarray:
+    """Вернуть матрицу max_fleet[v, t] — сколько ТС типа v доступно начиная с горизонта t.
+
+    incoming — список записей {horizon_idx: int, vehicle_type: str, count: int}.
+    Каждая запись увеличивает доступный парк начиная с horizon_idx и далее.
+    """
+    v_names = [v["vehicle_type"] for v in vehicles]
+    base = np.array([float(v.get("available", 1000)) for v in vehicles])  # (nV,)
+    fleet = np.tile(base[:, None], (1, nT))  # (nV, nT)
+
+    for entry in (incoming or []):
+        h = int(entry["horizon_idx"])
+        vtype = entry["vehicle_type"]
+        cnt = int(entry["count"])
+        if vtype not in v_names:
+            raise ValueError(f"incoming_vehicles: unknown vehicle_type '{vtype}'")
+        vi = v_names.index(vtype)
+        if not (0 <= h < nT):
+            raise ValueError(f"incoming_vehicles: horizon_idx {h} out of range [0, {nT-1}]")
+        fleet[vi, h:] += cnt
+
+    return fleet  # shape (nV, nT)
+
+
 def solve_irp_milp(
     demands: Dict[str, List[float]],
     vehicles_cfg: Dict,
     route_distances: Optional[Dict[str, float]] = None,
     global_fleet: bool = False,
+    incoming_vehicles: Optional[List[Dict]] = None,
 ) -> Dict:
     """Решить IRP MILP глобально по всем маршрутам и горизонтам.
 
@@ -70,13 +99,18 @@ def solve_irp_milp(
         D_t0 — текущий сток на складе; D_t1/2/3 — ML-прогноз спроса по горизонтам.
     vehicles_cfg : содержимое vehicles.json.
     route_distances : опциональный словарь {route_id: km} для переопределения дистанции.
-    global_fleet : True → Σ_{r,t} x ≤ MaxV_v (долгий рейс, ТС занята весь горизонт);
-                   False → Σ_r x[r,v,t] ≤ MaxV_v отдельно для каждого t (короткий рейс).
+    global_fleet : True → Σ_{r,t} x ≤ MaxV_v[t] (долгий рейс, ТС занята весь горизонт);
+                   False → Σ_r x[r,v,t] ≤ MaxV_v[t] отдельно для каждого t (короткий рейс).
+    incoming_vehicles : список {horizon_idx, vehicle_type, count} из incoming_vehicles.json.
+        ТС, прибывающие к складу в ходе планового окна; увеличивают лимит парка
+        начиная с указанного горизонта.
     """
     vehicles = vehicles_cfg.get("vehicles", vehicles_cfg)
     nV = len(vehicles)
     caps = np.array([v["capacity_units"] for v in vehicles], dtype=float)
-    max_fleet = np.array([float(v.get("available", 1000)) for v in vehicles])
+    nT = len(HORIZONS)
+    # max_fleet[v, t] — кол-во ТС типа v, доступных в горизонте t (с учётом прибытий)
+    max_fleet = _build_fleet_limits(vehicles, incoming_vehicles, nT)  # (nV, nT)
 
     # поддержка обоих имён ключа для обратной совместимости
     empty_capacity_penalty = float(
@@ -88,7 +122,6 @@ def solve_irp_milp(
     default_dist = float(vehicles_cfg.get("route_distance_km", 15.0))
     route_ids = list(demands.keys())
     nR = len(route_ids)
-    nT = len(HORIZONS)
 
     # cost_vr[v, r] = стоимость одного рейса ТС типа v по маршруту r
     cost_vr = np.zeros((nV, nR))
@@ -139,7 +172,7 @@ def solve_irp_milp(
     for vi in range(nV):
         for r in range(nR):
             for t in range(nT):
-                ub[ix(r, vi, t)] = max_fleet[vi]
+                ub[ix(r, vi, t)] = max_fleet[vi, t]
 
     # ---- Ограничения ----
     A_rows: List[np.ndarray] = []
@@ -167,23 +200,25 @@ def solve_irp_milp(
             row[iu(r, t)] = -1.0
             A_rows.append(row); lb_c.append(0.0); ub_c.append(0.0)
 
-    # (3) Общий автопарк
+    # (3) Общий автопарк с учётом прибывающих ТС
     if global_fleet:
-        # Σ_{r,t} x[r,v,t] ≤ MaxV_v  (долгий рейс)
+        # Σ_{r,t} x[r,v,t] ≤ Σ_t MaxV_v[v,t]  (долгий рейс — суммируем по горизонтам)
+        # Используем минимальный лимит по горизонтам, т.к. ТС занята всё окно
         for vi in range(nV):
             row = np.zeros(n_tot)
             for r in range(nR):
                 for t in range(nT):
                     row[ix(r, vi, t)] = 1.0
-            A_rows.append(row); lb_c.append(-np.inf); ub_c.append(max_fleet[vi])
+            # в режиме global fleet ТС занята всё окно → берём лимит на последний горизонт
+            A_rows.append(row); lb_c.append(-np.inf); ub_c.append(max_fleet[vi, -1])
     else:
-        # Σ_r x[r,v,t] ≤ MaxV_v  для каждого (v, t)  (короткий рейс)
+        # Σ_r x[r,v,t] ≤ MaxV_v[v,t]  для каждого (v, t)  (короткий рейс)
         for vi in range(nV):
             for t in range(nT):
                 row = np.zeros(n_tot)
                 for r in range(nR):
                     row[ix(r, vi, t)] = 1.0
-                A_rows.append(row); lb_c.append(-np.inf); ub_c.append(max_fleet[vi])
+                A_rows.append(row); lb_c.append(-np.inf); ub_c.append(max_fleet[vi, t])
 
     A_sp = csr_matrix(np.array(A_rows))
     result = milp(
@@ -214,6 +249,7 @@ def solve_irp_milp(
         "route_ids": route_ids,
         "X": X, "Y": Y, "S": S, "U": U,
         "D": D, "cost_vr": cost_vr, "caps": caps,
+        "max_fleet": max_fleet,
         "empty_capacity_penalty": empty_capacity_penalty,
         "P_wait": P_wait,
     }
@@ -226,13 +262,14 @@ def build_plan(
     office_id: str = "",
     route_distances: Optional[Dict[str, float]] = None,
     global_fleet: bool = False,
+    incoming_vehicles: Optional[List[Dict]] = None,
 ) -> pd.DataFrame:
     """Собрать план отправок в DataFrame из решения MILP."""
     vehicles = vehicles_cfg.get("vehicles", vehicles_cfg)
     v_names = [v["vehicle_type"] for v in vehicles]
     nV = len(vehicles)
 
-    res = solve_irp_milp(demands, vehicles_cfg, route_distances, global_fleet)
+    res = solve_irp_milp(demands, vehicles_cfg, route_distances, global_fleet, incoming_vehicles)
     route_ids = res["route_ids"]
     X, Y, S, U   = res["X"], res["Y"], res["S"], res["U"]
     D, cost_vr   = res["D"], res["cost_vr"]
@@ -313,6 +350,8 @@ def main():
     parser.add_argument("--out",         default="", help="Путь для сохранения CSV")
     parser.add_argument("--global_fleet", action="store_true",
                         help="Глобальное ограничение парка (долгий рейс)")
+    parser.add_argument("--incoming", default="",
+                        help="Путь к incoming_vehicles.json (опционально)")
     args = parser.parse_args()
 
     route_ids = (
@@ -324,6 +363,11 @@ def main():
 
     vehicles_cfg = json.loads(Path(args.vehicles).read_text())
     init_stock   = float(vehicles_cfg.get("initial_stock_units", 0))
+
+    incoming_vehicles: Optional[List[Dict]] = None
+    if args.incoming:
+        incoming_data = json.loads(Path(args.incoming).read_text())
+        incoming_vehicles = incoming_data.get("incoming", [])
 
     office_map = load_route_office_map(Path(args.train_path))
     office_id  = office_map.get(route_ids[0], "")
@@ -348,6 +392,7 @@ def main():
         vehicles_cfg=vehicles_cfg,
         office_id=office_id,
         global_fleet=args.global_fleet,
+        incoming_vehicles=incoming_vehicles,
     )
 
     with pd.option_context("display.max_rows", None, "display.max_columns", None):
