@@ -112,11 +112,16 @@ def solve_irp_milp(
     # max_fleet[v, t] — кол-во ТС типа v, доступных в горизонте t (с учётом прибытий)
     max_fleet = _build_fleet_limits(vehicles, incoming_vehicles, nT)  # (nV, nT)
 
-    # поддержка обоих имён ключа для обратной совместимости
-    empty_capacity_penalty = float(
+    # штрафы за недогрузку: общий или по категориям
+    base_penalty = float(
         vehicles_cfg.get("empty_capacity_penalty",
         vehicles_cfg.get("underload_penalty_per_unit", 5))
     )
+    penalties_by_cat = vehicles_cfg.get("underload_penalty_per_unit_by_cat", {})
+    penalty_by_v = []
+    for v in vehicles:
+        cat = v.get("category", "")
+        penalty_by_v.append(float(penalties_by_cat.get(cat, base_penalty)))
     P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * PERIOD_MINUTES
 
     default_dist = float(vehicles_cfg.get("route_distance_km", 15.0))
@@ -137,10 +142,11 @@ def solve_irp_milp(
     # x[r,v,t]  → [0 .. n_x)
     # y[r,t]    → [n_x .. n_x + n_ys)
     # s[r,t]    → [n_x + n_ys .. n_x + 2*n_ys)
-    # u[r,t]    → [n_x + 2*n_ys .. n_x + 3*n_ys)
+    # u[r,v,t]  → [n_x + 2*n_ys .. n_x + 2*n_ys + n_u)
     n_x   = nR * nV * nT
     n_ys  = nR * nT
-    n_tot = n_x + 3 * n_ys
+    n_u   = nR * nV * nT
+    n_tot = n_x + 2 * n_ys + n_u
 
     idx_y = n_x
     idx_s = n_x + n_ys
@@ -149,7 +155,7 @@ def solve_irp_milp(
     def ix(r, v, t): return r * (nV * nT) + v * nT + t
     def iy(r, t):    return idx_y + r * nT + t
     def is_(r, t):   return idx_s + r * nT + t
-    def iu(r, t):    return idx_u + r * nT + t
+    def iu(r, v, t): return idx_u + r * (nV * nT) + v * nT + t
 
     # ---- Целевая функция ----
     c = np.zeros(n_tot)
@@ -157,9 +163,8 @@ def solve_irp_milp(
         for v in range(nV):
             for t in range(nT):
                 c[ix(r, v, t)] = cost_vr[v, r]
-    for r in range(nR):
+                c[iu(r, v, t)] = penalty_by_v[v]
         for t in range(nT):
-            c[iu(r, t)]  = empty_capacity_penalty
             c[is_(r, t)] = P_wait
 
     # ---- Целочисленность: x — целые, y/s/u — непрерывные ----
@@ -173,6 +178,7 @@ def solve_irp_milp(
         for r in range(nR):
             for t in range(nT):
                 ub[ix(r, vi, t)] = max_fleet[vi, t]
+                ub[iu(r, vi, t)] = caps[vi]
 
     # ---- Ограничения ----
     A_rows: List[np.ndarray] = []
@@ -190,15 +196,24 @@ def solve_irp_milp(
             rhs = D[r, t]
             A_rows.append(row); lb_c.append(rhs); ub_c.append(rhs)
 
-    # (2) Связь вместимости: Σ_v Cap_v·x[r,v,t] − y[r,t] − u[r,t] = 0
+    # (2) Связь вместимости: Σ_v Cap_v·x[r,v,t] − y[r,t] − Σ_v u[r,v,t] = 0
     for r in range(nR):
         for t in range(nT):
             row = np.zeros(n_tot)
             for v in range(nV):
                 row[ix(r, v, t)] = caps[v]
+                row[iu(r, v, t)] = -1.0
             row[iy(r, t)] = -1.0
-            row[iu(r, t)] = -1.0
             A_rows.append(row); lb_c.append(0.0); ub_c.append(0.0)
+
+    # (2b) u[r,v,t] ≤ Cap_v * x[r,v,t]  (недогруз только у отправленных ТС)
+    for r in range(nR):
+        for v in range(nV):
+            for t in range(nT):
+                row = np.zeros(n_tot)
+                row[iu(r, v, t)] = 1.0
+                row[ix(r, v, t)] = -caps[v]
+                A_rows.append(row); lb_c.append(-np.inf); ub_c.append(0.0)
 
     # (3) Общий автопарк с учётом прибывающих ТС
     if global_fleet:
@@ -236,7 +251,7 @@ def solve_irp_milp(
     X = np.zeros((nR, nV, nT))
     Y = np.zeros((nR, nT))
     S = np.zeros((nR, nT))
-    U = np.zeros((nR, nT))
+    U = np.zeros((nR, nV, nT))
     for r in range(nR):
         for v in range(nV):
             for t in range(nT):
@@ -244,14 +259,15 @@ def solve_irp_milp(
         for t in range(nT):
             Y[r, t] = max(0.0, xv[iy(r, t)])
             S[r, t] = max(0.0, xv[is_(r, t)])
-            U[r, t] = max(0.0, xv[iu(r, t)])
+            for v in range(nV):
+                U[r, v, t] = max(0.0, xv[iu(r, v, t)])
 
     return {
         "route_ids": route_ids,
         "X": X, "Y": Y, "S": S, "U": U,
         "D": D, "cost_vr": cost_vr, "caps": caps,
         "max_fleet": max_fleet,
-        "empty_capacity_penalty": empty_capacity_penalty,
+        "penalty_by_v": np.array(penalty_by_v),
         "P_wait": P_wait,
     }
 
@@ -274,7 +290,7 @@ def build_plan(
     route_ids = res["route_ids"]
     X, Y, S, U   = res["X"], res["Y"], res["S"], res["U"]
     D, cost_vr   = res["D"], res["cost_vr"]
-    empty_capacity_penalty = res["empty_capacity_penalty"]
+    penalty_by_v  = res["penalty_by_v"]
     P_wait       = res["P_wait"]
 
     rows = []
@@ -282,20 +298,20 @@ def build_plan(
         for t_idx, (label, _) in enumerate(HORIZONS):
             y_rt  = float(Y[r_idx, t_idx])
             s_rt  = float(S[r_idx, t_idx])
-            u_rt  = float(U[r_idx, t_idx])
+            u_vec = [float(U[r_idx, vi, t_idx]) for vi in range(nV)]
+            u_sum = sum(u_vec)
             d_rt  = float(D[r_idx, t_idx])
             s_prev = float(S[r_idx, t_idx - 1]) if t_idx > 0 else 0.0
 
-            cost_fixed    = round(sum(float(X[r_idx, vi, t_idx]) * cost_vr[vi, r_idx]
-                                      for vi in range(nV)), 2)
-            cost_underload = round(u_rt * empty_capacity_penalty, 2)
-            cost_wait      = round(s_rt * P_wait, 2)
-            cost_total     = round(cost_fixed + cost_underload + cost_wait, 2)
-
             dispatched = [vi for vi in range(nV) if X[r_idx, vi, t_idx] > 0]
+            cost_wait_total = s_rt * P_wait
+            cost_wait_share = (cost_wait_total / len(dispatched)) if dispatched else cost_wait_total
 
             if dispatched:
                 for vi in dispatched:
+                    cost_fixed_v = float(X[r_idx, vi, t_idx]) * cost_vr[vi, r_idx]
+                    cost_under_v = u_vec[vi] * penalty_by_v[vi]
+                    cost_total_v = cost_fixed_v + cost_under_v + cost_wait_share
                     rows.append({
                         "route_id":              rid,
                         "timestamp":             timestamp,
@@ -307,14 +323,15 @@ def build_plan(
                         "total_available":       round(d_rt + s_prev, 2),
                         "actually_shipped":      round(y_rt, 2),
                         "leftover_stock":        round(s_rt, 2),
-                        "empty_capacity_units":  round(u_rt, 2),
-                        "cost_fixed":            cost_fixed,
-                        "cost_underload":        cost_underload,
-                        "cost_wait":             cost_wait,
-                        "cost_total":            cost_total,
+                        "empty_capacity_units":  round(u_vec[vi], 2),
+                        "cost_fixed":            round(cost_fixed_v, 2),
+                        "cost_underload":        round(cost_under_v, 2),
+                        "cost_wait":             round(cost_wait_share, 2),
+                        "cost_total":            round(cost_total_v, 2),
                     })
             else:
                 # горизонт без отправки — сохраняем строку с нулевым флотом
+                cost_under = u_sum * penalty_by_v.mean()
                 rows.append({
                     "route_id":              rid,
                     "timestamp":             timestamp,
@@ -326,11 +343,11 @@ def build_plan(
                     "total_available":       round(d_rt + s_prev, 2),
                     "actually_shipped":      round(y_rt, 2),
                     "leftover_stock":        round(s_rt, 2),
-                    "empty_capacity_units":  round(u_rt, 2),
+                    "empty_capacity_units":  round(u_sum, 2),
                     "cost_fixed":            0.0,
-                    "cost_underload":        cost_underload,
-                    "cost_wait":             cost_wait,
-                    "cost_total":            cost_total,
+                    "cost_underload":        round(cost_under, 2),
+                    "cost_wait":             round(cost_wait_total, 2),
+                    "cost_total":            round(cost_under + cost_wait_total, 2),
                 })
 
     df = pd.DataFrame(rows)
@@ -410,4 +427,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

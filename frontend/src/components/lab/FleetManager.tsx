@@ -34,6 +34,7 @@ interface VehicleForm {
   capacity_units: string
   cost_per_km: string
   available: string
+  category: string
 }
 
 interface IncomingForm {
@@ -47,6 +48,7 @@ const EMPTY_VEHICLE: VehicleForm = {
   capacity_units: '',
   cost_per_km: '',
   available: '',
+  category: 'compact',
 }
 
 const EMPTY_INCOMING: IncomingForm = {
@@ -124,6 +126,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         capacity_units: capacity,
         cost_per_km: cost,
         available: avail,
+        category: addForm.category,
       })
       setAddForm(EMPTY_VEHICLE)
       setShowAddVehicle(false)
@@ -140,6 +143,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       capacity_units: String(v.capacity_units),
       cost_per_km: String(v.cost_per_km),
       available: String(v.available),
+      category: v.category ?? 'compact',
     })
   }
 
@@ -155,6 +159,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         capacity_units: capacity,
         cost_per_km: cost,
         available: avail,
+        category: editForm.category,
       })
       setEditingType(null)
       setEditForm(EMPTY_VEHICLE)
@@ -292,31 +297,43 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
             <span className="section-label">Ожидают на складе</span>
           </div>
           <div className="max-h-96 overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Тип ТС</TableHead>
-                <TableHead className="text-right">Вместимость</TableHead>
-                <TableHead className="text-right">₽/км</TableHead>
-                <TableHead className="text-right">Доступно</TableHead>
-                <TableHead className="text-center w-24">—</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {showAddVehicle && (
-                <TableRow className="bg-elevated/40">
-                  <TableCell>
-                    <Input
-                      placeholder="gazelle_s"
-                      value={addForm.vehicle_type}
-                      onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="18"
-                      value={addForm.capacity_units}
-                      onChange={e => setAddForm(f => ({ ...f, capacity_units: e.target.value }))}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Тип ТС</TableHead>
+                  <TableHead>Категория</TableHead>
+                  <TableHead className="text-right">Вместимость</TableHead>
+                  <TableHead className="text-right">₽/км</TableHead>
+                  <TableHead className="text-right">Доступно</TableHead>
+                  <TableHead className="text-center w-24">—</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {showAddVehicle && (
+                  <TableRow className="bg-elevated/40">
+                    <TableCell>
+                      <Input
+                        placeholder="gazelle_s"
+                        value={addForm.vehicle_type}
+                        onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <select
+                        value={addForm.category}
+                        onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))}
+                        className="w-full bg-surface border border-border rounded px-2 py-1 text-sm"
+                      >
+                        <option value="compact">compact</option>
+                        <option value="mid">mid</option>
+                        <option value="large">large</option>
+                      </select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="18"
+                        value={addForm.capacity_units}
+                        onChange={e => setAddForm(f => ({ ...f, capacity_units: e.target.value }))}
                       className="text-right"
                     />
                   </TableCell>
@@ -349,17 +366,30 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                 </TableRow>
               )}
 
-              {vehiclesForDisplay.map(v => {
-                const isEdit = editingType === v.vehicle_type
-                return (
-                  <TableRow key={v.vehicle_type}>
-                    <TableCell className="font-semibold">
+                {vehiclesForDisplay.map(v => {
+                  const isEdit = editingType === v.vehicle_type
+                  return (
+                    <TableRow key={v.vehicle_type}>
+                      <TableCell className="font-semibold">
                       {isEdit ? (
                         <Input
                           value={editForm.vehicle_type}
                           onChange={e => setEditForm(f => ({ ...f, vehicle_type: e.target.value }))}
                         />
                       ) : v.vehicle_type}
+                    </TableCell>
+                    <TableCell>
+                      {isEdit ? (
+                        <select
+                          value={editForm.category}
+                          onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                          className="w-full bg-surface border border-border rounded px-2 py-1 text-sm"
+                        >
+                          <option value="compact">compact</option>
+                          <option value="mid">mid</option>
+                          <option value="large">large</option>
+                        </select>
+                      ) : (v.category ?? '—')}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {isEdit ? (
@@ -415,7 +445,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
 
               {vehiclesForDisplay.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-center text-muted py-6" colSpan={5}>
+                  <TableCell className="text-center text-muted py-6" colSpan={6}>
                     Нет ТС. Добавьте первый тип выше.
                   </TableCell>
                 </TableRow>

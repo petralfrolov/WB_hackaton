@@ -39,6 +39,9 @@ export const defaultRiskSettings: RiskSettings = {
   maxWaitMinutes: 55,
   idleCostPerMinute: 8,
   emptyPenaltyPerUnit: 12,
+  emptyPenaltyCompact: 12,
+  emptyPenaltyMid: 12,
+  emptyPenaltyLarge: 12,
 }
 
 // ─── Cost helpers ─────────────────────────────────────────────────────────────
@@ -221,6 +224,7 @@ export function apiVehicleToVehicleType(v: ApiVehicle): VehicleType {
     capacity: v.capacity_units,
     costPerKm: v.cost_per_km,
     available: v.available,
+    category: v.category,
   }
 }
 
@@ -318,4 +322,3 @@ export function dispatchToScenarios(
     }
   })
 }
-

@@ -35,6 +35,7 @@ export interface VehicleType {
   costPerKm: number
   available: number
   incoming?: IncomingVehicle[]
+  category?: 'small' | 'medium' | 'large'
 }
 
 export interface Warehouse {
@@ -101,6 +102,9 @@ export interface RiskSettings {
   maxWaitMinutes: number
   idleCostPerMinute: number
   emptyPenaltyPerUnit: number
+  emptyPenaltyCompact?: number
+  emptyPenaltyMid?: number
+  emptyPenaltyLarge?: number
 }
 
 // ── Backend API types (mirrors Pydantic schemas) ─────────────────────────────
@@ -139,6 +143,7 @@ export interface ApiVehicle {
   capacity_units: number
   cost_per_km: number
   available: number
+  category?: 'small' | 'medium' | 'large'
 }
 
 export interface ApiIncomingVehicle {
@@ -158,6 +163,11 @@ export interface ApiSettings {
   route_distance_km: number
   economy_threshold?: number
   max_wait_minutes?: number
+  underload_penalty_per_unit_by_cat?: {
+    compact?: number
+    mid?: number
+    large?: number
+  }
 }
 
 export interface ApiPlanRow {
