@@ -13,14 +13,8 @@ router = APIRouter(tags=["optimize"])
 
 def _apply_overrides(cfg: dict, req: OptimizeRequest) -> dict:
     out = json.loads(json.dumps(cfg))
-    if req.initial_stock_units is not None:
-        out["initial_stock_units"] = float(req.initial_stock_units)
-    if req.route_distance_km is not None:
-        out["route_distance_km"] = float(req.route_distance_km)
     if req.wait_penalty_per_minute is not None:
         out["wait_penalty_per_minute"] = float(req.wait_penalty_per_minute)
-    if req.underload_penalty_per_unit is not None:
-        out["underload_penalty_per_unit"] = float(req.underload_penalty_per_unit)
     return out
 
 
@@ -42,8 +36,8 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
 
     cfg = _apply_overrides(state.vehicles_cfg, req)
     route_meta = next((route for route in state.route_distances if str(route["id"]) == route_id), {})
-    init_stock = float(route_meta.get("ready_to_ship", cfg.get("initial_stock_units", 0)))
-    route_distance = float(route_meta.get("distance_km", cfg.get("route_distance_km", 15.0)))
+    init_stock = float(route_meta.get("ready_to_ship", 0))
+    route_distance = float(route_meta.get("distance_km", 15.0))
     demands = {route_id: [round(init_stock), preds["pred_0_2h"], preds["pred_2_4h"], preds["pred_4_6h"]]}
 
     plan_df = build_plan(

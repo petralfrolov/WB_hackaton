@@ -21,7 +21,6 @@ class DispatchRequest(BaseModel):
     vehicles_override: Optional[List[Vehicle]] = None
     incoming_vehicles: Optional[List[IncomingVehicle]] = None
     wait_penalty_per_minute: Optional[float] = None
-    underload_penalty_per_unit: Optional[float] = None
     global_fleet: bool = True
 
 

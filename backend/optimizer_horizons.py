@@ -112,22 +112,10 @@ def solve_irp_milp(
     # max_fleet[v, t] — кол-во ТС типа v, доступных в горизонте t (с учётом прибытий)
     max_fleet = _build_fleet_limits(vehicles, incoming_vehicles, nT)  # (nV, nT)
 
-    # штрафы за недогрузку: общий или по категориям
-    base_penalty = float(
-        vehicles_cfg.get("empty_capacity_penalty",
-        vehicles_cfg.get("underload_penalty_per_unit", 5))
-    )
-    penalties_by_cat = vehicles_cfg.get("underload_penalty_per_unit_by_cat", {})
-    penalty_by_v = []
-    for v in vehicles:
-        if v.get("underload_penalty") is not None:
-            penalty_by_v.append(float(v["underload_penalty"]))
-        else:
-            cat = v.get("category", "")
-            penalty_by_v.append(float(penalties_by_cat.get(cat, base_penalty)))
+    penalty_by_v = [float(v["underload_penalty"]) for v in vehicles]
     P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * PERIOD_MINUTES
 
-    default_dist = float(vehicles_cfg.get("route_distance_km", 15.0))
+    default_dist = 15.0
     route_ids = list(demands.keys())
     nR = len(route_ids)
 
@@ -384,7 +372,6 @@ def main():
     ts = args.timestamp
 
     vehicles_cfg = json.loads(Path(args.vehicles).read_text())
-    init_stock   = float(vehicles_cfg.get("initial_stock_units", 0))
 
     incoming_vehicles: Optional[List[Dict]] = None
     if args.incoming:
@@ -402,7 +389,7 @@ def main():
         preds = predict_for_route_timestamp(X_all, feature_cols, models,
                                             route_id=rid, timestamp=ts)
         demands[rid] = [
-            init_stock,           # D_t0: текущий сток склада
+            0,                    # D_t0: текущий сток склада
             preds["pred_0_2h"],   # D_t1: ML-прогноз 0-2h
             preds["pred_2_4h"],   # D_t2: ML-прогноз 2-4h
             preds["pred_4_6h"],   # D_t3: ML-прогноз 4-6h

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Literal
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,6 @@ class Vehicle(BaseModel):
     capacity_units: float
     cost_per_km: float
     available: int
-    category: Optional[Literal["compact", "mid", "large"]] = None
     underload_penalty: Optional[float] = None
     fixed_dispatch_cost: Optional[float] = None
 
@@ -19,7 +18,6 @@ class VehicleUpdate(BaseModel):
     capacity_units: Optional[float] = None
     cost_per_km: Optional[float] = None
     available: Optional[int] = None
-    category: Optional[Literal["compact", "mid", "large"]] = None
     underload_penalty: Optional[float] = None
     fixed_dispatch_cost: Optional[float] = None
 

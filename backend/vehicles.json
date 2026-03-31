@@ -5,7 +5,6 @@
       "capacity_units": 3.5,
       "cost_per_km": 5.65,
       "available": 6,
-      "category": "compact",
       "underload_penalty": 20.0,
       "fixed_dispatch_cost": 500.0
     },
@@ -14,7 +13,6 @@
       "capacity_units": 6.0,
       "cost_per_km": 8.52,
       "available": 14,
-      "category": "compact",
       "underload_penalty": 20.0,
       "fixed_dispatch_cost": 800.0
     },
@@ -23,7 +21,6 @@
       "capacity_units": 10.0,
       "cost_per_km": 7.74,
       "available": 10,
-      "category": "mid",
       "underload_penalty": 50.0,
       "fixed_dispatch_cost": 1200.0
     },
@@ -32,7 +29,6 @@
       "capacity_units": 14.0,
       "cost_per_km": 8.9,
       "available": 5,
-      "category": "mid",
       "underload_penalty": 50.0,
       "fixed_dispatch_cost": 1500.0
     },
@@ -41,7 +37,6 @@
       "capacity_units": 18.0,
       "cost_per_km": 10.84,
       "available": 4,
-      "category": "large",
       "underload_penalty": 100.0,
       "fixed_dispatch_cost": 2000.0
     },
@@ -50,20 +45,11 @@
       "capacity_units": 20.0,
       "cost_per_km": 12.77,
       "available": 100,
-      "category": "large",
       "underload_penalty": 100.0,
       "fixed_dispatch_cost": 2500.0
     }
   ],
-  "underload_penalty_per_unit": 20.0,
-  "underload_penalty_per_unit_by_cat": {
-    "compact": 20.0,
-    "mid": 50.0,
-    "large": 100.0
-  },
   "wait_penalty_per_minute": 8.0,
-  "initial_stock_units": 150,
-  "route_distance_km": 15,
   "economy_threshold": 65.0,
   "max_wait_minutes": 55
 }

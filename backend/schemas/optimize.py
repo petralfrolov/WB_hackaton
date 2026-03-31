@@ -9,10 +9,7 @@ from pydantic import BaseModel
 class OptimizeRequest(BaseModel):
     route_id: str
     timestamp: datetime
-    initial_stock_units: Optional[float] = None
-    route_distance_km: Optional[float] = None
     wait_penalty_per_minute: Optional[float] = None
-    underload_penalty_per_unit: Optional[float] = None
 
 
 class PlanRow(BaseModel):

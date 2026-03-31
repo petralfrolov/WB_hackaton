@@ -33,8 +33,6 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         cfg["vehicles"] = [v.model_dump() for v in req.vehicles_override]
     if req.wait_penalty_per_minute is not None:
         cfg["wait_penalty_per_minute"] = req.wait_penalty_per_minute
-    if req.underload_penalty_per_unit is not None:
-        cfg["underload_penalty_per_unit"] = req.underload_penalty_per_unit
 
     incoming = (
         [iv.model_dump() for iv in req.incoming_vehicles]
@@ -68,7 +66,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
             preds["pred_2_4h"],
             preds["pred_4_6h"],
         ]
-        route_distances[rid] = float(route_cfg.get("distance_km", cfg.get("route_distance_km", 15.0)))
+        route_distances[rid] = float(route_cfg.get("distance_km", 15.0))
 
     if not demands:
         raise HTTPException(

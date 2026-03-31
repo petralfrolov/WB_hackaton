@@ -32,23 +32,6 @@ def set_config(payload: dict, state: AppState = Depends(get_state)):
 def update_settings(s: Settings, state: AppState = Depends(get_state)):
     payload = s.model_dump(exclude_none=True)
 
-    # Пер-категорийные штрафы
-    state.vehicles_cfg.setdefault("underload_penalty_per_unit_by_cat", {})
-    cat_map = state.vehicles_cfg["underload_penalty_per_unit_by_cat"]
-
-    if "underload_penalty_per_unit_by_cat" in payload:
-        incoming_map = payload.pop("underload_penalty_per_unit_by_cat") or {}
-        for cat, val in incoming_map.items():
-            cat_map[cat] = float(val)
-
-    for cat_field, cat_name in [
-        ("underload_penalty_compact", "compact"),
-        ("underload_penalty_mid", "mid"),
-        ("underload_penalty_large", "large"),
-    ]:
-        if cat_field in payload:
-            cat_map[cat_name] = float(payload.pop(cat_field))
-
     for key, val in payload.items():
         state.vehicles_cfg[key] = val
     _VEHICLES_PATH.write_text(

@@ -11,14 +11,19 @@
       "count": 3
     },
     {
-      "horizon_idx": 2,
-      "vehicle_type": "ISUZU ELF 7.5 Long",
-      "count": 1
-    },
-    {
       "horizon_idx": 3,
       "vehicle_type": "Hyundai Mighty EX8 XL",
       "count": 2
+    },
+    {
+      "horizon_idx": 1,
+      "vehicle_type": "ISUZU ELF 7.5 Long",
+      "count": 2
+    },
+    {
+      "horizon_idx": 2,
+      "vehicle_type": "ISUZU ELF 7.5 Long",
+      "count": 1
     }
   ]
 }
