@@ -64,7 +64,7 @@ function FormulaBreakdown({
 
   return (
     <div className="mt-2 border-t border-border/50 pt-4 space-y-4">
-      <div className="bg-elevated rounded-lg px-3 py-2.5 text-[11px] text-muted leading-relaxed">
+      {/* <div className="bg-elevated rounded-lg px-3 py-2.5 text-[11px] text-muted leading-relaxed">
         <div className="font-mono text-foreground/90">J = Σ(C<sub>рейс,i</sub> × N<sub>i</sub>)</div>
         <div className="font-mono ml-3 text-foreground/90">+ U × P<sub>empty,i</sub></div>
         <div className="font-mono ml-3 text-foreground/90">+ S × P<sub>wait,horizon</sub></div>
@@ -76,7 +76,7 @@ function FormulaBreakdown({
           <div><span className="text-foreground/80">Pempty,i</span> — штраф за пустое место ТС i, ₽/ед.</div>
           <div><span className="text-foreground/80">Pwait,horizon</span> — штраф ожидания за горизонт</div>
         </div>
-      </div>
+      </div> */}
 
       <section>
         <div className="flex items-center gap-2 mb-2">
@@ -182,7 +182,6 @@ function FormulaBreakdown({
             <span>Остаток S = {fmt(summaryRow.leftover_stock)} ед.</span>
             <span>Штраф ожидания = {fmtCurrency(riskSettings.idleCostPerMinute)}/ед./мин.</span>
             <span>Длительность горизонта = 120 мин.</span>
-            <span>Pwait,horizon = {fmtCurrency(waitPenaltyPerHorizon)}/ед.</span>
           </div>
         </div>
         <div className="text-right text-xs font-mono text-status-yellow mt-1.5 pr-1">= {fmtCurrency(totalWait)}</div>

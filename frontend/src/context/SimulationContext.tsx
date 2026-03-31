@@ -80,6 +80,35 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     setWarehouseStatuses(prev => prev[id] === status ? prev : { ...prev, [id]: status })
   }, [])
 
+  // On mount: restore statuses from LS dispatch cache for the current analysisDateTime
+  useEffect(() => {
+    const prefix = 'dispatch_cache__'
+    const suffix = `__${analysisDateTime}`
+    const statuses: Record<string, 'ok' | 'warning' | 'critical'> = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k?.startsWith(prefix)) continue
+      const inner = k.slice(prefix.length) // e.g. "wh1__2025-03-13T11:00"
+      if (!inner.endsWith(suffix)) continue
+      const warehouseId = inner.slice(0, inner.length - suffix.length)
+      try {
+        const cached = JSON.parse(localStorage.getItem(k)!)
+        let hasCritical = false, hasWarning = false
+        for (const rp of cached.routes ?? []) {
+          for (const row of rp.plan ?? []) {
+            if (row.demand_new > 0 && row.vehicles_count === 0) hasCritical = true
+            else if (row.leftover_stock >= 1) hasWarning = true
+          }
+        }
+        statuses[warehouseId] = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
+      } catch { /* corrupt entry, skip */ }
+    }
+    if (Object.keys(statuses).length > 0) {
+      setWarehouseStatuses(prev => ({ ...prev, ...statuses }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount-only: statuses are re-derived live whenever dispatch runs
+
   const setRoutesAndSyncWarehouses = (nextRoutes: RouteDistance[]) => {
     setRoutes(nextRoutes)
     setWarehouses(prev => applyRouteTotalsToWarehouses(prev, nextRoutes))

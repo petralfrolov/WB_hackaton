@@ -20,6 +20,14 @@ function lsSet(key: string, v: ApiDispatchResponse) {
   try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(v)) } catch { /* quota */ }
 }
 
+const FC_PREFIX = 'forecast_cache__'
+function fcGet(key: string): ForecastPoint[] | null {
+  try { const r = localStorage.getItem(FC_PREFIX + key); return r ? JSON.parse(r) : null } catch { return null }
+}
+function fcSet(key: string, v: ForecastPoint[]) {
+  try { localStorage.setItem(FC_PREFIX + key, JSON.stringify(v)) } catch { /* quota */ }
+}
+
 interface WarehouseDrawerProps {
   warehouse: Warehouse | null
   onClose: () => void
@@ -73,11 +81,17 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     const ts = analysisDateTime.replace('T', ' ') + ':00'
     const key = `${warehouse.id}__${analysisDateTime}`
 
-    // Forecast (ML)
-    getWarehouseForecast(warehouse.id, ts)
-      .then(pts => setForecastData(pts))
-      .catch(() => setForecastData(warehouse.forecast))
-      .finally(() => setForecastLoading(false))
+    // Forecast (ML) — check LS cache first
+    const cachedFc = fcGet(key)
+    if (cachedFc) {
+      setForecastData(cachedFc)
+      setForecastLoading(false)
+    } else {
+      getWarehouseForecast(warehouse.id, ts)
+        .then(pts => { fcSet(key, pts); setForecastData(pts) })
+        .catch(() => setForecastData(warehouse.forecast))
+        .finally(() => setForecastLoading(false))
+    }
 
     // Dispatch plan (LS cache → backend)
     const cached = lsGet(key)
