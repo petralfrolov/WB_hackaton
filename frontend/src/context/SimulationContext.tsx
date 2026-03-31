@@ -15,6 +15,7 @@ interface SimulationContextValue {
   routes: RouteDistance[]
   setRoutes: (routes: RouteDistance[]) => void
   vehicleTypes: VehicleType[]
+  setVehicleTypes: (types: VehicleType[]) => void
   riskSettings: RiskSettings
   setRiskSettings: (settings: RiskSettings) => void
   analysisDateTime: string
@@ -151,6 +152,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       routes,
       setRoutes: setRoutesAndSyncWarehouses,
       vehicleTypes,
+      setVehicleTypes,
       riskSettings,
       setRiskSettings,
       analysisDateTime,

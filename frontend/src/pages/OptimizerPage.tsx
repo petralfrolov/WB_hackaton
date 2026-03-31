@@ -5,12 +5,13 @@ import { cn, routeDistanceToApi } from '../lib/utils'
 import { RouteTable } from '../components/optimizer/RouteTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
 import { useSimulationContext } from '../context/SimulationContext'
-import { postDispatch, putRouteDistances } from '../api'
+import { postDispatch, putRouteDistances, updateVehicle, getVehicles, putIncomingVehicles } from '../api'
+import { apiVehicleToVehicleType } from '../lib/utils'
 import { RefreshCw } from 'lucide-react'
 
 export function OptimizerPage() {
   const [searchParams] = useSearchParams()
-  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes } = useSimulationContext()
+  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes, setVehicleTypes, setIncomingVehicles } = useSimulationContext()
 
   const [warehouseId, setWarehouseId] = useState<string>(searchParams.get('warehouseId') ?? '')
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
@@ -18,13 +19,25 @@ export function OptimizerPage() {
   const [dispatchLoading, setDispatchLoading] = useState(false)
   const [dispatchError, setDispatchError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [sidebarWidth, setSidebarWidth] = useState(320)
-  const [costPanelWidth, setCostPanelWidth] = useState(400)
+  const [sidebarWidth, setSidebarWidth] = useState(240)
+  const [costPanelWidth, setCostPanelWidth] = useState(720)
 
-  // ── Forecast cache: key = `${warehouseId}__${analysisDateTime}` ──────────
-  const forecastCache = useRef<Map<string, ApiDispatchResponse>>(new Map())
-
+  // ── Forecast cache: localStorage-backed, keyed by `wid__datetime` ────────
+  const LS_PREFIX = 'dispatch_cache__'
   const cacheKey = (wid: string, dt: string) => `${wid}__${dt}`
+
+  function lsGet(key: string): ApiDispatchResponse | null {
+    try {
+      const raw = localStorage.getItem(LS_PREFIX + key)
+      return raw ? (JSON.parse(raw) as ApiDispatchResponse) : null
+    } catch { return null }
+  }
+  function lsSet(key: string, val: ApiDispatchResponse) {
+    try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(val)) } catch { /* quota */ }
+  }
+  function lsDel(key: string) {
+    try { localStorage.removeItem(LS_PREFIX + key) } catch { /* ignore */ }
+  }
 
   const startDragSidebar = useCallback((e: ReactMouseEvent) => {
     e.preventDefault()
@@ -53,10 +66,13 @@ export function OptimizerPage() {
   const runDispatch = useCallback(async (wid: string, forceRefresh = false) => {
     if (!wid) return
     const key = cacheKey(wid, analysisDateTime)
-    if (!forceRefresh && forecastCache.current.has(key)) {
-      setDispatchResult(forecastCache.current.get(key)!)
-      setDispatchError(null)
-      return
+    if (!forceRefresh) {
+      const cached = lsGet(key)
+      if (cached) {
+        setDispatchResult(cached)
+        setDispatchError(null)
+        return
+      }
     }
     setDispatchLoading(true)
     setDispatchError(null)
@@ -67,7 +83,7 @@ export function OptimizerPage() {
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
       })
-      forecastCache.current.set(key, result)
+      lsSet(key, result)
       setDispatchResult(result)
     } catch (err) {
       setDispatchError(err instanceof Error ? err.message : String(err))
@@ -75,7 +91,7 @@ export function OptimizerPage() {
     } finally {
       setDispatchLoading(false)
     }
-  }, [analysisDateTime, incomingVehicles, riskSettings])
+  }, [analysisDateTime, incomingVehicles])
 
   const runDispatchRef = useRef(runDispatch)
   useEffect(() => { runDispatchRef.current = runDispatch }, [runDispatch])
@@ -91,8 +107,8 @@ export function OptimizerPage() {
 
   const handleRefresh = useCallback(() => {
     if (!warehouseId) return
-    // Invalidate cache for current key and re-fetch
-    forecastCache.current.delete(cacheKey(warehouseId, analysisDateTime))
+    // Invalidate localStorage cache for current key and re-fetch
+    lsDel(cacheKey(warehouseId, analysisDateTime))
     runDispatchRef.current(warehouseId, true)
   }, [warehouseId, analysisDateTime])
 
@@ -103,13 +119,6 @@ export function OptimizerPage() {
     }
     setSelectedRouteId(prev => (prev && warehouseRoutes.some(route => route.id === prev) ? prev : warehouseRoutes[0].id))
   }, [warehouseRoutes])
-
-  // Re-dispatch on datetime change if warehouse already chosen
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    if (warehouseId) runDispatchRef.current(warehouseId)
-  }, [analysisDateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync URL param → auto-dispatch when navigated from map drawer
   useEffect(() => {
@@ -144,6 +153,53 @@ export function OptimizerPage() {
       setDispatchError(err instanceof Error ? err.message : String(err))
     }
   }, [routes, setRoutes, warehouseId])
+
+  const handleFleetChange = useCallback(async (
+    vehicleType: string,
+    horizonIdx: 0 | 1 | 2 | 3,
+    newCount: number,
+  ) => {
+    if (horizonIdx === 0) {
+      // Update base available count on the vehicle record
+      const vt = vehicleTypes.find(v => v.id === vehicleType)
+      if (!vt) return
+      await updateVehicle(vehicleType, {
+        vehicle_type: vehicleType,
+        capacity_units: vt.capacity,
+        cost_per_km: vt.costPerKm,
+        available: newCount,
+        category: vt.category,
+        underload_penalty: vt.underloadPenalty,
+        fixed_dispatch_cost: vt.fixedDispatchCost,
+      })
+      const reloaded = await getVehicles()
+      const newTypes = reloaded.map(apiVehicleToVehicleType)
+      setVehicleTypes(newTypes)
+    } else {
+      // Arrivals at this exact horizon = newCount − totalAvailableAtPreviousHorizon
+      const vt = vehicleTypes.find(v => v.id === vehicleType)
+      const base = vt?.available ?? 0
+      const additionsBelow = incomingVehicles
+        .filter(iv => iv.vehicle_type === vehicleType && iv.horizon_idx < horizonIdx)
+        .reduce((s, iv) => s + iv.count, 0)
+      const prevHorizTotal = base + additionsBelow
+      const delta = newCount - prevHorizTotal
+      // Replace all existing entries for this type+horizon with a single entry (or remove)
+      const filtered = incomingVehicles.filter(
+        iv => !(iv.vehicle_type === vehicleType && iv.horizon_idx === horizonIdx)
+      )
+      const newList = delta > 0
+        ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx as 0|1|2|3, count: delta }]
+        : filtered
+      await putIncomingVehicles(newList)
+      setIncomingVehicles(newList)
+    }
+    // Invalidate cache and re-run dispatch
+    if (warehouseId) {
+      lsDel(cacheKey(warehouseId, analysisDateTime))
+      await runDispatchRef.current(warehouseId, true)
+    }
+  }, [vehicleTypes, incomingVehicles, warehouseId, analysisDateTime, setVehicleTypes, setIncomingVehicles])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -227,6 +283,7 @@ export function OptimizerPage() {
                 onChangeReadyToShip={handleUpdateRouteReadyToShip}
                 vehicleTypes={vehicleTypes}
                 incomingVehicles={incomingVehicles}
+                onFleetChange={handleFleetChange}
               />
             )}
           </div>

@@ -342,7 +342,13 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
                     onClick={() => setExpandedId(isOpen ? null : group.id)}
                     className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-border/40 transition-colors text-left"
                   >
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-accent" />
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      group.totalVehicles === 0
+                        ? 'bg-status-red'
+                        : group.summaryRow.leftover_stock >= 1
+                          ? 'bg-status-yellow'
+                          : 'bg-status-green'
+                    }`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-semibold text-foreground">{horizonLabel(group.horizon)}</span>

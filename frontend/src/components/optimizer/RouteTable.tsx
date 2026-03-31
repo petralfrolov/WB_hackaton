@@ -45,6 +45,13 @@ interface RouteTableProps {
   onChangeReadyToShip: (routeId: string, value: number) => void
   vehicleTypes?: VehicleType[]
   incomingVehicles?: ApiIncomingVehicle[]
+  onFleetChange?: (vehicleType: string, horizonIdx: 0 | 1 | 2 | 3, newCount: number) => Promise<void>
+}
+
+function forecastColor(forecast: number, readyToShip: number): string {
+  if (forecast <= 0) return 'text-muted'
+  if (forecast > readyToShip) return 'text-status-red font-semibold'
+  return 'text-status-yellow font-semibold'
 }
 
 interface RouteRow {
@@ -69,8 +76,11 @@ export function RouteTable({
   onChangeReadyToShip,
   vehicleTypes = [],
   incomingVehicles = [],
+  onFleetChange,
 }: RouteTableProps) {
   const [draftReady, setDraftReady] = useState<Record<string, string>>({})
+  const [draftFleet, setDraftFleet] = useState<Record<string, string>>({})
+  const [savingFleet, setSavingFleet] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const nextDrafts = Object.fromEntries(warehouseRoutes.map(route => [route.id, String(route.readyToShip)]))
@@ -109,6 +119,11 @@ export function RouteTable({
   const hasShortfall = dispatchResult !== null && dispatchResult.routes.some(r => r.coverage_min < -0.5)
 
   const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles)
+
+  useEffect(() => {
+    setDraftFleet({})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fleetByHorizon.map(r => r.h.join(',')).join('|')])
 
   return (
     <div className="space-y-4">
@@ -206,13 +221,19 @@ export function RouteTable({
                     />
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {row.h0 !== null ? fmt(Math.round(row.h0)) : <span className="text-muted">—</span>}
+                    {row.h0 !== null
+                      ? <span className={forecastColor(row.h0, row.readyToShip)}>{fmt(Math.round(row.h0))}</span>
+                      : <span className="text-muted">—</span>}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {row.h1 !== null ? fmt(Math.round(row.h1)) : <span className="text-muted">—</span>}
+                    {row.h1 !== null
+                      ? <span className={forecastColor(row.h1, row.readyToShip)}>{fmt(Math.round(row.h1))}</span>
+                      : <span className="text-muted">—</span>}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {row.h2 !== null ? fmt(Math.round(row.h2)) : <span className="text-muted">—</span>}
+                    {row.h2 !== null
+                      ? <span className={forecastColor(row.h2, row.readyToShip)}>{fmt(Math.round(row.h2))}</span>
+                      : <span className="text-muted">—</span>}
                   </TableCell>
                 </TableRow>
               ))
@@ -252,13 +273,45 @@ export function RouteTable({
               {fleetByHorizon.map(row => (
                 <TableRow key={row.type}>
                   <TableCell className="font-mono text-sm">{row.type}</TableCell>
-                  {row.h.map((count, i) => (
-                    <TableCell key={i} className="text-right font-mono text-sm">
-                      <span className={count === 0 ? 'text-status-red' : 'text-foreground'}>
-                        {count}
-                      </span>
-                    </TableCell>
-                  ))}
+                  {row.h.map((count, i) => {
+                    const k = `${row.type}__${i}`
+                    const draftVal = draftFleet[k] ?? String(count)
+                    const isSaving = savingFleet[k]
+                    return (
+                      <TableCell key={i} className="text-right">
+                        {onFleetChange ? (
+                          <input
+                            type="number"
+                            min="0"
+                            value={draftVal}
+                            disabled={isSaving}
+                            onChange={e => setDraftFleet(prev => ({ ...prev, [k]: e.target.value }))}
+                            onFocus={() => setDraftFleet(prev => ({ ...prev, [k]: String(count) }))}
+                            onBlur={async () => {
+                              const parsed = Number(draftVal)
+                              const next = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : count
+                              setDraftFleet(prev => ({ ...prev, [k]: String(next) }))
+                              if (next !== count) {
+                                setSavingFleet(prev => ({ ...prev, [k]: true }))
+                                try {
+                                  await onFleetChange(row.type, i as 0|1|2|3, next)
+                                } finally {
+                                  setSavingFleet(prev => ({ ...prev, [k]: false }))
+                                }
+                              }
+                            }}
+                            className={`w-16 h-7 rounded bg-elevated border border-border px-2 text-right text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50 ${
+                              count === 0 ? 'text-status-red' : 'text-foreground'
+                            }`}
+                          />
+                        ) : (
+                          <span className={`font-mono text-sm ${count === 0 ? 'text-status-red' : 'text-foreground'}`}>
+                            {count}
+                          </span>
+                        )}
+                      </TableCell>
+                    )
+                  })}
                 </TableRow>
               ))}
             </TableBody>

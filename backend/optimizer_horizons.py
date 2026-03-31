@@ -88,7 +88,7 @@ def solve_irp_milp(
     demands: Dict[str, List[float]],
     vehicles_cfg: Dict,
     route_distances: Optional[Dict[str, float]] = None,
-    global_fleet: bool = False,
+    global_fleet: bool = True,
     incoming_vehicles: Optional[List[Dict]] = None,
 ) -> Dict:
     """Решить IRP MILP глобально по всем маршрутам и горизонтам.
