@@ -48,10 +48,12 @@ interface RouteTableProps {
   onFleetChange?: (vehicleType: string, horizonIdx: 0 | 1 | 2 | 3, newCount: number) => Promise<void>
 }
 
-function forecastColor(forecast: number, readyToShip: number): string {
-  if (forecast <= 0) return 'text-muted'
-  if (forecast > readyToShip) return 'text-status-red font-semibold'
-  return 'text-status-yellow font-semibold'
+function forecastColor(demand: number, leftover: number | null, vehiclesCount: number | null): string {
+  if (demand <= 0) return 'text-muted'
+  if (leftover === null) return 'text-foreground' // no dispatch result yet
+  if (vehiclesCount === 0) return 'text-status-red font-semibold'   // nothing dispatched
+  if (leftover >= 1) return 'text-status-yellow font-semibold'       // partial coverage
+  return 'text-foreground'                                           // fully covered
 }
 
 interface RouteRow {
@@ -60,9 +62,15 @@ interface RouteRow {
   toCity: string
   distanceKm: number
   readyToShip: number
-  h0: number | null  // 0–2h
-  h1: number | null  // 2–4h
-  h2: number | null  // 4–6h
+  h0: number | null
+  h1: number | null
+  h2: number | null
+  h0Leftover: number | null
+  h1Leftover: number | null
+  h2Leftover: number | null
+  h0Vehicles: number | null
+  h1Vehicles: number | null
+  h2Vehicles: number | null
 }
 
 export function RouteTable({
@@ -87,8 +95,8 @@ export function RouteTable({
     setDraftReady(nextDrafts)
   }, [warehouseRoutes])
 
-  // Build lookup: route_id → forecast by horizon
-  const forecastMap = new Map<string, { h0: number; h1: number; h2: number }>()
+  // Build lookup: route_id → forecast + coverage by horizon
+  const forecastMap = new Map<string, { h0: number; h1: number; h2: number; h0l: number; h1l: number; h2l: number; h0v: number; h1v: number; h2v: number }>()
   if (dispatchResult) {
     for (const rp of dispatchResult.routes) {
       const hB = rp.plan.find(r => r.horizon === 'B: +2h')
@@ -98,6 +106,12 @@ export function RouteTable({
         h0: hB?.demand_new ?? 0,
         h1: hC?.demand_new ?? 0,
         h2: hD?.demand_new ?? 0,
+        h0l: hB?.leftover_stock ?? 0,
+        h1l: hC?.leftover_stock ?? 0,
+        h2l: hD?.leftover_stock ?? 0,
+        h0v: hB?.vehicles_count ?? 0,
+        h1v: hC?.vehicles_count ?? 0,
+        h2v: hD?.vehicles_count ?? 0,
       })
     }
   }
@@ -113,6 +127,12 @@ export function RouteTable({
       h0: fd?.h0 ?? null,
       h1: fd?.h1 ?? null,
       h2: fd?.h2 ?? null,
+      h0Leftover: fd != null ? fd.h0l : null,
+      h1Leftover: fd != null ? fd.h1l : null,
+      h2Leftover: fd != null ? fd.h2l : null,
+      h0Vehicles: fd != null ? fd.h0v : null,
+      h1Vehicles: fd != null ? fd.h1v : null,
+      h2Vehicles: fd != null ? fd.h2v : null,
     }
   })
 
@@ -222,17 +242,17 @@ export function RouteTable({
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {row.h0 !== null
-                      ? <span className={forecastColor(row.h0, row.readyToShip)}>{fmt(Math.round(row.h0))}</span>
+                      ? <span className={forecastColor(row.h0, row.h0Leftover, row.h0Vehicles)}>{fmt(Math.round(row.h0))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {row.h1 !== null
-                      ? <span className={forecastColor(row.h1, row.readyToShip)}>{fmt(Math.round(row.h1))}</span>
+                      ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)}>{fmt(Math.round(row.h1))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {row.h2 !== null
-                      ? <span className={forecastColor(row.h2, row.readyToShip)}>{fmt(Math.round(row.h2))}</span>
+                      ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)}>{fmt(Math.round(row.h2))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
                 </TableRow>

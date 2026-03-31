@@ -2,7 +2,7 @@
   "vehicles": [
     {
       "vehicle_type": "Lada Largus",
-      "capacity_units": 3.5,
+      "capacity_units": 3.0,
       "cost_per_km": 5.65,
       "available": 6,
       "underload_penalty": 20.0,

@@ -11,7 +11,7 @@ import { RefreshCw } from 'lucide-react'
 
 export function OptimizerPage() {
   const [searchParams] = useSearchParams()
-  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes, setVehicleTypes, setIncomingVehicles } = useSimulationContext()
+  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes, setVehicleTypes, setIncomingVehicles, warehouseStatuses, setWarehouseStatus } = useSimulationContext()
 
   const [warehouseId, setWarehouseId] = useState<string>(searchParams.get('warehouseId') ?? '')
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
@@ -63,6 +63,20 @@ export function OptimizerPage() {
   const warehouseRoutes = selectedWarehouse ? routes.filter(r => r.fromId === selectedWarehouse.id) : []
 
   // ── Dispatch logic ───────────────────────────────────────────────────────
+  function deriveWarehouseStatus(result: ApiDispatchResponse): 'ok' | 'warning' | 'critical' {
+    let hasCritical = false
+    let hasWarning = false
+    for (const rp of result.routes) {
+      for (const row of rp.plan) {
+        if (row.demand_new > 0 && row.vehicles_count === 0) { hasCritical = true }
+        else if (row.leftover_stock >= 1) { hasWarning = true }
+      }
+    }
+    if (hasCritical) return 'critical'
+    if (hasWarning) return 'warning'
+    return 'ok'
+  }
+
   const runDispatch = useCallback(async (wid: string, forceRefresh = false) => {
     if (!wid) return
     const key = cacheKey(wid, analysisDateTime)
@@ -71,6 +85,7 @@ export function OptimizerPage() {
       if (cached) {
         setDispatchResult(cached)
         setDispatchError(null)
+        setWarehouseStatus(wid, deriveWarehouseStatus(cached))
         return
       }
     }
@@ -85,13 +100,14 @@ export function OptimizerPage() {
       })
       lsSet(key, result)
       setDispatchResult(result)
+      setWarehouseStatus(wid, deriveWarehouseStatus(result))
     } catch (err) {
       setDispatchError(err instanceof Error ? err.message : String(err))
       setDispatchResult(null)
     } finally {
       setDispatchLoading(false)
     }
-  }, [analysisDateTime, incomingVehicles])
+  }, [analysisDateTime, incomingVehicles, setWarehouseStatus])
 
   const runDispatchRef = useRef(runDispatch)
   useEffect(() => { runDispatchRef.current = runDispatch }, [runDispatch])
@@ -129,6 +145,7 @@ export function OptimizerPage() {
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const STATUS_COLOR: Record<string, string> = {
+    none: 'bg-accent/60',
     ok: 'bg-status-green',
     warning: 'bg-status-yellow',
     critical: 'bg-status-red',
@@ -249,7 +266,7 @@ export function OptimizerPage() {
                 )}
               >
                 <div className="flex items-center gap-2">
-                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_COLOR[w.status])} />
+                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_COLOR[warehouseStatuses[w.id] ?? 'none'])} />
                   <span className={cn('font-medium truncate text-xs', warehouseId === w.id ? 'text-accent' : 'text-foreground')}>
                     {w.name}
                   </span>

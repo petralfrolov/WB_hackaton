@@ -8,14 +8,17 @@ import { useSimulationContext } from '../context/SimulationContext'
 
 export function MapPage() {
   const [selected, setSelected] = useState<Warehouse | null>(null)
-  const { warehouses, routes } = useSimulationContext()
+  const { warehouses, routes, warehouseStatuses } = useSimulationContext()
 
   const handleSelect = useCallback((wh: Warehouse) => setSelected(wh), [])
   const handleClose = useCallback(() => setSelected(null), [])
 
   const totalWarehouses = warehouses.length
-  const attentionCount = warehouses.filter(w => w.status === 'warning' || w.status === 'critical').length
-  const criticalCount = warehouses.filter(w => w.status === 'critical').length
+  const attentionCount = warehouses.filter(w => {
+    const s = warehouseStatuses[w.id]
+    return s === 'warning' || s === 'critical'
+  }).length
+  const criticalCount = warehouses.filter(w => warehouseStatuses[w.id] === 'critical').length
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -40,7 +43,7 @@ export function MapPage() {
 
       {/* Map + Drawer */}
       <div className="relative flex-1 overflow-hidden">
-        <WarehouseMap warehouses={warehouses} onSelect={handleSelect} />
+        <WarehouseMap warehouses={warehouses} onSelect={handleSelect} statusOverrides={warehouseStatuses} />
         <WarehouseDrawer warehouse={selected} onClose={handleClose} routes={routes} />
       </div>
     </div>

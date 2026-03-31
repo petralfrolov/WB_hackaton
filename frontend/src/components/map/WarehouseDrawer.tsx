@@ -201,9 +201,6 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
             <div className="bg-elevated rounded-lg p-4 overflow-x-auto">
               <SankeyChart data={sankeyData} width={588} height={260} />
             </div>
-            <p className="text-[11px] text-muted mt-2">
-              <span style={{ color: '#D29922' }}>⬛</span> Жёлтый поток — критический отвал (&gt;30% потерь на переходе)
-            </p>
           </section>
 
           {/* ── Vehicle Park ─────────────────────────────────────────────────── */}

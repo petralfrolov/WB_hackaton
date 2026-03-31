@@ -12,7 +12,8 @@ import { ZoomIn, ZoomOut, Locate } from 'lucide-react'
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json'
 
-const STATUS_COLORS: Record<Warehouse['status'], string> = {
+const STATUS_COLORS: Record<string, string> = {
+  none: '#58A6FF',
   ok: '#3FB950',
   warning: '#D29922',
   critical: '#F85149',
@@ -27,9 +28,10 @@ interface TooltipState {
 interface WarehouseMapProps {
   warehouses: Warehouse[]
   onSelect: (warehouse: Warehouse) => void
+  statusOverrides?: Record<string, 'none' | 'ok' | 'warning' | 'critical'>
 }
 
-export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
+export function WarehouseMap({ warehouses, onSelect, statusOverrides }: WarehouseMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [position, setPosition] = useState<{ coordinates: [number, number]; zoom: number }>({
     coordinates: [50, 57],
@@ -48,7 +50,8 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
     setTooltip(null)
   }, [])
 
-  const statusLabel: Record<Warehouse['status'], string> = {
+  const statusLabel: Record<string, string> = {
+    none: 'Прогноз не получен',
     ok: 'В норме',
     warning: 'Предупреждение',
     critical: 'Критично',
@@ -85,7 +88,8 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
         </Geographies>
 
         {warehouses.map(wh => {
-          const color = STATUS_COLORS[wh.status]
+          const effectiveStatus = statusOverrides?.[wh.id] ?? 'none'
+          const color = STATUS_COLORS[effectiveStatus]
           return (
             <Marker
               key={wh.id}
@@ -97,10 +101,10 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
             >
               <g>
                 {/* Pulse ring */}
-                {wh.status === 'critical' && (
+                {effectiveStatus === 'critical' && (
                   <circle r={9 * markerScale} fill={color} fillOpacity={0.4} className="pulse-fast" />
                 )}
-                {wh.status === 'warning' && (
+                {effectiveStatus === 'warning' && (
                   <circle r={9 * markerScale} fill={color} fillOpacity={0.3} className="pulse-slow" />
                 )}
                 {/* Core dot */}
@@ -154,10 +158,10 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
             <div className="flex items-center gap-2">
               <span
                 className="inline-block w-2 h-2 rounded-full"
-                style={{ background: STATUS_COLORS[tooltip.warehouse.status] }}
+                style={{ background: STATUS_COLORS[statusOverrides?.[tooltip.warehouse.id] ?? 'none'] }}
               />
-              <span style={{ color: STATUS_COLORS[tooltip.warehouse.status] }}>
-                {statusLabel[tooltip.warehouse.status]}
+              <span style={{ color: STATUS_COLORS[statusOverrides?.[tooltip.warehouse.id] ?? 'none'] }}>
+                {statusLabel[statusOverrides?.[tooltip.warehouse.id] ?? 'none']}
               </span>
             </div>
             <div className="text-muted">

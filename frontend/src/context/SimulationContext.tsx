@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ApiIncomingVehicle, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
 import { getWarehouses, getRouteDistances, getConfig, getVehicles, getIncomingVehicles, patchSettings } from '../api'
@@ -24,6 +24,8 @@ interface SimulationContextValue {
   setSelectedWarehouseId: (id: string | null) => void
   incomingVehicles: ApiIncomingVehicle[]
   setIncomingVehicles: (list: ApiIncomingVehicle[]) => void
+  warehouseStatuses: Record<string, 'none' | 'ok' | 'warning' | 'critical'>
+  setWarehouseStatus: (id: string, status: 'none' | 'ok' | 'warning' | 'critical') => void
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null)
@@ -72,6 +74,11 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [analysisDateTime, setAnalysisDateTime] = useState<string>('2025-03-13T11:00')
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null)
   const [incomingVehicles, setIncomingVehicles] = useState<ApiIncomingVehicle[]>([])
+  const [warehouseStatuses, setWarehouseStatuses] = useState<Record<string, 'none' | 'ok' | 'warning' | 'critical'>>({});
+
+  const setWarehouseStatus = useCallback((id: string, status: 'none' | 'ok' | 'warning' | 'critical') => {
+    setWarehouseStatuses(prev => prev[id] === status ? prev : { ...prev, [id]: status })
+  }, [])
 
   const setRoutesAndSyncWarehouses = (nextRoutes: RouteDistance[]) => {
     setRoutes(nextRoutes)
@@ -161,8 +168,10 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       setSelectedWarehouseId,
       incomingVehicles,
       setIncomingVehicles,
+      warehouseStatuses,
+      setWarehouseStatus,
     }),
-    [warehouses, routes, vehicleTypes, riskSettings, analysisDateTime, selectedWarehouseId, incomingVehicles],
+    [warehouses, routes, vehicleTypes, riskSettings, analysisDateTime, selectedWarehouseId, incomingVehicles, warehouseStatuses],
   )
 
   return (
