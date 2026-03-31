@@ -1,32 +1,76 @@
 {
   "vehicles": [
     {
-      "vehicle_type": "gazelle_s",
-      "capacity_units": 18,
-      "cost_per_km": 40,
-      "available": 5
+      "vehicle_type": "Lada Largus",
+      "capacity_units": 35.0,
+      "cost_per_km": 5.65,
+      "available": 6,
+      "category": "large"
     },
     {
-      "vehicle_type": "gazelle_l",
-      "capacity_units": 26,
-      "cost_per_km": 45,
-      "available": 4
+      "vehicle_type": "ГАЗель NN ЦМФ",
+      "capacity_units": 60.0,
+      "cost_per_km": 8.52,
+      "available": 14,
+      "category": "compact"
     },
     {
-      "vehicle_type": "truck_m",
-      "capacity_units": 40,
-      "cost_per_km": 60,
-      "available": 3
+      "vehicle_type": "AMBERTRUCK JL",
+      "capacity_units": 95,
+      "cost_per_km": 7.74,
+      "available": 10,
+      "category": "mid"
     },
     {
-      "vehicle_type": "truck_l",
-      "capacity_units": 60,
-      "cost_per_km": 70,
-      "available": 2
+      "vehicle_type": "Валдай 8",
+      "capacity_units": 140,
+      "cost_per_km": 8.9,
+      "available": 5,
+      "category": "mid"
+    },
+    {
+      "vehicle_type": "Hyundai Mighty EX8 XL",
+      "capacity_units": 180,
+      "cost_per_km": 10.84,
+      "available": 4,
+      "category": "large"
+    },
+    {
+      "vehicle_type": "ISUZU ELF 7.5 Long",
+      "capacity_units": 195,
+      "cost_per_km": 12.77,
+      "available": 4,
+      "category": "large"
+    },
+    {
+      "vehicle_type": "FUSO Canter TF 7.5/8.55",
+      "capacity_units": 230,
+      "cost_per_km": 13.94,
+      "available": 3,
+      "category": "large"
+    },
+    {
+      "vehicle_type": "ГАЗон NEXT 10 т",
+      "capacity_units": 300,
+      "cost_per_km": 14.32,
+      "available": 2,
+      "category": "large"
+    },
+    {
+      "vehicle_type": "жопа-трак",
+      "capacity_units": 50.0,
+      "cost_per_km": 1.0,
+      "available": 999,
+      "category": "compact"
     }
   ],
-  "underload_penalty_per_unit": 50.0,
-  "wait_penalty_per_minute": 5.0,
+  "underload_penalty_per_unit": 12.0,
+  "underload_penalty_per_unit_by_cat": {
+    "compact": 12.0,
+    "mid": 44.0,
+    "large": 12.0
+  },
+  "wait_penalty_per_minute": 8.0,
   "initial_stock_units": 150,
   "route_distance_km": 15,
   "economy_threshold": 65.0,

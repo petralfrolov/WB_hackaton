@@ -36,13 +36,17 @@ const HORIZON_ORDER = ['A: now', 'B: +2h', 'C: +4h', 'D: +6h']
 function FormulaBreakdown({
   group,
   riskSettings,
+  vehicleMap,
 }: {
   group: PlanHorizonGroup
   riskSettings: RiskSettings
+  vehicleMap: Map<string, VehicleType>
 }) {
   const { summaryRow, fixedRows, fixedTotal } = group
   const waitPenaltyPerHorizon = riskSettings.idleCostPerMinute * 120
-  const total = fixedTotal + summaryRow.cost_underload + summaryRow.cost_wait
+  const dispatched = group.rows.filter(r => r.vehicle_type !== 'none' && r.vehicles_count > 0)
+  const underloadTotal = dispatched.reduce((s, r) => s + r.cost_underload, 0)
+  const total = fixedTotal + underloadTotal + summaryRow.cost_wait
 
   return (
     <div className="mt-2 border-t border-border/50 pt-4 space-y-4">
@@ -107,7 +111,7 @@ function FormulaBreakdown({
           <span className="w-4 h-4 rounded-sm bg-accent/20 text-accent text-[10px] flex items-center justify-center font-bold shrink-0">2</span>
           <span className="text-[11px] text-muted font-semibold tracking-wide">ШТРАФ ЗА НЕДОЗАГРУЗКУ</span>
         </div>
-        <div className="bg-elevated rounded-lg px-3 py-2 space-y-1 text-xs">
+        <div className="bg-elevated rounded-lg px-3 py-2 space-y-2 text-xs">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted">
             <div className="flex justify-between gap-2">
               <span>Доступно к отправке</span>
@@ -117,20 +121,38 @@ function FormulaBreakdown({
               <span>Отправлено</span>
               <span className="font-mono text-foreground">{fmt(summaryRow.actually_shipped)}</span>
             </div>
-            <div className="flex justify-between gap-2">
-              <span>Пустая вместимость (U)</span>
-              <span className="font-mono text-foreground">{fmt(summaryRow.empty_capacity_units)}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span>Штраф Pempty</span>
-              <span className="font-mono text-foreground">{fmtCurrency(riskSettings.emptyPenaltyPerUnit)}/ед.</span>
-            </div>
           </div>
+
+          {dispatched.length ? (
+            <div className="space-y-1.5">
+              {dispatched.map((row, idx) => {
+                const v = vehicleMap.get(row.vehicle_type)
+                const capPer = v?.capacity ?? 0
+                const totalCap = capPer * row.vehicles_count
+                const loaded = Math.max(0, totalCap - row.empty_capacity_units)
+                const cat = v?.category ?? '—'
+                return (
+                  <div key={idx} className="flex justify-between gap-2 text-muted">
+                    <span>
+                      <span className="text-foreground">{v?.name ?? row.vehicle_type}</span>
+                      {' '}({cat}) · {fmt(loaded)}/{fmt(totalCap)} ед.
+                    </span>
+                    <span className="font-mono text-foreground">
+                      {fmtCurrency(row.cost_underload)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-[11px] text-muted">Отправок в этом горизонте нет</div>
+          )}
+
           <div className="border-t border-border/40 pt-1.5 text-[11px] text-muted">
-            Штраф рассчитывается по фактической пустой вместимости, которую вернул оптимизатор для горизонта.
+            Штраф считается по пустой вместимости каждой отправленной машины и ставке её категории.
           </div>
         </div>
-        <div className="text-right text-xs font-mono text-accent mt-1.5 pr-1">= {fmtCurrency(summaryRow.cost_underload)}</div>
+        <div className="text-right text-xs font-mono text-accent mt-1.5 pr-1">= {fmtCurrency(underloadTotal)}</div>
       </section>
 
       <section>
@@ -320,7 +342,7 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
                   </button>
                   {isOpen && (
                     <div className="px-3 pb-3">
-                      <FormulaBreakdown group={group} riskSettings={riskSettings} />
+                      <FormulaBreakdown group={group} riskSettings={riskSettings} vehicleMap={vehicleMap} />
                     </div>
                   )}
                 </div>

@@ -6,8 +6,8 @@
       "to_id": "z_bal",
       "from_city": "Москва",
       "to_city": "Балашиха",
-      "distance_km": 22,
-      "ready_to_ship": 47
+      "distance_km": 22.0,
+      "ready_to_ship": 301
     },
     {
       "id": "496",
@@ -15,7 +15,7 @@
       "to_id": "z_lub",
       "from_city": "Москва",
       "to_city": "Люберцы",
-      "distance_km": 18,
+      "distance_km": 18.0,
       "ready_to_ship": 47
     },
     {
@@ -24,7 +24,7 @@
       "to_id": "z_reu",
       "from_city": "Москва",
       "to_city": "Реутов",
-      "distance_km": 12,
+      "distance_km": 12.0,
       "ready_to_ship": 47
     },
     {
@@ -33,7 +33,7 @@
       "to_id": "z_zhu",
       "from_city": "Москва",
       "to_city": "Жуковский",
-      "distance_km": 45,
+      "distance_km": 45.0,
       "ready_to_ship": 47
     },
     {
@@ -42,7 +42,7 @@
       "to_id": "z_vid",
       "from_city": "Москва",
       "to_city": "Видное",
-      "distance_km": 25,
+      "distance_km": 25.0,
       "ready_to_ship": 46
     },
     {
@@ -51,7 +51,7 @@
       "to_id": "z_kli",
       "from_city": "Подольск",
       "to_city": "Климовск",
-      "distance_km": 8,
+      "distance_km": 8.0,
       "ready_to_ship": 114
     },
     {
@@ -60,7 +60,7 @@
       "to_id": "z_che",
       "from_city": "Подольск",
       "to_city": "Чехов",
-      "distance_km": 25,
+      "distance_km": 25.0,
       "ready_to_ship": 114
     },
     {
@@ -69,7 +69,7 @@
       "to_id": "z_ser",
       "from_city": "Подольск",
       "to_city": "Серпухов",
-      "distance_km": 38,
+      "distance_km": 38.0,
       "ready_to_ship": 113
     },
     {
@@ -78,7 +78,7 @@
       "to_id": "z_stu",
       "from_city": "Подольск",
       "to_city": "Ступино",
-      "distance_km": 55,
+      "distance_km": 55.0,
       "ready_to_ship": 113
     },
     {
@@ -87,7 +87,7 @@
       "to_id": "z_nar",
       "from_city": "Подольск",
       "to_city": "Наро-Фоминск",
-      "distance_km": 35,
+      "distance_km": 35.0,
       "ready_to_ship": 113
     },
     {
@@ -96,7 +96,7 @@
       "to_id": "z_zel",
       "from_city": "Химки",
       "to_city": "Зеленоград",
-      "distance_km": 22,
+      "distance_km": 22.0,
       "ready_to_ship": 179
     },
     {
@@ -105,7 +105,7 @@
       "to_id": "z_lob",
       "from_city": "Химки",
       "to_city": "Лобня",
-      "distance_km": 15,
+      "distance_km": 15.0,
       "ready_to_ship": 178
     },
     {
@@ -114,7 +114,7 @@
       "to_id": "z_dol",
       "from_city": "Химки",
       "to_city": "Долгопрудный",
-      "distance_km": 12,
+      "distance_km": 12.0,
       "ready_to_ship": 178
     },
     {
@@ -123,7 +123,7 @@
       "to_id": "z_myt",
       "from_city": "Химки",
       "to_city": "Мытищи",
-      "distance_km": 28,
+      "distance_km": 28.0,
       "ready_to_ship": 178
     },
     {
@@ -132,7 +132,7 @@
       "to_id": "z_krs",
       "from_city": "Химки",
       "to_city": "Красногорск",
-      "distance_km": 14,
+      "distance_km": 14.0,
       "ready_to_ship": 178
     },
     {
@@ -141,7 +141,7 @@
       "to_id": "z_pus",
       "from_city": "Санкт-Петербург",
       "to_city": "Пушкин",
-      "distance_km": 28,
+      "distance_km": 28.0,
       "ready_to_ship": 63
     },
     {
@@ -150,7 +150,7 @@
       "to_id": "z_kol",
       "from_city": "Санкт-Петербург",
       "to_city": "Колпино",
-      "distance_km": 32,
+      "distance_km": 32.0,
       "ready_to_ship": 63
     },
     {
@@ -159,7 +159,7 @@
       "to_id": "z_gat",
       "from_city": "Санкт-Петербург",
       "to_city": "Гатчина",
-      "distance_km": 45,
+      "distance_km": 45.0,
       "ready_to_ship": 62
     },
     {
@@ -168,7 +168,7 @@
       "to_id": "z_pav",
       "from_city": "Санкт-Петербург",
       "to_city": "Павловск",
-      "distance_km": 30,
+      "distance_km": 30.0,
       "ready_to_ship": 62
     },
     {
@@ -177,7 +177,7 @@
       "to_id": "z_kro",
       "from_city": "Санкт-Петербург",
       "to_city": "Кронштадт",
-      "distance_km": 50,
+      "distance_km": 50.0,
       "ready_to_ship": 62
     },
     {
@@ -186,7 +186,7 @@
       "to_id": "z_zld",
       "from_city": "Казань",
       "to_city": "Зеленодольск",
-      "distance_km": 40,
+      "distance_km": 40.0,
       "ready_to_ship": 112
     },
     {
@@ -195,7 +195,7 @@
       "to_id": "z_lai",
       "from_city": "Казань",
       "to_city": "Лаишево",
-      "distance_km": 30,
+      "distance_km": 30.0,
       "ready_to_ship": 111
     },
     {
@@ -204,7 +204,7 @@
       "to_id": "z_nkm",
       "from_city": "Казань",
       "to_city": "Нижнекамск",
-      "distance_km": 210,
+      "distance_km": 210.0,
       "ready_to_ship": 111
     },
     {
@@ -213,7 +213,7 @@
       "to_id": "z_csp",
       "from_city": "Казань",
       "to_city": "Чистополь",
-      "distance_km": 140,
+      "distance_km": 140.0,
       "ready_to_ship": 111
     },
     {
@@ -222,7 +222,7 @@
       "to_id": "z_dze",
       "from_city": "Нижний Новгород",
       "to_city": "Дзержинск",
-      "distance_km": 35,
+      "distance_km": 35.0,
       "ready_to_ship": 40
     },
     {
@@ -231,7 +231,7 @@
       "to_id": "z_bor",
       "from_city": "Нижний Новгород",
       "to_city": "Бор",
-      "distance_km": 12,
+      "distance_km": 12.0,
       "ready_to_ship": 40
     },
     {
@@ -240,7 +240,7 @@
       "to_id": "z_kst",
       "from_city": "Нижний Новгород",
       "to_city": "Кстово",
-      "distance_km": 22,
+      "distance_km": 22.0,
       "ready_to_ship": 40
     },
     {
@@ -249,7 +249,7 @@
       "to_id": "z_arz",
       "from_city": "Нижний Новгород",
       "to_city": "Арзамас",
-      "distance_km": 115,
+      "distance_km": 115.0,
       "ready_to_ship": 39
     },
     {
@@ -258,7 +258,7 @@
       "to_id": "z_par",
       "from_city": "Нижний Новгород",
       "to_city": "Павлово",
-      "distance_km": 85,
+      "distance_km": 85.0,
       "ready_to_ship": 39
     },
     {
@@ -267,7 +267,7 @@
       "to_id": "z_ber",
       "from_city": "Екатеринбург",
       "to_city": "Берёзовский",
-      "distance_km": 15,
+      "distance_km": 15.0,
       "ready_to_ship": 105
     },
     {
@@ -276,7 +276,7 @@
       "to_id": "z_per",
       "from_city": "Екатеринбург",
       "to_city": "Первоуральск",
-      "distance_km": 44,
+      "distance_km": 44.0,
       "ready_to_ship": 105
     },
     {
@@ -285,7 +285,7 @@
       "to_id": "z_pol",
       "from_city": "Екатеринбург",
       "to_city": "Полевской",
-      "distance_km": 50,
+      "distance_km": 50.0,
       "ready_to_ship": 105
     },
     {
@@ -294,7 +294,7 @@
       "to_id": "z_ntg",
       "from_city": "Екатеринбург",
       "to_city": "Нижний Тагил",
-      "distance_km": 140,
+      "distance_km": 140.0,
       "ready_to_ship": 104
     },
     {
@@ -303,7 +303,7 @@
       "to_id": "z_asb",
       "from_city": "Екатеринбург",
       "to_city": "Асбест",
-      "distance_km": 80,
+      "distance_km": 80.0,
       "ready_to_ship": 104
     },
     {
@@ -312,7 +312,7 @@
       "to_id": "z_tol",
       "from_city": "Самара",
       "to_city": "Тольятти",
-      "distance_km": 95,
+      "distance_km": 95.0,
       "ready_to_ship": 67
     },
     {
@@ -321,7 +321,7 @@
       "to_id": "z_nvk",
       "from_city": "Самара",
       "to_city": "Новокуйбышевск",
-      "distance_km": 20,
+      "distance_km": 20.0,
       "ready_to_ship": 67
     },
     {
@@ -330,7 +330,7 @@
       "to_id": "z_chp",
       "from_city": "Самара",
       "to_city": "Чапаевск",
-      "distance_km": 45,
+      "distance_km": 45.0,
       "ready_to_ship": 67
     },
     {
@@ -339,7 +339,7 @@
       "to_id": "z_otr",
       "from_city": "Самара",
       "to_city": "Отрадный",
-      "distance_km": 115,
+      "distance_km": 115.0,
       "ready_to_ship": 67
     },
     {
@@ -348,7 +348,7 @@
       "to_id": "z_kin",
       "from_city": "Самара",
       "to_city": "Кинель",
-      "distance_km": 25,
+      "distance_km": 25.0,
       "ready_to_ship": 66
     },
     {
@@ -357,7 +357,7 @@
       "to_id": "z_tag",
       "from_city": "Ростов-на-Дону",
       "to_city": "Таганрог",
-      "distance_km": 78,
+      "distance_km": 78.0,
       "ready_to_ship": 138
     },
     {
@@ -366,7 +366,7 @@
       "to_id": "z_nch",
       "from_city": "Ростов-на-Дону",
       "to_city": "Новочеркасск",
-      "distance_km": 42,
+      "distance_km": 42.0,
       "ready_to_ship": 138
     },
     {
@@ -375,7 +375,7 @@
       "to_id": "z_arm",
       "from_city": "Краснодар",
       "to_city": "Армавир",
-      "distance_km": 190,
+      "distance_km": 190.0,
       "ready_to_ship": 38
     },
     {
@@ -384,7 +384,7 @@
       "to_id": "z_nvr",
       "from_city": "Краснодар",
       "to_city": "Новороссийск",
-      "distance_km": 145,
+      "distance_km": 145.0,
       "ready_to_ship": 38
     },
     {
@@ -393,7 +393,7 @@
       "to_id": "z_soc",
       "from_city": "Краснодар",
       "to_city": "Сочи",
-      "distance_km": 280,
+      "distance_km": 280.0,
       "ready_to_ship": 38
     },
     {
@@ -402,7 +402,7 @@
       "to_id": "z_ana",
       "from_city": "Краснодар",
       "to_city": "Анапа",
-      "distance_km": 170,
+      "distance_km": 170.0,
       "ready_to_ship": 38
     },
     {
@@ -411,7 +411,7 @@
       "to_id": "z_tua",
       "from_city": "Краснодар",
       "to_city": "Туапсе",
-      "distance_km": 210,
+      "distance_km": 210.0,
       "ready_to_ship": 37
     },
     {
@@ -420,7 +420,7 @@
       "to_id": "z_lis",
       "from_city": "Воронеж",
       "to_city": "Лиски",
-      "distance_km": 112,
+      "distance_km": 112.0,
       "ready_to_ship": 85
     },
     {
@@ -429,7 +429,7 @@
       "to_id": "z_bgl",
       "from_city": "Воронеж",
       "to_city": "Борисоглебск",
-      "distance_km": 195,
+      "distance_km": 195.0,
       "ready_to_ship": 84
     },
     {
@@ -438,7 +438,7 @@
       "to_id": "z_ost",
       "from_city": "Воронеж",
       "to_city": "Острогожск",
-      "distance_km": 110,
+      "distance_km": 110.0,
       "ready_to_ship": 84
     },
     {
@@ -447,7 +447,7 @@
       "to_id": "z_sem",
       "from_city": "Воронеж",
       "to_city": "Семилуки",
-      "distance_km": 15,
+      "distance_km": 15.0,
       "ready_to_ship": 84
     },
     {
@@ -456,7 +456,7 @@
       "to_id": "z_ros",
       "from_city": "Воронеж",
       "to_city": "Россошь",
-      "distance_km": 195,
+      "distance_km": 195.0,
       "ready_to_ship": 84
     },
     {
@@ -465,7 +465,7 @@
       "to_id": "z_ryb",
       "from_city": "Ярославль",
       "to_city": "Рыбинск",
-      "distance_km": 82,
+      "distance_km": 82.0,
       "ready_to_ship": 78
     },
     {
@@ -474,7 +474,7 @@
       "to_id": "z_tut",
       "from_city": "Ярославль",
       "to_city": "Тутаев",
-      "distance_km": 45,
+      "distance_km": 45.0,
       "ready_to_ship": 78
     },
     {
@@ -483,7 +483,7 @@
       "to_id": "z_rsv",
       "from_city": "Ярославль",
       "to_city": "Ростов Великий",
-      "distance_km": 58,
+      "distance_km": 58.0,
       "ready_to_ship": 78
     },
     {
@@ -492,7 +492,7 @@
       "to_id": "z_prz",
       "from_city": "Ярославль",
       "to_city": "Переславль-Залесский",
-      "distance_km": 115,
+      "distance_km": 115.0,
       "ready_to_ship": 77
     },
     {
@@ -501,7 +501,7 @@
       "to_id": "z_ugl",
       "from_city": "Ярославль",
       "to_city": "Углич",
-      "distance_km": 110,
+      "distance_km": 110.0,
       "ready_to_ship": 77
     },
     {
@@ -510,7 +510,7 @@
       "to_id": "z_nms",
       "from_city": "Тула",
       "to_city": "Новомосковск",
-      "distance_km": 65,
+      "distance_km": 65.0,
       "ready_to_ship": 32
     },
     {
@@ -519,7 +519,7 @@
       "to_id": "z_shc",
       "from_city": "Тула",
       "to_city": "Щёкино",
-      "distance_km": 22,
+      "distance_km": 22.0,
       "ready_to_ship": 31
     },
     {
@@ -528,7 +528,7 @@
       "to_id": "z_ale",
       "from_city": "Тула",
       "to_city": "Алексин",
-      "distance_km": 55,
+      "distance_km": 55.0,
       "ready_to_ship": 31
     },
     {
@@ -537,7 +537,7 @@
       "to_id": "z_uzl",
       "from_city": "Тула",
       "to_city": "Узловая",
-      "distance_km": 65,
+      "distance_km": 65.0,
       "ready_to_ship": 31
     },
     {
@@ -546,7 +546,7 @@
       "to_id": "z_kim",
       "from_city": "Тула",
       "to_city": "Кимовск",
-      "distance_km": 75,
+      "distance_km": 75.0,
       "ready_to_ship": 31
     },
     {
@@ -555,7 +555,7 @@
       "to_id": "z_blk",
       "from_city": "Саратов",
       "to_city": "Балаково",
-      "distance_km": 160,
+      "distance_km": 160.0,
       "ready_to_ship": 54
     },
     {
@@ -564,7 +564,7 @@
       "to_id": "z_eng",
       "from_city": "Саратов",
       "to_city": "Энгельс",
-      "distance_km": 12,
+      "distance_km": 12.0,
       "ready_to_ship": 54
     },
     {
@@ -573,7 +573,7 @@
       "to_id": "z_bls",
       "from_city": "Саратов",
       "to_city": "Балашов",
-      "distance_km": 175,
+      "distance_km": 175.0,
       "ready_to_ship": 53
     },
     {
@@ -582,7 +582,7 @@
       "to_id": "z_mrk",
       "from_city": "Саратов",
       "to_city": "Маркс",
-      "distance_km": 55,
+      "distance_km": 55.0,
       "ready_to_ship": 53
     },
     {
@@ -591,7 +591,7 @@
       "to_id": "z_vls",
       "from_city": "Саратов",
       "to_city": "Вольск",
-      "distance_km": 85,
+      "distance_km": 85.0,
       "ready_to_ship": 53
     },
     {
@@ -600,7 +600,7 @@
       "to_id": "z_stl",
       "from_city": "Уфа",
       "to_city": "Стерлитамак",
-      "distance_km": 120,
+      "distance_km": 120.0,
       "ready_to_ship": 69
     },
     {
@@ -609,7 +609,7 @@
       "to_id": "z_nfk",
       "from_city": "Уфа",
       "to_city": "Нефтекамск",
-      "distance_km": 155,
+      "distance_km": 155.0,
       "ready_to_ship": 69
     },
     {
@@ -618,7 +618,7 @@
       "to_id": "z_sal",
       "from_city": "Уфа",
       "to_city": "Салават",
-      "distance_km": 140,
+      "distance_km": 140.0,
       "ready_to_ship": 69
     },
     {
@@ -627,7 +627,7 @@
       "to_id": "z_okt",
       "from_city": "Уфа",
       "to_city": "Октябрьский",
-      "distance_km": 155,
+      "distance_km": 155.0,
       "ready_to_ship": 69
     },
     {
@@ -636,7 +636,7 @@
       "to_id": "z_tuy",
       "from_city": "Уфа",
       "to_city": "Туймазы",
-      "distance_km": 130,
+      "distance_km": 130.0,
       "ready_to_ship": 69
     }
   ]

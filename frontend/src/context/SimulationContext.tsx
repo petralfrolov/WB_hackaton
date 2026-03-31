@@ -93,6 +93,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
     getConfig()
       .then(cfg => {
+        const catPen = (cfg as any).underload_penalty_per_unit_by_cat ?? {}
         setRiskSettingsState(prev => ({
           ...prev,
           idleCostPerMinute: typeof cfg.wait_penalty_per_minute === 'number'
@@ -101,6 +102,15 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           emptyPenaltyPerUnit: typeof cfg.underload_penalty_per_unit === 'number'
             ? cfg.underload_penalty_per_unit
             : prev.emptyPenaltyPerUnit,
+          emptyPenaltyCompact: typeof catPen.compact === 'number'
+            ? catPen.compact
+            : (prev.emptyPenaltyCompact ?? prev.emptyPenaltyPerUnit),
+          emptyPenaltyMid: typeof catPen.mid === 'number'
+            ? catPen.mid
+            : (prev.emptyPenaltyMid ?? prev.emptyPenaltyPerUnit),
+          emptyPenaltyLarge: typeof catPen.large === 'number'
+            ? catPen.large
+            : (prev.emptyPenaltyLarge ?? prev.emptyPenaltyPerUnit),
           economyThreshold: typeof cfg.economy_threshold === 'number'
             ? cfg.economy_threshold
             : prev.economyThreshold,
@@ -121,6 +131,11 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     patchSettings({
       wait_penalty_per_minute: settings.idleCostPerMinute,
       underload_penalty_per_unit: settings.emptyPenaltyPerUnit,
+      underload_penalty_per_unit_by_cat: {
+        compact: settings.emptyPenaltyCompact ?? settings.emptyPenaltyPerUnit,
+        mid: settings.emptyPenaltyMid ?? settings.emptyPenaltyPerUnit,
+        large: settings.emptyPenaltyLarge ?? settings.emptyPenaltyPerUnit,
+      },
       economy_threshold: settings.economyThreshold,
       max_wait_minutes: settings.maxWaitMinutes,
     }).catch(() => {})
@@ -158,4 +173,3 @@ export function useSimulationContext(): SimulationContextValue {
   }
   return ctx
 }
-

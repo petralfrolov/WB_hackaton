@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import type { RiskSettings } from '../../types'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
@@ -19,10 +19,24 @@ function mapWaitMinutes(v: number): number {
 export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
   const [local, setLocal] = useState<RiskSettings>(settings)
   const [saved, setSaved] = useState(false)
+  const [selectedCat, setSelectedCat] = useState<'compact' | 'mid' | 'large'>('compact')
 
   const update = (key: keyof RiskSettings, v: number) => {
     setSaved(false)
     setLocal(prev => ({ ...prev, [key]: v }))
+  }
+
+  const updateCatPenalty = (cat: 'compact' | 'mid' | 'large', v: number) => {
+    const keyMap: Record<typeof cat, keyof RiskSettings> = {
+      compact: 'emptyPenaltyCompact',
+      mid: 'emptyPenaltyMid',
+      large: 'emptyPenaltyLarge',
+    }
+    update(keyMap[cat], v)
+    // базовое поле сохраняем для совместимости (берём значение компакт)
+    if (cat === 'compact') {
+      update('emptyPenaltyPerUnit', v)
+    }
   }
 
   const apply = () => {
@@ -75,7 +89,7 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
             min="0"
             step="1"
             value={String(local.idleCostPerMinute)}
-            onChange={e => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               const value = Number(e.target.value)
               update('idleCostPerMinute', Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0)
             }}
@@ -87,23 +101,57 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
         <CardHeader>
           <CardTitle>Штраф недозагрузки</CardTitle>
           <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
-            <strong>{fmt(local.emptyPenaltyPerUnit)}</strong> ₽/ед.
+            <strong>{fmt(
+              selectedCat === 'compact' ? (local.emptyPenaltyCompact ?? local.emptyPenaltyPerUnit) :
+              selectedCat === 'mid' ? (local.emptyPenaltyMid ?? local.emptyPenaltyPerUnit) :
+              (local.emptyPenaltyLarge ?? local.emptyPenaltyPerUnit)
+            )}</strong> ₽/ед.
           </span>
         </CardHeader>
-        <CardContent>
-          <label className="text-xs text-muted mb-1.5 block">
-            Размер штрафа за каждую недогруженную единицу товара
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            {(['compact','mid','large'] as const).map(cat => (
+              <Button
+                key={cat}
+                variant={selectedCat === cat ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedCat(cat)}
+              >
+                {cat === 'compact' && 'Маленький'}
+                {cat === 'mid' && 'Средний'}
+                {cat === 'large' && 'Большой'}
+              </Button>
+            ))}
+          </div>
+
+          <label className="text-xs text-muted">
+            Штраф за недогруженную единицу для выбранного типа ТС
           </label>
           <Input
             type="number"
             min="0"
             step="1"
-            value={String(local.emptyPenaltyPerUnit)}
-            onChange={e => {
-              const value = Number(e.target.value)
-              update('emptyPenaltyPerUnit', Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0)
+            value={String(
+              selectedCat === 'compact'
+                ? (local.emptyPenaltyCompact ?? local.emptyPenaltyPerUnit)
+                : selectedCat === 'mid'
+                  ? (local.emptyPenaltyMid ?? local.emptyPenaltyPerUnit)
+                  : (local.emptyPenaltyLarge ?? local.emptyPenaltyPerUnit)
+            )}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const v = Number(e.target.value)
+              updateCatPenalty(
+                selectedCat,
+                Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0,
+              )
             }}
           />
+
+          <div className="text-[11px] text-muted space-y-1">
+            <div>Штраф (compact): <span className="font-mono text-foreground">{fmt(local.emptyPenaltyCompact ?? local.emptyPenaltyPerUnit)} ₽/ед.</span></div>
+            <div>Штраф (mid): <span className="font-mono text-foreground">{fmt(local.emptyPenaltyMid ?? local.emptyPenaltyPerUnit)} ₽/ед.</span></div>
+            <div>Штраф (large): <span className="font-mono text-foreground">{fmt(local.emptyPenaltyLarge ?? local.emptyPenaltyPerUnit)} ₽/ед.</span></div>
+          </div>
         </CardContent>
       </Card>
 
