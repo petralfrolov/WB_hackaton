@@ -120,8 +120,11 @@ def solve_irp_milp(
     penalties_by_cat = vehicles_cfg.get("underload_penalty_per_unit_by_cat", {})
     penalty_by_v = []
     for v in vehicles:
-        cat = v.get("category", "")
-        penalty_by_v.append(float(penalties_by_cat.get(cat, base_penalty)))
+        if v.get("underload_penalty") is not None:
+            penalty_by_v.append(float(v["underload_penalty"]))
+        else:
+            cat = v.get("category", "")
+            penalty_by_v.append(float(penalties_by_cat.get(cat, base_penalty)))
     P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * PERIOD_MINUTES
 
     default_dist = float(vehicles_cfg.get("route_distance_km", 15.0))
@@ -133,7 +136,8 @@ def solve_irp_milp(
     for vi, v in enumerate(vehicles):
         for ri, rid in enumerate(route_ids):
             dist = (route_distances or {}).get(rid, default_dist)
-            cost_vr[vi, ri] = v.get("cost_per_km", 0) * dist
+            fixed_dispatch = float(v.get("fixed_dispatch_cost") or 0)
+            cost_vr[vi, ri] = v.get("cost_per_km", 0) * dist + fixed_dispatch
 
     # D[r, t] — матрица спроса
     D = np.array([[float(demands[rid][t]) for t in range(nT)] for rid in route_ids])

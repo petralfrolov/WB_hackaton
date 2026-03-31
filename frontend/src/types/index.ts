@@ -36,6 +36,8 @@ export interface VehicleType {
   available: number
   incoming?: IncomingVehicle[]
   category?: 'small' | 'medium' | 'large'
+  underloadPenalty?: number
+  fixedDispatchCost?: number
 }
 
 export interface Warehouse {
@@ -144,6 +146,8 @@ export interface ApiVehicle {
   cost_per_km: number
   available: number
   category?: 'small' | 'medium' | 'large'
+  underload_penalty?: number
+  fixed_dispatch_cost?: number
 }
 
 export interface ApiIncomingVehicle {

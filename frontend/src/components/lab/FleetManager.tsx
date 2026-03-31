@@ -36,6 +36,8 @@ interface VehicleForm {
   cost_per_km: string
   available: string
   category: string
+  underload_penalty: string
+  fixed_dispatch_cost: string
 }
 
 interface IncomingForm {
@@ -50,6 +52,8 @@ const EMPTY_VEHICLE: VehicleForm = {
   cost_per_km: '',
   available: '',
   category: 'compact',
+  underload_penalty: '',
+  fixed_dispatch_cost: '',
 }
 
 const EMPTY_INCOMING: IncomingForm = {
@@ -124,6 +128,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
     const cost = parseFloat(addForm.cost_per_km)
     const avail = parseInt(addForm.available, 10)
     if (!addForm.vehicle_type.trim() || isNaN(capacity) || isNaN(cost) || isNaN(avail)) return
+    const underloadPenalty = parseFloat(addForm.underload_penalty)
+    const fixedDispatch = parseFloat(addForm.fixed_dispatch_cost)
     try {
       await addVehicle({
         vehicle_type: addForm.vehicle_type.trim(),
@@ -131,6 +137,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         cost_per_km: cost,
         available: avail,
         category: addForm.category as 'small' | 'medium' | 'large' | undefined,
+        underload_penalty: Number.isFinite(underloadPenalty) ? underloadPenalty : undefined,
+        fixed_dispatch_cost: Number.isFinite(fixedDispatch) ? fixedDispatch : undefined,
       })
       setAddForm(EMPTY_VEHICLE)
       setShowAddVehicle(false)
@@ -148,6 +156,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       cost_per_km: String(v.cost_per_km),
       available: String(v.available),
       category: v.category ?? 'compact',
+      underload_penalty: v.underload_penalty != null ? String(v.underload_penalty) : '',
+      fixed_dispatch_cost: v.fixed_dispatch_cost != null ? String(v.fixed_dispatch_cost) : '',
     })
   }
 
@@ -157,6 +167,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
     const cost = parseFloat(editForm.cost_per_km)
     const avail = parseInt(editForm.available, 10)
     if (isNaN(capacity) || isNaN(cost) || isNaN(avail)) return
+    const underloadPenalty = parseFloat(editForm.underload_penalty)
+    const fixedDispatch = parseFloat(editForm.fixed_dispatch_cost)
     try {
       await updateVehicle(editingType, {
         vehicle_type: editForm.vehicle_type.trim() || editingType,
@@ -164,6 +176,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         cost_per_km: cost,
         available: avail,
         category: editForm.category as 'small' | 'medium' | 'large' | undefined,
+        underload_penalty: Number.isFinite(underloadPenalty) ? underloadPenalty : undefined,
+        fixed_dispatch_cost: Number.isFinite(fixedDispatch) ? fixedDispatch : undefined,
       })
       setEditingType(null)
       setEditForm(EMPTY_VEHICLE)
@@ -302,7 +316,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Тип ТС</TableHead>
-                  <TableHead>Категория</TableHead>
+                  <TableHead className="text-right">Штраф ₽/ед.</TableHead>
+                  <TableHead className="text-right">Фикс. ₽</TableHead>
                   <TableHead className="text-right">Вместимость</TableHead>
                   <TableHead className="text-right">₽/км</TableHead>
                   <TableHead className="text-right">Доступно</TableHead>
@@ -320,15 +335,20 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <select
-                        value={addForm.category}
-                        onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))}
-                        className="w-full bg-surface border border-border rounded px-2 py-1 text-sm"
-                      >
-                        <option value="compact">compact</option>
-                        <option value="mid">mid</option>
-                        <option value="large">large</option>
-                      </select>
+                      <Input
+                        placeholder="20"
+                        value={addForm.underload_penalty}
+                        onChange={e => setAddForm(f => ({ ...f, underload_penalty: e.target.value }))}
+                        className="text-right"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="500"
+                        value={addForm.fixed_dispatch_cost}
+                        onChange={e => setAddForm(f => ({ ...f, fixed_dispatch_cost: e.target.value }))}
+                        className="text-right"
+                      />
                     </TableCell>
                     <TableCell>
                       <Input
@@ -379,18 +399,25 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                         />
                       ) : v.vehicle_type}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right font-mono">
                       {isEdit ? (
-                        <select
-                          value={editForm.category}
-                          onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
-                          className="w-full bg-surface border border-border rounded px-2 py-1 text-sm"
-                        >
-                          <option value="compact">compact</option>
-                          <option value="mid">mid</option>
-                          <option value="large">large</option>
-                        </select>
-                      ) : (v.category ?? '—')}
+                        <Input
+                          value={editForm.underload_penalty}
+                          onChange={e => setEditForm(f => ({ ...f, underload_penalty: e.target.value }))}
+                          className="text-right"
+                          placeholder="—"
+                        />
+                      ) : (v.underload_penalty != null ? fmt(v.underload_penalty) : <span className="text-muted">—</span>)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {isEdit ? (
+                        <Input
+                          value={editForm.fixed_dispatch_cost}
+                          onChange={e => setEditForm(f => ({ ...f, fixed_dispatch_cost: e.target.value }))}
+                          className="text-right"
+                          placeholder="—"
+                        />
+                      ) : (v.fixed_dispatch_cost != null ? fmt(v.fixed_dispatch_cost) : <span className="text-muted">—</span>)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {isEdit ? (
@@ -446,7 +473,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
 
               {vehiclesForDisplay.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-center text-muted py-6" colSpan={6}>
+                  <TableCell className="text-center text-muted py-6" colSpan={7}>
                     Нет ТС. Добавьте первый тип выше.
                   </TableCell>
                 </TableRow>

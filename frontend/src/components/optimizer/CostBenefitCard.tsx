@@ -16,6 +16,7 @@ interface FixedCostRow {
   count: number
   distanceKm: number
   costPerKm: number
+  fixedDispatchCost: number
   fixedCostPerVehicle: number
   totalFixedCost: number
 }
@@ -29,9 +30,22 @@ interface PlanHorizonGroup {
   vehicleSummary: string
   fixedRows: FixedCostRow[]
   fixedTotal: number
+  totalCost: number
+  totalWait: number
 }
 
 const HORIZON_ORDER = ['A: now', 'B: +2h', 'C: +4h', 'D: +6h']
+
+const HORIZON_DISPLAY: Record<string, string> = {
+  'A: now': 'Сейчас',
+  'B: +2h': '+2ч',
+  'C: +4h': '+4ч',
+  'D: +6h': '+6ч',
+}
+
+function horizonLabel(h: string): string {
+  return HORIZON_DISPLAY[h] ?? h
+}
 
 function FormulaBreakdown({
   group,
@@ -42,24 +56,24 @@ function FormulaBreakdown({
   riskSettings: RiskSettings
   vehicleMap: Map<string, VehicleType>
 }) {
-  const { summaryRow, fixedRows, fixedTotal } = group
+  const { summaryRow, fixedRows, fixedTotal, totalWait } = group
   const waitPenaltyPerHorizon = riskSettings.idleCostPerMinute * 120
   const dispatched = group.rows.filter(r => r.vehicle_type !== 'none' && r.vehicles_count > 0)
   const underloadTotal = dispatched.reduce((s, r) => s + r.cost_underload, 0)
-  const total = fixedTotal + underloadTotal + summaryRow.cost_wait
+  const total = fixedTotal + underloadTotal + totalWait
 
   return (
     <div className="mt-2 border-t border-border/50 pt-4 space-y-4">
       <div className="bg-elevated rounded-lg px-3 py-2.5 text-[11px] text-muted leading-relaxed">
         <div className="font-mono text-foreground/90">J = Σ(C<sub>рейс,i</sub> × N<sub>i</sub>)</div>
-        <div className="font-mono ml-3 text-foreground/90">+ U × P<sub>empty</sub></div>
+        <div className="font-mono ml-3 text-foreground/90">+ U × P<sub>empty,i</sub></div>
         <div className="font-mono ml-3 text-foreground/90">+ S × P<sub>wait,horizon</sub></div>
         <div className="mt-2 pt-2 border-t border-border/50 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
-          <div><span className="text-foreground/80">Cрейс,i</span> — стоимость одного рейса ТС i</div>
+          <div><span className="text-foreground/80">Cрейс,i</span> — км × ₽/км + фикс. стоимость ТС i</div>
           <div><span className="text-foreground/80">Ni</span> — количество ТС i</div>
           <div><span className="text-foreground/80">U</span> — пустая вместимость в горизонте</div>
           <div><span className="text-foreground/80">S</span> — остаток, перенесенный дальше</div>
-          <div><span className="text-foreground/80">Pempty</span> — штраф за пустое место, ₽/ед.</div>
+          <div><span className="text-foreground/80">Pempty,i</span> — штраф за пустое место ТС i, ₽/ед.</div>
           <div><span className="text-foreground/80">Pwait,horizon</span> — штраф ожидания за горизонт</div>
         </div>
       </div>
@@ -77,7 +91,8 @@ function FormulaBreakdown({
                 <th className="px-3 py-2 text-right font-medium">Кол-во (N)</th>
                 <th className="px-3 py-2 text-right font-medium">Км</th>
                 <th className="px-3 py-2 text-right font-medium">₽/км</th>
-                <th className="px-3 py-2 text-right font-medium">Cfixed / ед.</th>
+                <th className="px-3 py-2 text-right font-medium">Фикс. ₽</th>
+                <th className="px-3 py-2 text-right font-medium">Cрейс / ед.</th>
                 <th className="px-3 py-2 text-right font-medium">Итого</th>
               </tr>
             </thead>
@@ -89,13 +104,14 @@ function FormulaBreakdown({
                     <td className="px-3 py-1.5 text-right font-mono text-muted">{row.count}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-muted">{fmt(row.distanceKm)}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-muted">{fmtCurrency(row.costPerKm)}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-muted">{row.fixedDispatchCost > 0 ? fmtCurrency(row.fixedDispatchCost) : <span className="text-muted/50">—</span>}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-muted">{fmtCurrency(row.fixedCostPerVehicle)}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-foreground font-semibold">{fmtCurrency(row.totalFixedCost)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-3 py-3 text-center text-muted">
+                  <td colSpan={7} className="px-3 py-3 text-center text-muted">
                     В этом горизонте отправки нет
                   </td>
                 </tr>
@@ -130,12 +146,13 @@ function FormulaBreakdown({
                 const capPer = v?.capacity ?? 0
                 const totalCap = capPer * row.vehicles_count
                 const loaded = Math.max(0, totalCap - row.empty_capacity_units)
-                const cat = v?.category ?? '—'
+                const penalty = v?.underloadPenalty ?? riskSettings.emptyPenaltyPerUnit
                 return (
                   <div key={idx} className="flex justify-between gap-2 text-muted">
                     <span>
                       <span className="text-foreground">{v?.name ?? row.vehicle_type}</span>
-                      {' '}({cat}) · {fmt(loaded)}/{fmt(totalCap)} ед.
+                      {' · '}{fmt(loaded)}/{fmt(totalCap)} ед.
+                      {' · '}<span className="text-accent">{fmtCurrency(penalty)}/ед.</span>
                     </span>
                     <span className="font-mono text-foreground">
                       {fmtCurrency(row.cost_underload)}
@@ -149,7 +166,7 @@ function FormulaBreakdown({
           )}
 
           <div className="border-t border-border/40 pt-1.5 text-[11px] text-muted">
-            Штраф считается по пустой вместимости каждой отправленной машины и ставке её категории.
+            Штраф считается по пустой вместимости каждой отправленной машины и индивидуальной ставке ТС.
           </div>
         </div>
         <div className="text-right text-xs font-mono text-accent mt-1.5 pr-1">= {fmtCurrency(underloadTotal)}</div>
@@ -168,14 +185,14 @@ function FormulaBreakdown({
             <span>Pwait,horizon = {fmtCurrency(waitPenaltyPerHorizon)}/ед.</span>
           </div>
         </div>
-        <div className="text-right text-xs font-mono text-status-yellow mt-1.5 pr-1">= {fmtCurrency(summaryRow.cost_wait)}</div>
+        <div className="text-right text-xs font-mono text-status-yellow mt-1.5 pr-1">= {fmtCurrency(totalWait)}</div>
       </section>
 
       <div className="bg-gradient-to-r from-status-green/10 to-status-green/5 border border-status-green/30 rounded-lg px-4 py-3 flex items-center justify-between">
         <span className="text-sm font-semibold text-foreground">J итого</span>
         <div className="text-right">
           <div className="text-[11px] text-muted font-mono">
-            {fmtCurrency(fixedTotal)} + {fmtCurrency(summaryRow.cost_underload)} + {fmtCurrency(summaryRow.cost_wait)}
+            {fmtCurrency(fixedTotal)} + {fmtCurrency(underloadTotal)} + {fmtCurrency(totalWait)}
           </div>
           <div className="text-2xl font-bold font-mono text-status-green">{fmtCurrency(total)}</div>
         </div>
@@ -221,13 +238,15 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
         const fixedRows = dispatchedRows.map(row => {
           const vehicle = vehicleMap.get(row.vehicle_type)
           const costPerKm = vehicle?.costPerKm ?? 0
-          const fixedCostPerVehicle = route.distanceKm * costPerKm
+          const fixedDispatchCost = vehicle?.fixedDispatchCost ?? 0
+          const fixedCostPerVehicle = route.distanceKm * costPerKm + fixedDispatchCost
           return {
             key: `${horizon}-${row.vehicle_type}`,
             name: vehicle?.name ?? row.vehicle_type,
             count: row.vehicles_count,
             distanceKm: route.distanceKm,
             costPerKm,
+            fixedDispatchCost,
             fixedCostPerVehicle,
             totalFixedCost: fixedCostPerVehicle * row.vehicles_count,
           }
@@ -241,6 +260,8 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
           vehicleSummary: formatVehicleSummary(rows, vehicleMap),
           fixedRows,
           fixedTotal: fixedRows.reduce((sum, row) => sum + row.totalFixedCost, 0),
+          totalCost: rows.reduce((s, r) => s + r.cost_total, 0),
+          totalWait: rows.reduce((s, r) => s + r.cost_wait, 0),
         }
       })
       .sort((left, right) => HORIZON_ORDER.indexOf(left.horizon) - HORIZON_ORDER.indexOf(right.horizon))
@@ -289,12 +310,12 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
                 <tbody>
                   {planGroups.map(group => (
                     <tr key={group.id} className="border-b border-border/40 last:border-0">
-                      <td className="px-3 py-2 text-foreground">{group.horizon}</td>
+                      <td className="px-3 py-2 text-foreground">{horizonLabel(group.horizon)}</td>
                       <td className="px-3 py-2 text-muted">{group.vehicleSummary}</td>
                       <td className="px-3 py-2 text-right font-mono text-muted">{group.totalVehicles || '—'}</td>
                       <td className="px-3 py-2 text-right font-mono text-foreground">{fmt(group.summaryRow.actually_shipped)}</td>
                       <td className="px-3 py-2 text-right font-mono text-muted">{fmt(group.summaryRow.leftover_stock)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-accent">{fmtCurrency(group.summaryRow.cost_total)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-accent">{fmtCurrency(group.totalCost)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -324,14 +345,14 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
                     <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-accent" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-semibold text-foreground">{group.horizon}</span>
+                        <span className="text-sm font-semibold text-foreground">{horizonLabel(group.horizon)}</span>
                         <Calculator className="w-3 h-3 text-muted opacity-50" />
                       </div>
                       <div className="text-xs text-muted truncate">{group.vehicleSummary}</div>
                     </div>
                     <div className="text-right shrink-0 mr-1">
                       <div className="text-sm font-mono font-bold text-accent">
-                        {fmtCurrency(group.summaryRow.cost_total)}
+                        {fmtCurrency(group.totalCost)}
                       </div>
                       <div className="text-[10px] text-muted">{fmt(group.summaryRow.total_available)} ед. к отправке</div>
                     </div>

@@ -225,6 +225,8 @@ export function apiVehicleToVehicleType(v: ApiVehicle): VehicleType {
     costPerKm: v.cost_per_km,
     available: v.available,
     category: v.category,
+    underloadPenalty: v.underload_penalty,
+    fixedDispatchCost: v.fixed_dispatch_cost,
   }
 }
 

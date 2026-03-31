@@ -5,42 +5,54 @@
       "capacity_units": 3.5,
       "cost_per_km": 5.65,
       "available": 6,
-      "category": "compact"
+      "category": "compact",
+      "underload_penalty": 20.0,
+      "fixed_dispatch_cost": 500.0
     },
     {
       "vehicle_type": "ГАЗель NN ЦМФ",
       "capacity_units": 6.0,
       "cost_per_km": 8.52,
       "available": 14,
-      "category": "compact"
+      "category": "compact",
+      "underload_penalty": 20.0,
+      "fixed_dispatch_cost": 800.0
     },
     {
       "vehicle_type": "AMBERTRUCK JL",
       "capacity_units": 10.0,
       "cost_per_km": 7.74,
       "available": 10,
-      "category": "mid"
+      "category": "mid",
+      "underload_penalty": 50.0,
+      "fixed_dispatch_cost": 1200.0
     },
     {
       "vehicle_type": "Валдай 8",
       "capacity_units": 14.0,
       "cost_per_km": 8.9,
       "available": 5,
-      "category": "mid"
+      "category": "mid",
+      "underload_penalty": 50.0,
+      "fixed_dispatch_cost": 1500.0
     },
     {
       "vehicle_type": "Hyundai Mighty EX8 XL",
       "capacity_units": 18.0,
       "cost_per_km": 10.84,
       "available": 4,
-      "category": "large"
+      "category": "large",
+      "underload_penalty": 100.0,
+      "fixed_dispatch_cost": 2000.0
     },
     {
       "vehicle_type": "ISUZU ELF 7.5 Long",
       "capacity_units": 20.0,
       "cost_per_km": 12.77,
       "available": 10,
-      "category": "large"
+      "category": "large",
+      "underload_penalty": 100.0,
+      "fixed_dispatch_cost": 2500.0
     }
   ],
   "underload_penalty_per_unit": 20.0,

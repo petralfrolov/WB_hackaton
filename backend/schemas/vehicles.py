@@ -11,6 +11,8 @@ class Vehicle(BaseModel):
     cost_per_km: float
     available: int
     category: Optional[Literal["compact", "mid", "large"]] = None
+    underload_penalty: Optional[float] = None
+    fixed_dispatch_cost: Optional[float] = None
 
 
 class VehicleUpdate(BaseModel):
@@ -18,6 +20,8 @@ class VehicleUpdate(BaseModel):
     cost_per_km: Optional[float] = None
     available: Optional[int] = None
     category: Optional[Literal["compact", "mid", "large"]] = None
+    underload_penalty: Optional[float] = None
+    fixed_dispatch_cost: Optional[float] = None
 
 
 class IncomingVehicle(BaseModel):
