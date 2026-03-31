@@ -88,31 +88,6 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Штраф недозагрузки (умолч.)</CardTitle>
-          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
-            <strong>{fmt(local.emptyPenaltyPerUnit)}</strong> ₽/ед.
-          </span>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="text-xs text-muted block">
-            Штраф за недогруженную единицу — используется как значение по умолчанию для ТС без индивидуальной настройки.
-            Индивидуальные штрафы задаются в таблице «Ожидают на складе» (вкладка Парк ТС).
-          </label>
-          <Input
-            type="number"
-            min="0"
-            step="1"
-            value={String(local.emptyPenaltyPerUnit)}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const v = Number(e.target.value)
-              update('emptyPenaltyPerUnit', Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0)
-            }}
-          />
-        </CardContent>
-      </Card>
-
       {/* Slider 2: Urgency / max wait */}
       <Card>
         <CardHeader>

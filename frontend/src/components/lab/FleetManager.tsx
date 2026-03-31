@@ -142,7 +142,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       })
       setAddForm(EMPTY_VEHICLE)
       setShowAddVehicle(false)
-      refreshVehicles()
+      await refreshVehicles()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -181,7 +181,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       })
       setEditingType(null)
       setEditForm(EMPTY_VEHICLE)
-      refreshVehicles()
+      await refreshVehicles()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -190,7 +190,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
   const deleteVehicleRow = async (vehicle_type: string) => {
     try {
       await deleteVehicle(vehicle_type)
-      refreshVehicles()
+      await refreshVehicles()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -209,7 +209,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       })
       setIncomingForm(EMPTY_INCOMING)
       setShowAddIncoming(false)
-      refreshIncoming()
+      await refreshIncoming()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -228,7 +228,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
       })
       setIncomingEditingIdx(null)
       setIncomingForm(EMPTY_INCOMING)
-      refreshIncoming()
+      await refreshIncoming()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -237,7 +237,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
   const handleIncomingDelete = async (idx: number) => {
     try {
       await deleteIncoming(idx)
-      refreshIncoming()
+      await refreshIncoming()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -329,7 +329,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                   <TableRow className="bg-elevated/40">
                     <TableCell>
                       <Input
-                        placeholder="gazelle_s"
+                        placeholder="ГАЗель"
                         value={addForm.vehicle_type}
                         onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))}
                       />

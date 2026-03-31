@@ -15,6 +15,7 @@ class Vehicle(BaseModel):
 
 
 class VehicleUpdate(BaseModel):
+    vehicle_type: Optional[str] = None
     capacity_units: Optional[float] = None
     cost_per_km: Optional[float] = None
     available: Optional[int] = None
