@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ApiIncomingVehicle, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
-import { getWarehouses, getRouteDistances, getConfig, getVehicles, patchSettings } from '../api'
+import { getWarehouses, getRouteDistances, getConfig, getVehicles, getIncomingVehicles, patchSettings } from '../api'
 import {
   defaultRiskSettings,
   apiWarehouseToWarehouse,
@@ -90,6 +90,10 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         setWarehouses(applyRouteTotalsToWarehouses(mappedWarehouses, mappedRoutes))
       })
       .catch(() => {/* backend not available, stay empty */})
+
+    getIncomingVehicles()
+      .then(res => setIncomingVehicles(res.incoming ?? []))
+      .catch(() => {})
 
     getConfig()
       .then(cfg => {

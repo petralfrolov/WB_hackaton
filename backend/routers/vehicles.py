@@ -99,3 +99,14 @@ def delete_incoming(idx: int, state: AppState = Depends(get_state)):
         encoding="utf-8",
     )
     return {"status": "ok"}
+
+
+@router.put("/incoming-vehicles", response_model=IncomingVehicleList)
+def put_incoming(payload: IncomingVehicleList, state: AppState = Depends(get_state)):
+    """Replace entire incoming vehicles list."""
+    state.incoming_cfg = [item.model_dump() for item in payload.incoming]
+    _INCOMING_PATH.write_text(
+        json.dumps({"incoming": state.incoming_cfg}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return IncomingVehicleList(incoming=state.incoming_cfg)

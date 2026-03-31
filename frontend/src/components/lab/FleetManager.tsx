@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Warehouse, ApiIncomingVehicle } from '../../types'
+import { useSimulationContext } from '../../context/SimulationContext'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import {
@@ -10,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
-import { Trash2, Plus, Clock, RefreshCw, Pencil, Check, X } from 'lucide-react'
+import { Trash2, Plus, Clock, Pencil, Check, X } from 'lucide-react'
 import { cn, fmt } from '../../lib/utils'
 import {
   listVehicles,
@@ -21,13 +22,13 @@ import {
   addIncoming,
   updateIncoming,
   deleteIncoming,
-} from '../../lib/api'
+} from '../../api'
 
 interface FleetManagerProps {
   warehouses: Warehouse[]
 }
 
-const HORIZON_LABELS = ['Сейчас (A)', '+2ч (B)', '+4ч (C)', '+6ч (D)'] as const
+const HORIZON_LABELS = ['Сейчас', '+2ч', '+4ч', '+6ч'] as const
 
 interface VehicleForm {
   vehicle_type: string
@@ -58,6 +59,7 @@ const EMPTY_INCOMING: IncomingForm = {
 }
 
 export function FleetManager({ warehouses }: FleetManagerProps) {
+  const { setIncomingVehicles } = useSimulationContext()
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string>(warehouses[0]?.id ?? '')
 
@@ -108,7 +110,9 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
   const refreshIncoming = async () => {
     try {
       const iRes = await listIncoming()
-      setIncoming(iRes.incoming ?? [])
+      const list = iRes.incoming ?? []
+      setIncoming(list)
+      setIncomingVehicles(list)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -126,7 +130,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         capacity_units: capacity,
         cost_per_km: cost,
         available: avail,
-        category: addForm.category,
+        category: addForm.category as 'small' | 'medium' | 'large' | undefined,
       })
       setAddForm(EMPTY_VEHICLE)
       setShowAddVehicle(false)
@@ -159,7 +163,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         capacity_units: capacity,
         cost_per_km: cost,
         available: avail,
-        category: editForm.category,
+        category: editForm.category as 'small' | 'medium' | 'large' | undefined,
       })
       setEditingType(null)
       setEditForm(EMPTY_VEHICLE)
@@ -185,7 +189,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
     if (isNaN(horizon) || horizon < 0 || horizon > 3 || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
     try {
       await addIncoming({
-        horizon_idx: horizon,
+        horizon_idx: horizon as 0 | 1 | 2 | 3,
         vehicle_type: incomingForm.vehicle_type.trim(),
         count,
       })
@@ -204,7 +208,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
     if (isNaN(horizon) || horizon < 0 || horizon > 3 || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
     try {
       await updateIncoming(incomingEditingIdx, {
-        horizon_idx: horizon,
+        horizon_idx: horizon as 0 | 1 | 2 | 3,
         vehicle_type: incomingForm.vehicle_type.trim(),
         count,
       })
@@ -284,9 +288,6 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => { setShowAddVehicle(true); setAddForm(EMPTY_VEHICLE) }}>
               <Plus className="w-3 h-3" /> Добавить
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { refreshVehicles(); refreshIncoming() }}>
-              <RefreshCw className="w-3 h-3" /> Обновить
             </Button>
           </div>
         </div>
@@ -463,12 +464,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
               Прибывающие ТС (глобально)
             </span>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => { setShowAddIncoming(true); setIncomingForm(EMPTY_INCOMING); setIncomingEditingIdx(null) }}>
+              <Button size="sm" onClick={() => { setShowAddIncoming(true); setIncomingForm({ ...EMPTY_INCOMING, vehicle_type: vehicleOptions[0] ?? '' }); setIncomingEditingIdx(null) }}>
                 <Plus className="w-3 h-3" /> Добавить
-              </Button>
-              <Button size="sm" variant="outline" onClick={refreshIncoming}>
-                <RefreshCw className="w-3 h-3" />
-                Обновить
               </Button>
             </div>
           </div>
@@ -487,15 +484,13 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                 {showAddIncoming && (
                   <TableRow className="bg-elevated/40">
                     <TableCell>
-                      <Input
-                        list="vehicle-types"
-                        placeholder="gazelle_s"
+                      <select
                         value={incomingForm.vehicle_type}
                         onChange={e => setIncomingForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                      />
-                      <datalist id="vehicle-types">
-                        {vehicleOptions.map(v => <option key={v} value={v} />)}
-                      </datalist>
+                        className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
+                      >
+                        {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
                     </TableCell>
                     <TableCell>
                       <select
@@ -544,12 +539,13 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                     <TableRow key={idx}>
                       <TableCell>
                         {isEdit ? (
-                          <Input
-                            list="vehicle-types"
+                          <select
                             value={incomingForm.vehicle_type}
                             onChange={e => setIncomingForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                            placeholder="gazelle_s"
-                          />
+                            className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
+                          >
+                            {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                          </select>
                         ) : row.vehicle_type}
                       </TableCell>
                       <TableCell>

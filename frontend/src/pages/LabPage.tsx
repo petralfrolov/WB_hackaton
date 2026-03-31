@@ -14,7 +14,7 @@ export function LabPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Page header */}
       <div className="px-4 py-3 border-b border-border bg-surface shrink-0">
-        <h1 className="text-base font-semibold text-foreground">Лаборатория правил</h1>
+        <h1 className="text-base font-semibold text-foreground">Бизнес-правила</h1>
         <p className="text-xs text-muted mt-0.5">
           Настройка параметров оптимизатора и управление данными.
         </p>

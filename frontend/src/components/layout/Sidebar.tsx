@@ -12,7 +12,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/map', icon: Globe, label: 'Карта складов' },
   { to: '/optimizer', icon: BarChart2, label: 'Оптимизатор' },
-  { to: '/lab', icon: FlaskConical, label: 'Лаборатория правил' },
+  { to: '/lab', icon: FlaskConical, label: 'Бизнес-правила' },
 ]
 
 export function Sidebar() {

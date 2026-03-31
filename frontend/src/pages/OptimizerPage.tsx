@@ -6,10 +6,11 @@ import { RouteTable } from '../components/optimizer/RouteTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
 import { useSimulationContext } from '../context/SimulationContext'
 import { postDispatch, putRouteDistances } from '../api'
+import { RefreshCw } from 'lucide-react'
 
 export function OptimizerPage() {
   const [searchParams] = useSearchParams()
-  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles } = useSimulationContext()
+  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes } = useSimulationContext()
 
   const [warehouseId, setWarehouseId] = useState<string>(searchParams.get('warehouseId') ?? '')
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
@@ -19,6 +20,11 @@ export function OptimizerPage() {
   const [search, setSearch] = useState('')
   const [sidebarWidth, setSidebarWidth] = useState(320)
   const [costPanelWidth, setCostPanelWidth] = useState(400)
+
+  // ── Forecast cache: key = `${warehouseId}__${analysisDateTime}` ──────────
+  const forecastCache = useRef<Map<string, ApiDispatchResponse>>(new Map())
+
+  const cacheKey = (wid: string, dt: string) => `${wid}__${dt}`
 
   const startDragSidebar = useCallback((e: ReactMouseEvent) => {
     e.preventDefault()
@@ -44,8 +50,14 @@ export function OptimizerPage() {
   const warehouseRoutes = selectedWarehouse ? routes.filter(r => r.fromId === selectedWarehouse.id) : []
 
   // ── Dispatch logic ───────────────────────────────────────────────────────
-  const runDispatch = useCallback(async (wid: string) => {
+  const runDispatch = useCallback(async (wid: string, forceRefresh = false) => {
     if (!wid) return
+    const key = cacheKey(wid, analysisDateTime)
+    if (!forceRefresh && forecastCache.current.has(key)) {
+      setDispatchResult(forecastCache.current.get(key)!)
+      setDispatchError(null)
+      return
+    }
     setDispatchLoading(true)
     setDispatchError(null)
     try {
@@ -55,6 +67,7 @@ export function OptimizerPage() {
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
       })
+      forecastCache.current.set(key, result)
       setDispatchResult(result)
     } catch (err) {
       setDispatchError(err instanceof Error ? err.message : String(err))
@@ -72,9 +85,16 @@ export function OptimizerPage() {
     setWarehouseId(id)
     setSelectedWarehouseId(id)
     setSelectedRouteId(null)
-    setDispatchResult(null)
+    // load from cache or fetch
     runDispatchRef.current(id)
   }, [setSelectedWarehouseId])
+
+  const handleRefresh = useCallback(() => {
+    if (!warehouseId) return
+    // Invalidate cache for current key and re-fetch
+    forecastCache.current.delete(cacheKey(warehouseId, analysisDateTime))
+    runDispatchRef.current(warehouseId, true)
+  }, [warehouseId, analysisDateTime])
 
   useEffect(() => {
     if (warehouseRoutes.length === 0) {
@@ -128,11 +148,23 @@ export function OptimizerPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-surface shrink-0">
-        <h1 className="text-base font-semibold text-foreground">Оптимизатор транспортных вызовов</h1>
-        <p className="text-xs text-muted mt-0.5">
-          Выберите склад — прогноз и план развозки загрузятся автоматически.
-        </p>
+      <div className="px-4 py-3 border-b border-border bg-surface shrink-0 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-base font-semibold text-foreground">Оптимизатор транспортных вызовов</h1>
+          <p className="text-xs text-muted mt-0.5">
+            Выберите склад — прогноз загрузится автоматически (кэшируется до ручного обновления).
+          </p>
+        </div>
+        {warehouseId && (
+          <button
+            onClick={handleRefresh}
+            disabled={dispatchLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-elevated border border-border text-foreground hover:border-accent hover:text-accent transition-colors disabled:opacity-50 shrink-0"
+          >
+            <RefreshCw className={cn('w-3.5 h-3.5', dispatchLoading && 'animate-spin')} />
+            Обновить прогноз
+          </button>
+        )}
       </div>
 
       {/* Body */}
@@ -193,6 +225,8 @@ export function OptimizerPage() {
                 selectedRouteId={selectedRouteId}
                 onSelectRoute={setSelectedRouteId}
                 onChangeReadyToShip={handleUpdateRouteReadyToShip}
+                vehicleTypes={vehicleTypes}
+                incomingVehicles={incomingVehicles}
               />
             )}
           </div>

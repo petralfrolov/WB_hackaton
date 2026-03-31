@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react'
+import { useState, useEffect, type ChangeEvent } from 'react'
 import type { RiskSettings } from '../../types'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
@@ -18,6 +18,11 @@ function mapWaitMinutes(v: number): number {
 
 export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
   const [local, setLocal] = useState<RiskSettings>(settings)
+
+  // Sync local state when backend config is loaded and updates settings prop
+  useEffect(() => {
+    setLocal(settings)
+  }, [settings])
   const [saved, setSaved] = useState(false)
   const [selectedCat, setSelectedCat] = useState<'compact' | 'mid' | 'large'>('compact')
 

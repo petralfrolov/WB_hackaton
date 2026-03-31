@@ -65,10 +65,18 @@ export function deleteVehicle(type: string): Promise<void> {
   return apiFetch<void>(`/vehicles/${type}`, { method: 'DELETE' })
 }
 
+export function listVehicles(): Promise<ApiVehicle[]> {
+  return getVehicles()
+}
+
 // ── Incoming vehicles ─────────────────────────────────────────────────────────
 
 export function getIncomingVehicles(): Promise<ApiIncomingVehicleList> {
   return apiFetch<ApiIncomingVehicleList>('/incoming-vehicles')
+}
+
+export function listIncoming(): Promise<ApiIncomingVehicleList> {
+  return getIncomingVehicles()
 }
 
 export function putIncomingVehicles(list: ApiIncomingVehicle[]): Promise<ApiIncomingVehicleList> {
@@ -76,6 +84,27 @@ export function putIncomingVehicles(list: ApiIncomingVehicle[]): Promise<ApiInco
     method: 'PUT',
     body: JSON.stringify({ incoming: list }),
   })
+}
+
+export async function addIncoming(item: ApiIncomingVehicle): Promise<ApiIncomingVehicleList> {
+  const current = await getIncomingVehicles()
+  const newList = [...(current.incoming || []), item]
+  return putIncomingVehicles(newList)
+}
+
+export async function updateIncoming(idx: number, item: ApiIncomingVehicle): Promise<ApiIncomingVehicleList> {
+  const current = await getIncomingVehicles()
+  const newList = [...(current.incoming || [])]
+  if (idx >= 0 && idx < newList.length) {
+    newList[idx] = item
+  }
+  return putIncomingVehicles(newList)
+}
+
+export async function deleteIncoming(idx: number): Promise<ApiIncomingVehicleList> {
+  const current = await getIncomingVehicles()
+  const newList = (current.incoming || []).filter((_, i) => i !== idx)
+  return putIncomingVehicles(newList)
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────

@@ -131,9 +131,9 @@ export function makeSankey(
     { id: 'packing',   label: 'Упаковка' },
     { id: 'quality',   label: 'Контроль' },
     { id: 'shelf',     label: 'Стеллаж' },
-    { id: 'shipping',  label: 'Зона отгрузки' },
-    { id: 'waiting',   label: 'Ожидание ТС' },
-    { id: 'ready',     label: 'Готов к отгрузке' },
+    { id: 'shipping',  label: 'Перемешение' },
+    { id: 'waiting',   label: 'Ожидание' },
+    { id: 'ready',     label: 'Группировка' },
   ]
 
   type SrcId = 'accepted' | 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting'

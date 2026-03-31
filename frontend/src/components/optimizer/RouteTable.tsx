@@ -1,6 +1,6 @@
-import { Loader2 } from 'lucide-react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { Warehouse, RouteDistance, ApiDispatchResponse } from '../../types'
+import type { Warehouse, RouteDistance, ApiDispatchResponse, VehicleType, ApiIncomingVehicle } from '../../types'
 import {
   Table,
   TableHeader,
@@ -11,6 +11,29 @@ import {
 } from '../ui/table'
 import { fmt } from '../../lib/utils'
 
+const HORIZON_LABELS = ['Сейчас', '+2ч', '+4ч', '+6ч'] as const
+
+function computeFleetByHorizon(
+  vehicleTypes: VehicleType[],
+  incomingVehicles: ApiIncomingVehicle[],
+): Array<{ type: string; h: [number, number, number, number] }> {
+  return vehicleTypes.map(vt => {
+    const base = vt.available
+    const additions: [number, number, number, number] = [0, 0, 0, 0]
+    for (const iv of incomingVehicles) {
+      if (iv.vehicle_type === vt.id) {
+        for (let h = iv.horizon_idx; h < 4; h++) {
+          additions[h] += iv.count
+        }
+      }
+    }
+    return {
+      type: vt.id,
+      h: [base + additions[0], base + additions[1], base + additions[2], base + additions[3]],
+    }
+  })
+}
+
 interface RouteTableProps {
   warehouse: Warehouse | null
   warehouseRoutes: RouteDistance[]
@@ -20,6 +43,8 @@ interface RouteTableProps {
   selectedRouteId: string | null
   onSelectRoute: (routeId: string) => void
   onChangeReadyToShip: (routeId: string, value: number) => void
+  vehicleTypes?: VehicleType[]
+  incomingVehicles?: ApiIncomingVehicle[]
 }
 
 interface RouteRow {
@@ -42,6 +67,8 @@ export function RouteTable({
   selectedRouteId,
   onSelectRoute,
   onChangeReadyToShip,
+  vehicleTypes = [],
+  incomingVehicles = [],
 }: RouteTableProps) {
   const [draftReady, setDraftReady] = useState<Record<string, string>>({})
 
@@ -79,7 +106,12 @@ export function RouteTable({
     }
   })
 
+  const hasShortfall = dispatchResult !== null && dispatchResult.routes.some(r => r.coverage_min < -0.5)
+
+  const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles)
+
   return (
+    <div className="space-y-4">
     <div className="bg-surface rounded-lg border border-border overflow-hidden">
       {/* Table header bar */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3 shrink-0">
@@ -188,6 +220,51 @@ export function RouteTable({
           </TableBody>
         </Table>
       </div>
+    </div>
+
+      {/* Coverage shortfall warning */}
+      {hasShortfall && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border border-status-red/50 bg-status-red/10 text-status-red text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold">Недостаточно транспорта для полного покрытия спроса.</span>
+            {' '}Добавьте дополнительные ТС или скорректируйте парк во вкладке «Бизнес-правила».
+          </div>
+        </div>
+      )}
+
+      {/* Fleet availability by horizon */}
+      {fleetByHorizon.length > 0 && (
+        <div className="bg-surface rounded-lg border border-border overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border">
+            <span className="section-label">Доступные ТС по горизонтам</span>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Тип ТС</TableHead>
+                {HORIZON_LABELS.map(label => (
+                  <TableHead key={label} className="text-right">{label}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fleetByHorizon.map(row => (
+                <TableRow key={row.type}>
+                  <TableCell className="font-mono text-sm">{row.type}</TableCell>
+                  {row.h.map((count, i) => (
+                    <TableCell key={i} className="text-right font-mono text-sm">
+                      <span className={count === 0 ? 'text-status-red' : 'text-foreground'}>
+                        {count}
+                      </span>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   )
 }
