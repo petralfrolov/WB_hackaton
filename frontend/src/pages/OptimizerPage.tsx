@@ -112,6 +112,12 @@ export function OptimizerPage() {
   const runDispatchRef = useRef(runDispatch)
   useEffect(() => { runDispatchRef.current = runDispatch }, [runDispatch])
 
+  // On initial mount: if warehouseId came from URL param, run dispatch (hits LS cache or fetches)
+  useEffect(() => {
+    if (warehouseId) runDispatchRef.current(warehouseId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally mount-only
+
   // Auto-dispatch when warehouse is selected
   const handleSelectWarehouse = useCallback((id: string) => {
     setWarehouseId(id)
