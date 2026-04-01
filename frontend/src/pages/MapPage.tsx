@@ -5,10 +5,12 @@ import { WarehouseDrawer } from '../components/map/WarehouseDrawer'
 import { Card, CardContent } from '../components/ui/card'
 import { fmt } from '../lib/utils'
 import { useSimulationContext } from '../context/SimulationContext'
+import { RefreshCw } from 'lucide-react'
+import { cn } from '../lib/utils'
 
 export function MapPage() {
   const [selected, setSelected] = useState<Warehouse | null>(null)
-  const { warehouses, routes, warehouseStatuses } = useSimulationContext()
+  const { warehouses, routes, warehouseStatuses, refreshAllWarehouses, refreshingAll } = useSimulationContext()
 
   const handleSelect = useCallback((wh: Warehouse) => setSelected(wh), [])
   const handleClose = useCallback(() => setSelected(null), [])
@@ -23,22 +25,23 @@ export function MapPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Top KPI bar */}
-      <div className="flex gap-3 px-4 py-3 border-b border-border bg-surface shrink-0">
-        <KpiCard
-          label="Всего складов"
-          value={fmt(totalWarehouses)}
-          color="#E6EDF3"
-        />
-        <KpiCard
-          label="Требуют внимания"
-          value={fmt(attentionCount)}
-          color="#D29922"
-        />
-        <KpiCard
-          label="Критических"
-          value={fmt(criticalCount)}
-          color="#F85149"
-        />
+      <div className="flex gap-3 px-4 py-3 border-b border-border bg-surface shrink-0 items-center">
+        <KpiCard label="Всего складов" value={fmt(totalWarehouses)} color="#E6EDF3" />
+        <KpiCard label="Требуют внимания" value={fmt(attentionCount)} color="#D29922" />
+        <KpiCard label="Критических" value={fmt(criticalCount)} color="#F85149" />
+        <div className="ml-auto shrink-0">
+          <button
+            onClick={refreshAllWarehouses}
+            disabled={refreshingAll}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border transition-colors disabled:opacity-50',
+              'bg-elevated text-foreground hover:border-accent hover:text-accent',
+            )}
+          >
+            <RefreshCw className={cn('w-3.5 h-3.5', refreshingAll && 'animate-spin')} />
+            Обновить все
+          </button>
+        </div>
       </div>
 
       {/* Map + Drawer */}

@@ -47,14 +47,6 @@
       "available": 100,
       "underload_penalty": 100.0,
       "fixed_dispatch_cost": 2500.0
-    },
-    {
-      "vehicle_type": "444",
-      "capacity_units": 4.0,
-      "cost_per_km": 4.0,
-      "available": 4,
-      "underload_penalty": 4.0,
-      "fixed_dispatch_cost": 4.0
     }
   ],
   "wait_penalty_per_minute": 8.0,

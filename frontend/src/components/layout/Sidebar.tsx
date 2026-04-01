@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Globe, BarChart2, FlaskConical } from 'lucide-react'
+import { Globe, BarChart2, FlaskConical, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useSimulationContext } from '../../context/SimulationContext'
 
@@ -16,7 +16,7 @@ const navItems: NavItem[] = [
 ]
 
 export function Sidebar() {
-  const { analysisDateTime, setAnalysisDateTime } = useSimulationContext()
+  const { analysisDateTime, setAnalysisDateTime, clearCache } = useSimulationContext()
 
   return (
     <aside
@@ -72,6 +72,14 @@ export function Sidebar() {
           onChange={e => setAnalysisDateTime(e.target.value)}
           className="w-full h-8 rounded bg-elevated border border-border px-2 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
         />
+        <button
+          onClick={clearCache}
+          className="w-full flex items-center justify-center gap-1.5 h-7 rounded border border-border text-[11px] text-muted hover:text-status-red hover:border-status-red transition-colors"
+          title="Удалить все прогнозы и планы развозки из кэша браузера"
+        >
+          <Trash2 className="w-3 h-3" />
+          Сбросить кэш
+        </button>
       </div>
 
       {/* Version badge */}

@@ -11,7 +11,7 @@ import { RefreshCw } from 'lucide-react'
 
 export function OptimizerPage() {
   const [searchParams] = useSearchParams()
-  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes, setVehicleTypes, setIncomingVehicles, warehouseStatuses, setWarehouseStatus } = useSimulationContext()
+  const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes, setVehicleTypes, setIncomingVehicles, warehouseStatuses, setWarehouseStatus, refreshAllWarehouses, refreshingAll } = useSimulationContext()
 
   const [warehouseId, setWarehouseId] = useState<string>(searchParams.get('warehouseId') ?? '')
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
@@ -260,7 +260,7 @@ export function OptimizerPage() {
         {warehouseId && (
           <button
             onClick={handleRefresh}
-            disabled={dispatchLoading}
+            disabled={dispatchLoading || refreshingAll}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border transition-colors disabled:opacity-50 shrink-0",
               readyDirty && !dispatchLoading
@@ -272,6 +272,17 @@ export function OptimizerPage() {
             Обновить прогноз
           </button>
         )}
+        <button
+          onClick={async () => { await refreshAllWarehouses(); if (warehouseId) runDispatchRef.current(warehouseId) }}
+          disabled={refreshingAll || dispatchLoading}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border transition-colors disabled:opacity-50 shrink-0',
+            'bg-elevated text-foreground hover:border-accent hover:text-accent',
+          )}
+        >
+          <RefreshCw className={cn('w-3.5 h-3.5', refreshingAll && 'animate-spin')} />
+          Обновить все
+        </button>
       </div>
 
       {/* Body */}
