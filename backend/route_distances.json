@@ -7,7 +7,7 @@
       "from_city": "Москва",
       "to_city": "Балашиха",
       "distance_km": 22.0,
-      "ready_to_ship": 200
+      "ready_to_ship": 40
     },
     {
       "id": "496",
@@ -16,7 +16,7 @@
       "from_city": "Москва",
       "to_city": "Люберцы",
       "distance_km": 18.0,
-      "ready_to_ship": 47
+      "ready_to_ship": 50
     },
     {
       "id": "226",
@@ -52,7 +52,7 @@
       "from_city": "Подольск",
       "to_city": "Климовск",
       "distance_km": 8.0,
-      "ready_to_ship": 114
+      "ready_to_ship": 321
     },
     {
       "id": "467",
@@ -97,7 +97,7 @@
       "from_city": "Химки",
       "to_city": "Зеленоград",
       "distance_km": 22.0,
-      "ready_to_ship": 179
+      "ready_to_ship": 159
     },
     {
       "id": "421",

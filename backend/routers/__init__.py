@@ -4,6 +4,7 @@ from .settings import router as settings_router
 from .warehouses import router as warehouses_router
 from .optimize import router as optimize_router
 from .dispatch import router as dispatch_router
+from .call import router as call_router
 
 __all__ = [
     "health_router",
@@ -12,4 +13,5 @@ __all__ = [
     "warehouses_router",
     "optimize_router",
     "dispatch_router",
+    "call_router",
 ]

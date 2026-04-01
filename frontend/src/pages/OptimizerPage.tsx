@@ -5,7 +5,7 @@ import { cn, routeDistanceToApi } from '../lib/utils'
 import { RouteTable } from '../components/optimizer/RouteTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
 import { useSimulationContext } from '../context/SimulationContext'
-import { postDispatch, putRouteDistances, updateVehicle, getVehicles, putIncomingVehicles } from '../api'
+import { postDispatch, putRouteDistances, updateVehicle, getVehicles, putIncomingVehicles, callRoute } from '../api'
 import { apiVehicleToVehicleType } from '../lib/utils'
 import { RefreshCw } from 'lucide-react'
 
@@ -21,6 +21,7 @@ export function OptimizerPage() {
   const [search, setSearch] = useState('')
   const [sidebarWidth, setSidebarWidth] = useState(240)
   const [costPanelWidth, setCostPanelWidth] = useState(720)
+  const [readyDirty, setReadyDirty] = useState(false)
 
   // ── Forecast cache: localStorage-backed, keyed by `wid__datetime` ────────
   const LS_PREFIX = 'dispatch_cache__'
@@ -224,6 +225,28 @@ export function OptimizerPage() {
     }
   }, [vehicleTypes, incomingVehicles, warehouseId, analysisDateTime, setVehicleTypes, setIncomingVehicles])
 
+  const handleCallRoute = useCallback(async (routeId: string) => {
+    const ts = analysisDateTime.replace('T', ' ') + ':00'
+    const res = await callRoute({ route_id: routeId, timestamp: ts, warehouse_id: warehouseId || undefined })
+    return JSON.stringify(res.request, null, 2)
+  }, [analysisDateTime, warehouseId])
+
+  const handleCallAllRoutes = useCallback(async (routeIds: string[]): Promise<void> => {
+    const ts = analysisDateTime.replace('T', ' ') + ':00'
+    const payloads = []
+    for (const rid of routeIds) {
+      const res = await callRoute({ route_id: rid, timestamp: ts, warehouse_id: warehouseId || undefined })
+      payloads.push(res.request)
+    }
+    const json = JSON.stringify({ routes: payloads }, null, 2)
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const w = window.open(url, '_blank', 'noopener,noreferrer')
+    w?.blur?.()
+    window.focus()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }, [handleCallRoute])
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -231,14 +254,19 @@ export function OptimizerPage() {
         <div>
           <h1 className="text-base font-semibold text-foreground">Оптимизатор транспортных вызовов</h1>
           <p className="text-xs text-muted mt-0.5">
-            Выберите склад — прогноз загрузится автоматически (кэшируется до ручного обновления).
+            Выберите склад — прогноз загрузится автоматически.
           </p>
         </div>
         {warehouseId && (
           <button
             onClick={handleRefresh}
             disabled={dispatchLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-elevated border border-border text-foreground hover:border-accent hover:text-accent transition-colors disabled:opacity-50 shrink-0"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border transition-colors disabled:opacity-50 shrink-0",
+              readyDirty && !dispatchLoading
+                ? "bg-accent text-background animate-[pulse_1s_ease-in-out_infinite]"
+                : "bg-elevated text-foreground hover:border-accent hover:text-accent"
+            )}
           >
             <RefreshCw className={cn('w-3.5 h-3.5', dispatchLoading && 'animate-spin')} />
             Обновить прогноз
@@ -304,9 +332,12 @@ export function OptimizerPage() {
                 selectedRouteId={selectedRouteId}
                 onSelectRoute={setSelectedRouteId}
                 onChangeReadyToShip={handleUpdateRouteReadyToShip}
+                onCallRoute={handleCallRoute}
+                onCallAllRoutes={handleCallAllRoutes}
                 vehicleTypes={vehicleTypes}
                 incomingVehicles={incomingVehicles}
                 onFleetChange={handleFleetChange}
+                onReadyDirtyChange={setReadyDirty}
               />
             )}
           </div>

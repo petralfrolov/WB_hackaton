@@ -9,6 +9,8 @@ import type {
   ApiWarehouseInfo,
   ApiForecastPoint,
   ApiRouteDistance,
+  ApiCallRequest,
+  ApiCallResponse,
 } from '../types'
 
 // ── Warehouses ───────────────────────────────────────────────────────────────
@@ -115,4 +117,13 @@ export function getConfig(): Promise<Record<string, unknown>> {
 
 export function patchSettings(s: Partial<ApiSettings>): Promise<void> {
   return apiFetch<void>('/settings', { method: 'PATCH', body: JSON.stringify(s) })
+}
+
+// ── Call transport (per route) ──────────────────────────────────────────────
+
+export function callRoute(req: ApiCallRequest): Promise<ApiCallResponse> {
+  return apiFetch<ApiCallResponse>('/call', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  })
 }

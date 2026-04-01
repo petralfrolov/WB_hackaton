@@ -57,7 +57,6 @@ function FormulaBreakdown({
   vehicleMap: Map<string, VehicleType>
 }) {
   const { summaryRow, fixedRows, fixedTotal, totalWait } = group
-  const waitPenaltyPerHorizon = riskSettings.idleCostPerMinute * 120
   const dispatched = group.rows.filter(r => r.vehicle_type !== 'none' && r.vehicles_count > 0)
   const underloadTotal = dispatched.reduce((s, r) => s + r.cost_underload, 0)
   const total = fixedTotal + underloadTotal + totalWait
@@ -211,7 +210,7 @@ function FormulaBreakdown({
       </section>
 
       <div className="bg-gradient-to-r from-status-green/10 to-status-green/5 border border-status-green/30 rounded-lg px-4 py-3 flex items-center justify-between">
-        <span className="text-sm font-semibold text-foreground">J итого</span>
+        <span className="text-sm font-semibold text-foreground">ИТОГО:</span>
         <div className="text-right">
           <div className="text-[11px] text-muted font-mono">
             {fmtCurrency(fixedTotal)} + {fmtCurrency(underloadTotal)} + {fmtCurrency(totalWait)}

@@ -216,3 +216,34 @@ export interface ApiDispatchResponse {
   routes: ApiRoutePlan[]
   total_cost: number
 }
+
+export interface ApiCallRequest {
+  route_id: string
+  timestamp: string
+  warehouse_id?: string
+}
+
+export interface ApiCallVehicle {
+  vehicle_type: string
+  vehicles_count: number
+  category?: string
+  capacity_units: number
+  cost_per_km: number
+  empty_capacity_units: number
+  cost_fixed: number
+  cost_underload: number
+}
+
+export interface ApiCallPayload {
+  route_id: string
+  office_from_id?: string
+  dispatch_time: string
+  horizon: string
+  vehicles: ApiCallVehicle[]
+  costs: { fixed: number; underload: number; wait: number; total: number }
+  demand: { ready_to_ship: number; pred_0_2h: number; pred_2_4h: number; pred_4_6h: number }
+}
+
+export interface ApiCallResponse {
+  request: ApiCallPayload
+}

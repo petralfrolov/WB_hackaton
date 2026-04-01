@@ -73,4 +73,6 @@ def load_state(
         warehouses=warehouses,
         route_distances=route_distances,
     )
+    # cache for last dispatch result
+    _state.last_dispatch = None
     return _state

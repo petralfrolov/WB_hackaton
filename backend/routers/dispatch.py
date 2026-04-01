@@ -106,10 +106,15 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         total_cost += route_cost
         route_plans.append(RoutePlan(route_id=rid, plan=rows, coverage_min=cov))
 
-    return DispatchResponse(
+    resp = DispatchResponse(
         warehouse_id=req.warehouse_id,
         office_from_id=office_from_id,
         timestamp=req.timestamp,
         routes=route_plans,
         total_cost=round(total_cost, 2),
     )
+
+    # cache last dispatch in state for /call reuse (timestamp + plan)
+    state.last_dispatch = resp.model_dump()
+    state.last_dispatch["timestamp"] = ts_str
+    return resp

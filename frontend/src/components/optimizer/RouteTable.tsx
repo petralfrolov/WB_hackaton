@@ -43,6 +43,9 @@ interface RouteTableProps {
   selectedRouteId: string | null
   onSelectRoute: (routeId: string) => void
   onChangeReadyToShip: (routeId: string, value: number) => void
+  onCallRoute: (routeId: string) => Promise<string>
+  onCallAllRoutes?: (routeIds: string[]) => Promise<void>
+  onReadyDirtyChange?: (dirty: boolean) => void
   vehicleTypes?: VehicleType[]
   incomingVehicles?: ApiIncomingVehicle[]
   onFleetChange?: (vehicleType: string, horizonIdx: 0 | 1 | 2 | 3, newCount: number) => Promise<void>
@@ -82,6 +85,9 @@ export function RouteTable({
   selectedRouteId,
   onSelectRoute,
   onChangeReadyToShip,
+  onCallRoute,
+  onCallAllRoutes,
+  onReadyDirtyChange,
   vehicleTypes = [],
   incomingVehicles = [],
   onFleetChange,
@@ -89,10 +95,30 @@ export function RouteTable({
   const [draftReady, setDraftReady] = useState<Record<string, string>>({})
   const [draftFleet, setDraftFleet] = useState<Record<string, string>>({})
   const [savingFleet, setSavingFleet] = useState<Record<string, boolean>>({})
+  const [called, setCalled] = useState<Record<string, boolean>>({})
+  const [bulkCalled, setBulkCalled] = useState(false)
 
   useEffect(() => {
-    const nextDrafts = Object.fromEntries(warehouseRoutes.map(route => [route.id, String(route.readyToShip)]))
-    setDraftReady(nextDrafts)
+    setDraftReady(prev => {
+      const next = { ...prev }
+      let changed = false
+      for (const route of warehouseRoutes) {
+        if (next[route.id] === undefined) {
+          next[route.id] = String(route.readyToShip)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    // сохраняем статусы вызова в localStorage, ключ — route_id
+    const calledFromLS: Record<string, boolean> = {}
+    for (const route of warehouseRoutes) {
+      const key = `called_${route.id}`
+      const val = localStorage.getItem(key)
+      calledFromLS[route.id] = val === '1'
+    }
+    setCalled(calledFromLS)
+    setBulkCalled(false)
   }, [warehouseRoutes])
 
   // Build lookup: route_id → forecast + coverage by horizon
@@ -140,10 +166,59 @@ export function RouteTable({
 
   const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles)
 
+  const handleCall = async (routeId: string) => {
+    const already = called[routeId]
+    const nextState = !already
+    try {
+      if (!already) {
+        const json = await onCallRoute(routeId)
+        const blob = new Blob([json], { type: 'application/json;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const w = window.open(url, '_blank', 'noopener,noreferrer')
+        if (w && typeof w.blur === 'function') w.blur()
+        window.focus()
+        setTimeout(() => URL.revokeObjectURL(url), 5000)
+      }
+      setCalled(prev => ({ ...prev, [routeId]: nextState }))
+      localStorage.setItem(`called_${routeId}`, nextState ? '1' : '0')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const markCalledBulk = (routeIds: string[]) => {
+    const updates: Record<string, boolean> = {}
+    for (const rid of routeIds) {
+      updates[rid] = true
+      localStorage.setItem(`called_${rid}`, '1')
+    }
+    setCalled(prev => ({ ...prev, ...updates }))
+    setBulkCalled(true)
+  }
+
+  const clearCalledBulk = (routeIds: string[]) => {
+    const updates: Record<string, boolean> = {}
+    for (const rid of routeIds) {
+      updates[rid] = false
+      localStorage.removeItem(`called_${rid}`)
+    }
+    setCalled(prev => ({ ...prev, ...updates }))
+    setBulkCalled(false)
+  }
+
   useEffect(() => {
     setDraftFleet({})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fleetByHorizon.map(r => r.h.join(',')).join('|')])
+
+  // detect unsaved changes in "Готово к отгрузке"
+  useEffect(() => {
+    const dirty = rows.some(r => {
+      const val = draftReady[r.routeId] ?? String(r.readyToShip)
+      return String(val) !== String(r.readyToShip)
+    })
+    onReadyDirtyChange?.(dirty)
+  }, [rows, draftReady, onReadyDirtyChange])
 
   return (
     <div className="space-y-4">
@@ -193,6 +268,7 @@ export function RouteTable({
               <TableHead className="text-right">Прогноз на 2ч</TableHead>
               <TableHead className="text-right">Прогноз 2–4ч</TableHead>
               <TableHead className="text-right">Прогноз 4–6ч</TableHead>
+              <TableHead className="text-right">Статус</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -251,16 +327,31 @@ export function RouteTable({
                         ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)}>{fmt(Math.round(row.h1))}</span>
                         : <span className="text-muted">—</span>}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {row.h2 !== null
-                        ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)}>{fmt(Math.round(row.h2))}</span>
-                        : <span className="text-muted">—</span>}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="bg-elevated/60 font-semibold border-t-2 border-border">
-                  <TableCell>
-                    <div className="text-sm text-foreground font-semibold">Итого</div>
+                <TableCell className="text-right font-mono">
+                  {row.h2 !== null
+                    ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)}>{fmt(Math.round(row.h2))}</span>
+                    : <span className="text-muted">—</span>}
+                </TableCell>
+                <TableCell className="text-right">
+                  <button
+                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                      called[row.routeId]
+                        ? 'bg-muted text-foreground/60 hover:bg-muted/80'
+                        : 'bg-accent text-background hover:opacity-90'
+                    }`}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      await handleCall(row.routeId)
+                    }}
+                  >
+                    {called[row.routeId] ? 'Вызвано' : 'Вызвать'}
+                  </button>
+                </TableCell>
+              </TableRow>
+            ))}
+            <TableRow className="bg-elevated/60 font-semibold border-t-2 border-border">
+              <TableCell>
+                <div className="text-sm text-foreground font-semibold">Итого</div>
                   </TableCell>
                   <TableCell className="text-right font-mono text-status-green font-semibold">
                     {fmt(rows.reduce((s, r) => s + r.readyToShip, 0))}
@@ -275,15 +366,36 @@ export function RouteTable({
                       ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h1 ?? 0), 0)))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {rows.some(r => r.h2 !== null)
-                      ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h2 ?? 0), 0)))}</span>
-                      : <span className="text-muted">—</span>}
-                  </TableCell>
-                </TableRow>
-              </>
-            )}
-          </TableBody>
+              <TableCell className="text-right font-mono">
+                {rows.some(r => r.h2 !== null)
+                  ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h2 ?? 0), 0)))}</span>
+                  : <span className="text-muted">—</span>}
+              </TableCell>
+              <TableCell className="text-right">
+                {onCallAllRoutes && (
+                  <button
+                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                      bulkCalled ? 'bg-muted text-foreground/70 hover:bg-muted/80' : 'bg-accent text-background hover:opacity-90'
+                    }`}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const ids = rows.map(r => r.routeId)
+                      if (bulkCalled) {
+                        clearCalledBulk(ids)
+                      } else {
+                        await onCallAllRoutes(ids)
+                        markCalledBulk(ids)
+                      }
+                    }}
+                  >
+                    {bulkCalled ? 'Отменить' : 'Вызвать все'}
+                  </button>
+                )}
+              </TableCell>
+            </TableRow>
+          </>
+        )}
+      </TableBody>
         </Table>
       </div>
     </div>
@@ -363,6 +475,7 @@ export function RouteTable({
           </Table>
         </div>
       )}
+
     </div>
   )
 }

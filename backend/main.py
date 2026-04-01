@@ -19,6 +19,7 @@ from routers import (
     settings_router,
     vehicles_router,
     warehouses_router,
+    call_router,
 )
 from state import load_state
 
@@ -66,3 +67,4 @@ app.include_router(dispatch_router)
 app.include_router(optimize_router)
 app.include_router(vehicles_router)
 app.include_router(settings_router)
+app.include_router(call_router)
