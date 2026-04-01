@@ -81,10 +81,13 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     const ts = analysisDateTime.replace('T', ' ') + ':00'
     const key = `${warehouse.id}__${analysisDateTime}`
 
-    // Forecast (ML) — check LS cache first
+    // Forecast (ML) — check LS cache first; if dispatch cache exists, skip (chart uses dispatch data)
     const cachedFc = fcGet(key)
     if (cachedFc) {
       setForecastData(cachedFc)
+      setForecastLoading(false)
+    } else if (lsGet(key)) {
+      // Dispatch result already cached → chart will use it; no need to fetch separate ML forecast
       setForecastLoading(false)
     } else {
       getWarehouseForecast(warehouse.id, ts)

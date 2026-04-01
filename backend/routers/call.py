@@ -17,8 +17,12 @@ def call_transport(req: CallRequest, state: AppState = Depends(get_state)):
     route_id = str(req.route_id)
     ts_str = req.timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Ищем последний сохранённый dispatch_result в состоянии
-    last_dispatch = getattr(state, "last_dispatch", None)
+    # Ищем план: сначала по warehouse_id, затем общий last_dispatch
+    last_dispatch = None
+    if req.warehouse_id:
+        last_dispatch = state.last_dispatch_by_warehouse.get(str(req.warehouse_id))
+    if not last_dispatch:
+        last_dispatch = getattr(state, "last_dispatch", None)
     if not last_dispatch:
         raise HTTPException(status_code=409, detail="Нет готового плана. Сначала нажмите «Обновить прогноз».")
 

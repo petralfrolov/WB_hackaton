@@ -49,6 +49,7 @@ interface RouteTableProps {
   vehicleTypes?: VehicleType[]
   incomingVehicles?: ApiIncomingVehicle[]
   onFleetChange?: (vehicleType: string, horizonIdx: 0 | 1 | 2 | 3, newCount: number) => Promise<void>
+  analysisDateTime?: string
 }
 
 function forecastColor(demand: number, leftover: number | null, vehiclesCount: number | null): string {
@@ -91,7 +92,9 @@ export function RouteTable({
   vehicleTypes = [],
   incomingVehicles = [],
   onFleetChange,
+  analysisDateTime = '',
 }: RouteTableProps) {
+  const calledLsKey = (routeId: string) => `called_${routeId}__${analysisDateTime}`
   const [draftReady, setDraftReady] = useState<Record<string, string>>({})
   const [draftFleet, setDraftFleet] = useState<Record<string, string>>({})
   const [savingFleet, setSavingFleet] = useState<Record<string, boolean>>({})
@@ -110,16 +113,15 @@ export function RouteTable({
       }
       return changed ? next : prev
     })
-    // сохраняем статусы вызова в localStorage, ключ — route_id
+    // сохраняем статусы вызова в localStorage, ключ — route_id + analysisDateTime
     const calledFromLS: Record<string, boolean> = {}
     for (const route of warehouseRoutes) {
-      const key = `called_${route.id}`
-      const val = localStorage.getItem(key)
+      const val = localStorage.getItem(calledLsKey(route.id))
       calledFromLS[route.id] = val === '1'
     }
     setCalled(calledFromLS)
-    setBulkCalled(false)
-  }, [warehouseRoutes])
+    setBulkCalled(warehouseRoutes.length > 0 && warehouseRoutes.every(r => calledFromLS[r.id]))
+  }, [warehouseRoutes, analysisDateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build lookup: route_id → forecast + coverage by horizon
   const forecastMap = new Map<string, { h0: number; h1: number; h2: number; h0l: number; h1l: number; h2l: number; h0v: number; h1v: number; h2v: number }>()
@@ -180,7 +182,7 @@ export function RouteTable({
         setTimeout(() => URL.revokeObjectURL(url), 5000)
       }
       setCalled(prev => ({ ...prev, [routeId]: nextState }))
-      localStorage.setItem(`called_${routeId}`, nextState ? '1' : '0')
+      localStorage.setItem(calledLsKey(routeId), nextState ? '1' : '0')
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err))
     }
@@ -190,7 +192,7 @@ export function RouteTable({
     const updates: Record<string, boolean> = {}
     for (const rid of routeIds) {
       updates[rid] = true
-      localStorage.setItem(`called_${rid}`, '1')
+      localStorage.setItem(calledLsKey(rid), '1')
     }
     setCalled(prev => ({ ...prev, ...updates }))
     setBulkCalled(true)
@@ -200,7 +202,7 @@ export function RouteTable({
     const updates: Record<string, boolean> = {}
     for (const rid of routeIds) {
       updates[rid] = false
-      localStorage.removeItem(`called_${rid}`)
+      localStorage.removeItem(calledLsKey(rid))
     }
     setCalled(prev => ({ ...prev, ...updates }))
     setBulkCalled(false)

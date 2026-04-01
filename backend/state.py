@@ -27,6 +27,7 @@ class AppState:
     incoming_cfg: List[Dict] = field(default_factory=list)
     warehouses: List[Dict] = field(default_factory=list)        # warehouse_metadata.json
     route_distances: List[Dict] = field(default_factory=list)   # route_distances.json
+    last_dispatch_by_warehouse: Dict[str, Dict] = field(default_factory=dict)  # warehouse_id → last dispatch
 
 
 _state: Optional[AppState] = None

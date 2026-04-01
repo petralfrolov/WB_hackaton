@@ -248,7 +248,17 @@ export function OptimizerPage() {
   }, [handleCallRoute])
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden relative">
+      {/* Blur overlay while refreshing all warehouses */}
+      {refreshingAll && (
+        <div className="absolute inset-0 z-50 backdrop-blur-sm bg-background/60 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 bg-surface border border-border rounded-xl px-8 py-6 shadow-lg">
+            <RefreshCw className="w-8 h-8 animate-spin text-accent" />
+            <p className="text-sm text-foreground font-medium">Обновление всех складов…</p>
+            <p className="text-xs text-muted">Это может занять несколько секунд</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="px-4 py-3 border-b border-border bg-surface shrink-0 flex items-center justify-between gap-4">
         <div>
@@ -349,6 +359,7 @@ export function OptimizerPage() {
                 incomingVehicles={incomingVehicles}
                 onFleetChange={handleFleetChange}
                 onReadyDirtyChange={setReadyDirty}
+                analysisDateTime={analysisDateTime}
               />
             )}
           </div>

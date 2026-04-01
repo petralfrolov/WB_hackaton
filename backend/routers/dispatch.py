@@ -117,4 +117,5 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
     # cache last dispatch in state for /call reuse (timestamp + plan)
     state.last_dispatch = resp.model_dump()
     state.last_dispatch["timestamp"] = ts_str
+    state.last_dispatch_by_warehouse[req.warehouse_id] = state.last_dispatch
     return resp
