@@ -407,8 +407,7 @@ export function RouteTable({
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border border-status-red/50 bg-status-red/10 text-status-red text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold">Недостаточно транспорта для полного покрытия спроса.</span>
-            {' '}Добавьте дополнительные ТС или скорректируйте парк во вкладке «Бизнес-правила».
+            <span className="font-semibold">Есть остатки на одном или нескольких горизонтах.</span>
           </div>
         </div>
       )}
