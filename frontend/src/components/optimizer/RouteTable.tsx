@@ -203,60 +203,85 @@ export function RouteTable({
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map(row => (
-                <TableRow
-                  key={row.routeId}
-                  selected={row.routeId === selectedRouteId}
-                  onClick={() => onSelectRoute(row.routeId)}
-                  className="cursor-pointer"
-                >
-                  <TableCell>
-                    <div>
-                      <span className="font-mono text-[11px] text-muted">#{row.routeId}</span>
-                      <div className="text-sm text-foreground font-medium">
-                        {row.fromCity} → {row.toCity}
+              <>
+                {rows.map(row => (
+                  <TableRow
+                    key={row.routeId}
+                    selected={row.routeId === selectedRouteId}
+                    onClick={() => onSelectRoute(row.routeId)}
+                    className="cursor-pointer"
+                  >
+                    <TableCell>
+                      <div>
+                        <span className="font-mono text-[11px] text-muted">#{row.routeId}</span>
+                        <div className="text-sm text-foreground font-medium">
+                          {row.fromCity} → {row.toCity}
+                        </div>
+                        <div className="text-[11px] text-muted">{row.distanceKm} км</div>
                       </div>
-                      <div className="text-[11px] text-muted">{row.distanceKm} км</div>
-                    </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      <input
+                        type="number"
+                        min="0"
+                        value={draftReady[row.routeId] ?? String(row.readyToShip)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => {
+                          const value = e.target.value
+                          setDraftReady(prev => ({ ...prev, [row.routeId]: value }))
+                        }}
+                        onBlur={() => {
+                          const parsed = Number(draftReady[row.routeId] ?? row.readyToShip)
+                          const nextValue = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0
+                          setDraftReady(prev => ({ ...prev, [row.routeId]: String(nextValue) }))
+                          if (nextValue !== row.readyToShip) {
+                            onChangeReadyToShip(row.routeId, nextValue)
+                          }
+                        }}
+                        className="w-24 h-8 rounded bg-elevated border border-border px-2 text-right text-sm text-status-green font-semibold focus:outline-none focus:border-accent"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {row.h0 !== null
+                        ? <span className={forecastColor(row.h0, row.h0Leftover, row.h0Vehicles)}>{fmt(Math.round(row.h0))}</span>
+                        : <span className="text-muted">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {row.h1 !== null
+                        ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)}>{fmt(Math.round(row.h1))}</span>
+                        : <span className="text-muted">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {row.h2 !== null
+                        ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)}>{fmt(Math.round(row.h2))}</span>
+                        : <span className="text-muted">—</span>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-elevated/60 font-semibold border-t-2 border-border">
+                  <TableCell>
+                    <div className="text-sm text-foreground font-semibold">Итого</div>
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-status-green font-semibold">
+                    {fmt(rows.reduce((s, r) => s + r.readyToShip, 0))}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    <input
-                      type="number"
-                      min="0"
-                      value={draftReady[row.routeId] ?? String(row.readyToShip)}
-                      onClick={e => e.stopPropagation()}
-                      onChange={e => {
-                        const value = e.target.value
-                        setDraftReady(prev => ({ ...prev, [row.routeId]: value }))
-                      }}
-                      onBlur={() => {
-                        const parsed = Number(draftReady[row.routeId] ?? row.readyToShip)
-                        const nextValue = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0
-                        setDraftReady(prev => ({ ...prev, [row.routeId]: String(nextValue) }))
-                        if (nextValue !== row.readyToShip) {
-                          onChangeReadyToShip(row.routeId, nextValue)
-                        }
-                      }}
-                      className="w-24 h-8 rounded bg-elevated border border-border px-2 text-right text-sm text-status-green font-semibold focus:outline-none focus:border-accent"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {row.h0 !== null
-                      ? <span className={forecastColor(row.h0, row.h0Leftover, row.h0Vehicles)}>{fmt(Math.round(row.h0))}</span>
+                    {rows.some(r => r.h0 !== null)
+                      ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h0 ?? 0), 0)))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {row.h1 !== null
-                      ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)}>{fmt(Math.round(row.h1))}</span>
+                    {rows.some(r => r.h1 !== null)
+                      ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h1 ?? 0), 0)))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {row.h2 !== null
-                      ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)}>{fmt(Math.round(row.h2))}</span>
+                    {rows.some(r => r.h2 !== null)
+                      ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h2 ?? 0), 0)))}</span>
                       : <span className="text-muted">—</span>}
                   </TableCell>
                 </TableRow>
-              ))
+              </>
             )}
           </TableBody>
         </Table>

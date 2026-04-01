@@ -127,47 +127,57 @@ function FormulaBreakdown({
           <span className="w-4 h-4 rounded-sm bg-accent/20 text-accent text-[10px] flex items-center justify-center font-bold shrink-0">2</span>
           <span className="text-[11px] text-muted font-semibold tracking-wide">ШТРАФ ЗА НЕДОЗАГРУЗКУ</span>
         </div>
-        <div className="bg-elevated rounded-lg px-3 py-2 space-y-2 text-xs">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted">
-            <div className="flex justify-between gap-2">
-              <span>Доступно к отправке</span>
-              <span className="font-mono text-foreground">{fmt(summaryRow.total_available)}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span>Отправлено</span>
-              <span className="font-mono text-foreground">{fmt(summaryRow.actually_shipped)}</span>
-            </div>
-          </div>
-
-          {dispatched.length ? (
-            <div className="space-y-1.5">
-              {dispatched.map((row, idx) => {
-                const v = vehicleMap.get(row.vehicle_type)
-                const capPer = v?.capacity ?? 0
-                const totalCap = capPer * row.vehicles_count
-                const loaded = Math.max(0, totalCap - row.empty_capacity_units)
-                const penalty = v?.underloadPenalty ?? riskSettings.emptyPenaltyPerUnit
-                return (
-                  <div key={idx} className="flex justify-between gap-2 text-muted">
-                    <span>
-                      <span className="text-foreground">{v?.name ?? row.vehicle_type}</span>
-                      {' · '}{fmt(loaded)}/{fmt(totalCap)} ед.
-                      {' · '}<span className="text-accent">{fmtCurrency(penalty)}/ед.</span>
-                    </span>
-                    <span className="font-mono text-foreground">
-                      {fmtCurrency(row.cost_underload)}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="text-[11px] text-muted">Отправок в этом горизонте нет</div>
-          )}
-
-          <div className="border-t border-border/40 pt-1.5 text-[11px] text-muted">
-            Штраф считается по пустой вместимости каждой отправленной машины и индивидуальной ставке ТС.
-          </div>
+        <div className="bg-elevated rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-muted">
+                <th className="px-3 py-2 text-left font-medium">ТС</th>
+                <th className="px-3 py-2 text-right font-medium">Вместимость / ед.</th>
+                <th className="px-3 py-2 text-right font-medium">Загружено</th>
+                <th className="px-3 py-2 text-right font-medium">Пустых ед.</th>
+                <th className="px-3 py-2 text-right font-medium">₽/ед.</th>
+                <th className="px-3 py-2 text-right font-medium">Итого</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dispatched.length ? (
+                dispatched.map((row, idx) => {
+                  const v = vehicleMap.get(row.vehicle_type)
+                  const capPer = v?.capacity ?? 0
+                  const totalCap = capPer * row.vehicles_count
+                  const loaded = Math.max(0, totalCap - row.empty_capacity_units)
+                  const penalty = v?.underloadPenalty ?? riskSettings.emptyPenaltyPerUnit
+                  return (
+                    <tr key={idx} className="border-b border-border/40 last:border-0">
+                      <td className="px-3 py-1.5 text-foreground">{v?.name ?? row.vehicle_type}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-muted">{fmt(capPer)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-foreground">{fmt(loaded)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-muted">{fmt(row.empty_capacity_units)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-accent">{fmtCurrency(penalty)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-foreground font-semibold">{fmtCurrency(row.cost_underload)}</td>
+                    </tr>
+                  )
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-3 py-3 text-center text-muted">Отправок в этом горизонте нет</td>
+                </tr>
+              )}
+              {dispatched.length > 0 && (
+                <tr className="border-t border-border/60 bg-elevated/50 text-[11px] text-muted">
+                  <td colSpan={3} className="px-3 py-1.5">
+                    Доступно: {fmt(summaryRow.total_available)} · Отправлено: {fmt(summaryRow.actually_shipped)}
+                  </td>
+                  <td colSpan={3} className="px-3 py-1.5 text-right font-mono">
+                    Всего пустых: {fmt(dispatched.reduce((s, r) => s + r.empty_capacity_units, 0))}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="text-[11px] text-muted mt-1 pr-1">
+          Штраф считается по пустой вместимости каждой отправленной машины и индивидуальной ставке ТС.
         </div>
         <div className="text-right text-xs font-mono text-accent mt-1.5 pr-1">= {fmtCurrency(underloadTotal)}</div>
       </section>
@@ -177,12 +187,25 @@ function FormulaBreakdown({
           <span className="w-4 h-4 rounded-sm bg-status-yellow/20 text-status-yellow text-[10px] flex items-center justify-center font-bold shrink-0">3</span>
           <span className="text-[11px] text-muted font-semibold tracking-wide">ШТРАФ ЗА ОЖИДАНИЕ</span>
         </div>
-        <div className="bg-elevated rounded-lg px-3 py-2 text-xs">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted text-[11px]">
-            <span>Остаток S = {fmt(summaryRow.leftover_stock)} ед.</span>
-            <span>Штраф ожидания = {fmtCurrency(riskSettings.idleCostPerMinute)}/ед./мин.</span>
-            <span>Длительность горизонта = 120 мин.</span>
-          </div>
+        <div className="bg-elevated rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-muted">
+                <th className="px-3 py-2 text-left font-medium">Остаток (ед.)</th>
+                <th className="px-3 py-2 text-right font-medium">Штраф (₽/ед./мин.)</th>
+                <th className="px-3 py-2 text-right font-medium">Длит. (мин.)</th>
+                <th className="px-3 py-2 text-right font-medium">Итого</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="px-3 py-1.5 font-mono text-foreground">{fmt(summaryRow.leftover_stock)}</td>
+                <td className="px-3 py-1.5 text-right font-mono text-muted">{fmtCurrency(riskSettings.idleCostPerMinute)}</td>
+                <td className="px-3 py-1.5 text-right font-mono text-muted">120</td>
+                <td className="px-3 py-1.5 text-right font-mono text-foreground font-semibold">{fmtCurrency(totalWait)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div className="text-right text-xs font-mono text-status-yellow mt-1.5 pr-1">= {fmtCurrency(totalWait)}</div>
       </section>
@@ -300,23 +323,41 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
                   <tr className="border-b border-border text-muted">
                     <th className="px-3 py-2 text-left font-medium">Горизонт</th>
                     <th className="px-3 py-2 text-left font-medium">ТС</th>
-                    <th className="px-3 py-2 text-right font-medium">Кол-во</th>
+                    <th className="px-3 py-2 text-right font-medium">Кол-во ТС</th>
                     <th className="px-3 py-2 text-right font-medium">Отправлено</th>
                     <th className="px-3 py-2 text-right font-medium">Остаток</th>
                     <th className="px-3 py-2 text-right font-medium">Стоимость</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {planGroups.map(group => (
-                    <tr key={group.id} className="border-b border-border/40 last:border-0">
-                      <td className="px-3 py-2 text-foreground">{horizonLabel(group.horizon)}</td>
-                      <td className="px-3 py-2 text-muted">{group.vehicleSummary}</td>
-                      <td className="px-3 py-2 text-right font-mono text-muted">{group.totalVehicles || '—'}</td>
-                      <td className="px-3 py-2 text-right font-mono text-foreground">{fmt(group.summaryRow.actually_shipped)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-muted">{fmt(group.summaryRow.leftover_stock)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-accent">{fmtCurrency(group.totalCost)}</td>
-                    </tr>
-                  ))}
+                  {planGroups.map(group => {
+                    const dispatched = group.rows.filter(r => r.vehicle_type !== 'none' && r.vehicles_count > 0)
+                    const leftover = group.summaryRow.leftover_stock
+                    const demand = group.summaryRow.demand_new
+                    const leftoverColor = leftover === 0
+                      ? 'text-status-green font-semibold'
+                      : leftover >= demand && demand > 0
+                        ? 'text-status-red font-semibold'
+                        : 'text-status-yellow font-semibold'
+                    return (
+                      <tr key={group.id} className="border-b border-border/40 last:border-0">
+                        <td className="px-3 py-2 text-foreground">{horizonLabel(group.horizon)}</td>
+                        <td className="px-3 py-2 text-muted">
+                          {dispatched.length === 0 ? '—' : dispatched.map(r => (
+                            <div key={r.vehicle_type}>{vehicleMap.get(r.vehicle_type)?.name ?? r.vehicle_type}</div>
+                          ))}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-muted">
+                          {dispatched.length === 0 ? '—' : dispatched.map(r => (
+                            <div key={r.vehicle_type}>{r.vehicles_count}</div>
+                          ))}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-foreground">{fmt(group.summaryRow.actually_shipped)}</td>
+                        <td className={`px-3 py-2 text-right font-mono ${leftoverColor}`}>{fmt(leftover)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-accent">{fmtCurrency(group.totalCost)}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

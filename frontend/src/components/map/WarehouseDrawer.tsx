@@ -148,6 +148,40 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     return makeSankey(perRouteValue)
   }, [selectedRouteId, selectedRoute, warehouse, warehouseRoutes.length])
 
+  // Build chart data from dispatch results (same numbers as table above)
+  const chartForecastData = useMemo<ForecastPoint[]>(() => {
+    const horizonKeys = [
+      { key: 'ready', label: 'Сейчас' },
+      { key: 'B: +2h', label: '+2ч' },
+      { key: 'C: +4h', label: '+4ч' },
+      { key: 'D: +6h', label: '+6ч' },
+    ]
+    if (dispatchResult) {
+      return horizonKeys.map(({ key, label }) => {
+        let value = 0
+        if (key === 'ready') {
+          if (selectedRouteId) {
+            value = warehouseRoutes.find(r => r.id === selectedRouteId)?.readyToShip ?? 0
+          } else {
+            value = warehouseRoutes.reduce((s, r) => s + r.readyToShip, 0)
+          }
+        } else {
+          if (selectedRouteId) {
+            const rp = dispatchResult.routes.find(r => r.route_id === selectedRouteId)
+            value = Math.round(rp?.plan.find(p => p.horizon === key)?.demand_new ?? 0)
+          } else {
+            for (const rp of dispatchResult.routes) {
+              value += Math.round(rp.plan.find(p => p.horizon === key)?.demand_new ?? 0)
+            }
+          }
+        }
+        return { time: label, value, lower: value, upper: value }
+      })
+    }
+    // Fall back to ML forecast if dispatch not yet available
+    return forecastData
+  }, [dispatchResult, forecastData, selectedRouteId])
+
   if (!warehouse) return null
 
   // Build per-route forecast rows from dispatch result
@@ -169,11 +203,6 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     if ((leftover ?? 0) >= 1) return 'text-status-yellow font-semibold'
     return 'text-foreground'
   }
-
-  // Scale for chart: if a route is selected, proportionally scale forecast
-  const chartScale = selectedRoute && warehouse.readyToShip > 0
-    ? selectedRoute.readyToShip / warehouse.readyToShip
-    : 1
 
   return (
     <>
@@ -248,8 +277,27 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                         </td>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
+                  ))}                  {routeForecastRows.length > 0 && (
+                    <tr className="border-t-2 border-border bg-elevated/50">
+                      <td className="px-3 py-2 text-foreground font-semibold">Итого</td>
+                      <td className="px-3 py-2 text-right font-mono text-accent font-semibold">
+                        {fmt(warehouseRoutes.reduce((s, r) => s + r.readyToShip, 0))}
+                      </td>
+                      {[0, 1, 2].map(i => {
+                        const total = routeForecastRows.reduce((s, { horizons }) => {
+                          const h = horizons[i]
+                          return s + (h?.demand ?? 0)
+                        }, 0)
+                        return (
+                          <td key={i} className="px-3 py-2 text-right font-mono">
+                            {dispatchResult
+                              ? <span className="text-foreground font-semibold">{fmt(Math.round(total))}</span>
+                              : <span className="text-muted">—</span>}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )}                </tbody>
               </table>
             </div>
             {warehouseRoutes.length > 0 && (
@@ -298,9 +346,9 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
               {selectedRoute && <span className="text-[11px] text-muted font-normal">· {selectedRoute.fromCity} → {selectedRoute.toCity}</span>}
             </div>
             <div className="bg-elevated rounded-lg p-3">
-              {forecastData.length > 0
-                ? <ForecastChart data={forecastData} scale={chartScale} />
-                : forecastLoading
+              {chartForecastData.length > 0
+                ? <ForecastChart data={chartForecastData} scale={1} />
+                : (forecastLoading || dispatchLoading)
                   ? <div className="h-[200px] flex items-center justify-center text-muted text-xs">Загрузка прогноза…</div>
                   : <div className="h-[200px] flex items-center justify-center text-muted text-xs">Нет данных прогноза</div>
               }
