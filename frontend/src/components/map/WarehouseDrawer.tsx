@@ -51,7 +51,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   const navigate = useNavigate()
   // '' = aggregate (все маршруты), otherwise specific route id
   const [selectedRouteId, setSelectedRouteId] = useState('')
-  const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus } = useSimulationContext()
+  const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings } = useSimulationContext()
 
   // ── Forecast fetch on warehouse open ────────────────────────────────────
   const [forecastData, setForecastData] = useState<ForecastPoint[]>([])
@@ -107,6 +107,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
         warehouse_id: warehouse.id,
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
+        confidence_level: riskSettings.confidenceLevel,
       })
         .then(result => {
           lsSet(key, result)
@@ -162,23 +163,33 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
     if (dispatchResult) {
       return horizonKeys.map(({ key, label }) => {
         let value = 0
+        let lower = 0
+        let upper = 0
         if (key === 'ready') {
           if (selectedRouteId) {
             value = warehouseRoutes.find(r => r.id === selectedRouteId)?.readyToShip ?? 0
           } else {
             value = warehouseRoutes.reduce((s, r) => s + r.readyToShip, 0)
           }
+          lower = value
+          upper = value
         } else {
           if (selectedRouteId) {
             const rp = dispatchResult.routes.find(r => r.route_id === selectedRouteId)
-            value = Math.round(rp?.plan.find(p => p.horizon === key)?.demand_new ?? 0)
+            const row = rp?.plan.find(p => p.horizon === key)
+            value = Math.round(row?.demand_new ?? 0)
+            lower = Math.round(row?.demand_lower ?? value)
+            upper = Math.round(row?.demand_upper ?? value)
           } else {
             for (const rp of dispatchResult.routes) {
-              value += Math.round(rp.plan.find(p => p.horizon === key)?.demand_new ?? 0)
+              const row = rp.plan.find(p => p.horizon === key)
+              value += Math.round(row?.demand_new ?? 0)
+              lower += Math.round(row?.demand_lower ?? 0)
+              upper += Math.round(row?.demand_upper ?? 0)
             }
           }
         }
-        return { time: label, value, lower: value, upper: value }
+        return { time: label, value, lower, upper }
       })
     }
     // Fall back to ML forecast if dispatch not yet available

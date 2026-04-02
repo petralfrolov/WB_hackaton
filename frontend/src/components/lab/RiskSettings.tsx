@@ -110,6 +110,32 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
         </CardContent>
       </Card>
 
+      {/* Slider 3: Confidence Level */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Уверенность прогноза</CardTitle>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
+            Доверительная вероятность: <strong>{Math.round(local.confidenceLevel * 100)}%</strong>
+          </span>
+        </CardHeader>
+        <CardContent>
+          <Slider
+            min={0.8}
+            max={0.99}
+            step={0.01}
+            value={local.confidenceLevel}
+            onChange={v => update('confidenceLevel', v)}
+          />
+          <div className="flex justify-between mt-2">
+            <span className="text-[10px] text-muted max-w-[44%]">80% — узкий ДИ</span>
+            <span className="text-[10px] text-muted max-w-[44%] text-right">99% — широкий ДИ</span>
+          </div>
+          <p className="text-xs text-muted mt-2">
+            Чем выше уверенность, тем шире диапазон прогноза и больше резерв транспорта.
+          </p>
+        </CardContent>
+      </Card>
+
       <Button size="lg" onClick={apply} className="w-full mt-2">
         {saved ? (
           <>

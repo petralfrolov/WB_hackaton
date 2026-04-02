@@ -16,7 +16,7 @@ _ROUTE_DISTANCES_PATH = Path("route_distances.json")
 
 @router.get("/config")
 def get_config(state: AppState = Depends(get_state)):
-    return state.vehicles_cfg
+    return {**state.vehicles_cfg, "confidence_level": state.confidence_level}
 
 
 @router.post("/config")
@@ -32,12 +32,19 @@ def set_config(payload: dict, state: AppState = Depends(get_state)):
 def update_settings(s: Settings, state: AppState = Depends(get_state)):
     payload = s.model_dump(exclude_none=True)
 
+    # confidence_level is stored separately in AppState (not in vehicles_cfg structure)
+    if "confidence_level" in payload:
+        cl = float(payload.pop("confidence_level"))
+        state.confidence_level = max(0.0, min(1.0, cl))
+        state.vehicles_cfg["confidence_level"] = state.confidence_level
+
     for key, val in payload.items():
         state.vehicles_cfg[key] = val
     _VEHICLES_PATH.write_text(
         json.dumps(state.vehicles_cfg, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     changed = {k: state.vehicles_cfg[k] for k in s.model_dump(exclude_none=True) if k in state.vehicles_cfg}
+    changed["confidence_level"] = state.confidence_level
     return {"status": "ok", "settings": changed}
 
 

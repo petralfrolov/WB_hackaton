@@ -272,13 +272,28 @@ def build_plan(
     route_distances: Optional[Dict[str, float]] = None,
     global_fleet: bool = False,
     incoming_vehicles: Optional[List[Dict]] = None,
+    conformal_margin: float = 0.0,
 ) -> pd.DataFrame:
-    """Собрать план отправок в DataFrame из решения MILP."""
+    """Собрать план отправок в DataFrame из решения MILP.
+
+    conformal_margin: if > 0, effective demand = D + margin (conservative upper CI).
+    The original point forecast is kept in demand_new; demand_lower/demand_upper
+    reflect the conformal prediction interval [max(0, D-margin), D+margin].
+    """
     vehicles = vehicles_cfg.get("vehicles", vehicles_cfg)
     v_names = [v["vehicle_type"] for v in vehicles]
     nV = len(vehicles)
 
-    res = solve_irp_milp(demands, vehicles_cfg, route_distances, global_fleet, incoming_vehicles)
+    # Build adjusted demands for MILP (use upper CI bound as effective demand)
+    if conformal_margin > 0:
+        demands_effective = {
+            rid: [d + conformal_margin if i > 0 else d for i, d in enumerate(dlist)]
+            for rid, dlist in demands.items()
+        }
+    else:
+        demands_effective = demands
+
+    res = solve_irp_milp(demands_effective, vehicles_cfg, route_distances, global_fleet, incoming_vehicles)
     route_ids = res["route_ids"]
     X, Y, S, U   = res["X"], res["Y"], res["S"], res["U"]
     D, cost_vr   = res["D"], res["cost_vr"]
@@ -292,7 +307,11 @@ def build_plan(
             s_rt  = float(S[r_idx, t_idx])
             u_vec = [float(U[r_idx, vi, t_idx]) for vi in range(nV)]
             u_sum = sum(u_vec)
-            d_rt  = float(D[r_idx, t_idx])
+            d_rt  = float(D[r_idx, t_idx])  # effective demand (may include margin)
+            # point forecast demand (exclude margin for first horizon slot, t_idx==0 is ready_to_ship)
+            d_point = float(demands[rid][t_idx]) if rid in demands else d_rt
+            d_lower = round(max(0.0, d_point - conformal_margin), 2)
+            d_upper = round(d_point + conformal_margin, 2)
             s_prev = float(S[r_idx, t_idx - 1]) if t_idx > 0 else 0.0
 
             dispatched = [vi for vi in range(nV) if X[r_idx, vi, t_idx] > 0]
@@ -310,7 +329,9 @@ def build_plan(
                         "horizon":               label,
                         "vehicle_type":          v_names[vi],
                         "vehicles_count":        int(X[r_idx, vi, t_idx]),
-                        "demand_new":            round(d_rt, 2),
+                        "demand_new":            round(d_point, 2),
+                        "demand_lower":          d_lower,
+                        "demand_upper":          d_upper,
                         "demand_carried_over":   round(s_prev, 2),
                         "total_available":       round(d_rt + s_prev, 2),
                         "actually_shipped":      round(y_rt, 2),
@@ -330,7 +351,9 @@ def build_plan(
                     "horizon":               label,
                     "vehicle_type":          "none",
                     "vehicles_count":        0,
-                    "demand_new":            round(d_rt, 2),
+                    "demand_new":            round(d_point, 2),
+                    "demand_lower":          d_lower,
+                    "demand_upper":          d_upper,
                     "demand_carried_over":   round(s_prev, 2),
                     "total_available":       round(d_rt + s_prev, 2),
                     "actually_shipped":      round(y_rt, 2),

@@ -22,6 +22,7 @@ class DispatchRequest(BaseModel):
     incoming_vehicles: Optional[List[IncomingVehicle]] = None
     wait_penalty_per_minute: Optional[float] = None
     global_fleet: bool = True
+    confidence_level: Optional[float] = None  # override state confidence_level
 
 
 class DispatchResponse(BaseModel):

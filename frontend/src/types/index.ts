@@ -104,6 +104,7 @@ export interface RiskSettings {
   maxWaitMinutes: number
   idleCostPerMinute: number
   emptyPenaltyPerUnit: number
+  confidenceLevel: number // 0.9 = 90% доверительная вероятность
   emptyPenaltyCompact?: number
   emptyPenaltyMid?: number
   emptyPenaltyLarge?: number
@@ -167,6 +168,7 @@ export interface ApiSettings {
   route_distance_km: number
   economy_threshold?: number
   max_wait_minutes?: number
+  confidence_level?: number
   underload_penalty_per_unit_by_cat?: {
     compact?: number
     mid?: number
@@ -182,6 +184,8 @@ export interface ApiPlanRow {
   vehicle_type: string
   vehicles_count: number
   demand_new: number
+  demand_lower: number
+  demand_upper: number
   demand_carried_over: number
   total_available: number
   actually_shipped: number
@@ -207,6 +211,7 @@ export interface ApiDispatchRequest {
   wait_penalty_per_minute?: number
   underload_penalty_per_unit?: number
   global_fleet?: boolean
+  confidence_level?: number
 }
 
 export interface ApiDispatchResponse {

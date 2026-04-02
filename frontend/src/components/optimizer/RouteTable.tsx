@@ -69,6 +69,12 @@ interface RouteRow {
   h0: number | null
   h1: number | null
   h2: number | null
+  h0Lo: number | null
+  h1Lo: number | null
+  h2Lo: number | null
+  h0Hi: number | null
+  h1Hi: number | null
+  h2Hi: number | null
   h0Leftover: number | null
   h1Leftover: number | null
   h2Leftover: number | null
@@ -124,7 +130,7 @@ export function RouteTable({
   }, [warehouseRoutes, analysisDateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build lookup: route_id → forecast + coverage by horizon
-  const forecastMap = new Map<string, { h0: number; h1: number; h2: number; h0l: number; h1l: number; h2l: number; h0v: number; h1v: number; h2v: number }>()
+  const forecastMap = new Map<string, { h0: number; h1: number; h2: number; h0Lo: number; h1Lo: number; h2Lo: number; h0Hi: number; h1Hi: number; h2Hi: number; h0l: number; h1l: number; h2l: number; h0v: number; h1v: number; h2v: number }>()
   if (dispatchResult) {
     for (const rp of dispatchResult.routes) {
       const hB = rp.plan.find(r => r.horizon === 'B: +2h')
@@ -134,6 +140,12 @@ export function RouteTable({
         h0: hB?.demand_new ?? 0,
         h1: hC?.demand_new ?? 0,
         h2: hD?.demand_new ?? 0,
+        h0Lo: hB?.demand_lower ?? 0,
+        h1Lo: hC?.demand_lower ?? 0,
+        h2Lo: hD?.demand_lower ?? 0,
+        h0Hi: hB?.demand_upper ?? 0,
+        h1Hi: hC?.demand_upper ?? 0,
+        h2Hi: hD?.demand_upper ?? 0,
         h0l: hB?.leftover_stock ?? 0,
         h1l: hC?.leftover_stock ?? 0,
         h2l: hD?.leftover_stock ?? 0,
@@ -155,6 +167,12 @@ export function RouteTable({
       h0: fd?.h0 ?? null,
       h1: fd?.h1 ?? null,
       h2: fd?.h2 ?? null,
+      h0Lo: fd?.h0Lo ?? null,
+      h1Lo: fd?.h1Lo ?? null,
+      h2Lo: fd?.h2Lo ?? null,
+      h0Hi: fd?.h0Hi ?? null,
+      h1Hi: fd?.h1Hi ?? null,
+      h2Hi: fd?.h2Hi ?? null,
       h0Leftover: fd != null ? fd.h0l : null,
       h1Leftover: fd != null ? fd.h1l : null,
       h2Leftover: fd != null ? fd.h2l : null,
@@ -321,17 +339,32 @@ export function RouteTable({
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {row.h0 !== null
-                        ? <span className={forecastColor(row.h0, row.h0Leftover, row.h0Vehicles)}>{fmt(Math.round(row.h0))}</span>
+                        ? <span className={forecastColor(row.h0, row.h0Leftover, row.h0Vehicles)} title={row.h0Lo !== null ? `ДИ: ${fmt(Math.round(row.h0Lo))} — ${fmt(Math.round(row.h0Hi ?? row.h0))}` : undefined}>
+                            {fmt(Math.round(row.h0))}
+                            {row.h0Hi !== null && row.h0Hi > row.h0
+                              ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(row.h0Hi - row.h0))}</span>
+                              : null}
+                          </span>
                         : <span className="text-muted">—</span>}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {row.h1 !== null
-                        ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)}>{fmt(Math.round(row.h1))}</span>
+                        ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)} title={row.h1Lo !== null ? `ДИ: ${fmt(Math.round(row.h1Lo))} — ${fmt(Math.round(row.h1Hi ?? row.h1))}` : undefined}>
+                            {fmt(Math.round(row.h1))}
+                            {row.h1Hi !== null && row.h1Hi > row.h1
+                              ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(row.h1Hi - row.h1))}</span>
+                              : null}
+                          </span>
                         : <span className="text-muted">—</span>}
                     </TableCell>
                 <TableCell className="text-right font-mono">
                   {row.h2 !== null
-                    ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)}>{fmt(Math.round(row.h2))}</span>
+                    ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)} title={row.h2Lo !== null ? `ДИ: ${fmt(Math.round(row.h2Lo))} — ${fmt(Math.round(row.h2Hi ?? row.h2))}` : undefined}>
+                        {fmt(Math.round(row.h2))}
+                        {row.h2Hi !== null && row.h2Hi > row.h2
+                          ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(row.h2Hi - row.h2))}</span>
+                          : null}
+                      </span>
                     : <span className="text-muted">—</span>}
                 </TableCell>
                 <TableCell className="text-right">

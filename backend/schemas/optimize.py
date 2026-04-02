@@ -10,6 +10,7 @@ class OptimizeRequest(BaseModel):
     route_id: str
     timestamp: datetime
     wait_penalty_per_minute: Optional[float] = None
+    confidence_level: Optional[float] = None  # override state confidence_level
 
 
 class PlanRow(BaseModel):
@@ -20,6 +21,8 @@ class PlanRow(BaseModel):
     vehicle_type: str
     vehicles_count: int
     demand_new: float
+    demand_lower: float = 0.0
+    demand_upper: float = 0.0
     demand_carried_over: float
     total_available: float
     actually_shipped: float

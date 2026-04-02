@@ -3,6 +3,7 @@ import json
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
+from conformal import compute_margin
 from ml_prediction import predict_lazy
 from optimizer_horizons import build_plan
 from schemas.optimize import OptimizeRequest, OptimizeResponse, PlanRow
@@ -47,6 +48,10 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
         office_id=state.office_map.get(route_id, ""),
         route_distances={route_id: route_distance},
         incoming_vehicles=state.incoming_cfg,
+        conformal_margin=compute_margin(
+            state.ncs_scores,
+            req.confidence_level if req.confidence_level is not None else state.confidence_level,
+        ),
     )
     plan_df["timestamp"] = pd.to_datetime(plan_df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
 

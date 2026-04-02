@@ -168,6 +168,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           maxWaitMinutes: typeof cfg.max_wait_minutes === 'number'
             ? cfg.max_wait_minutes
             : prev.maxWaitMinutes,
+          confidenceLevel: typeof (cfg as any).confidence_level === 'number'
+            ? (cfg as any).confidence_level
+            : prev.confidenceLevel,
         }))
       })
       .catch(() => {})
@@ -211,6 +214,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           warehouse_id: w.id,
           timestamp: ts,
           incoming_vehicles: currentIncoming.length > 0 ? currentIncoming : undefined,
+          confidence_level: riskSettings.confidenceLevel,
         }).then(result => ({ warehouseId: w.id, result }))
       )
     )
@@ -231,7 +235,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     setWarehouseStatuses(newStatuses)
     refreshingAllRef.current = false
     setRefreshingAll(false)
-  }, [analysisDateTime, incomingVehicles, warehouses])
+  }, [analysisDateTime, incomingVehicles, warehouses, riskSettings])
 
   const setRiskSettings = (settings: RiskSettings) => {
     setRiskSettingsState(settings)
@@ -245,6 +249,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       },
       economy_threshold: settings.economyThreshold,
       max_wait_minutes: settings.maxWaitMinutes,
+      confidence_level: settings.confidenceLevel,
     }).catch(() => {})
   }
 

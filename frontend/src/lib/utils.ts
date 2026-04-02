@@ -39,6 +39,7 @@ export const defaultRiskSettings: RiskSettings = {
   maxWaitMinutes: 55,
   idleCostPerMinute: 8,
   emptyPenaltyPerUnit: 12,
+  confidenceLevel: 0.9, // 90% по умолчанию
   emptyPenaltyCompact: 12,
   emptyPenaltyMid: 12,
   emptyPenaltyLarge: 12,
