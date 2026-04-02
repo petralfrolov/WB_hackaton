@@ -9,7 +9,7 @@ import { SankeyChart } from './SankeyChart'
 import { fmt, makeSankey } from '../../lib/utils'
 import { Button } from '../ui/button'
 import { useSimulationContext } from '../../context/SimulationContext'
-import { getWarehouseForecast, postDispatch } from '../../api'
+import { postDispatch } from '../../api'
 
 // ── LS cache helpers (same key scheme as OptimizerPage) ──────────────────────
 const LS_PREFIX = 'dispatch_cache__'
@@ -18,14 +18,6 @@ function lsGet(key: string): ApiDispatchResponse | null {
 }
 function lsSet(key: string, v: ApiDispatchResponse) {
   try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(v)) } catch { /* quota */ }
-}
-
-const FC_PREFIX = 'forecast_cache__'
-function fcGet(key: string): ForecastPoint[] | null {
-  try { const r = localStorage.getItem(FC_PREFIX + key); return r ? JSON.parse(r) : null } catch { return null }
-}
-function fcSet(key: string, v: ForecastPoint[]) {
-  try { localStorage.setItem(FC_PREFIX + key, JSON.stringify(v)) } catch { /* quota */ }
 }
 
 interface WarehouseDrawerProps {
@@ -54,10 +46,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings } = useSimulationContext()
 
   // ── Forecast fetch on warehouse open ────────────────────────────────────
-  const [forecastData, setForecastData] = useState<ForecastPoint[]>([])
-  const [forecastLoading, setForecastLoading] = useState(false)
-
-  // ── Dispatch fetch on warehouse open (LS-backed) ─────────────────────────
+  // Dispatch fetch on warehouse open (LS-backed) ────────────────────────
   const [dispatchResult, setDispatchResult] = useState<ApiDispatchResponse | null>(null)
   const [dispatchLoading, setDispatchLoading] = useState(false)
 
@@ -74,27 +63,10 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
 
   useEffect(() => {
     if (!warehouse) return
-    setForecastData([])
     setDispatchResult(null)
-    setForecastLoading(true)
     setDispatchLoading(true)
     const ts = analysisDateTime.replace('T', ' ') + ':00'
     const key = `${warehouse.id}__${analysisDateTime}`
-
-    // Forecast (ML) — check LS cache first; if dispatch cache exists, skip (chart uses dispatch data)
-    const cachedFc = fcGet(key)
-    if (cachedFc) {
-      setForecastData(cachedFc)
-      setForecastLoading(false)
-    } else if (lsGet(key)) {
-      // Dispatch result already cached → chart will use it; no need to fetch separate ML forecast
-      setForecastLoading(false)
-    } else {
-      getWarehouseForecast(warehouse.id, ts)
-        .then(pts => { fcSet(key, pts); setForecastData(pts) })
-        .catch(() => setForecastData(warehouse.forecast))
-        .finally(() => setForecastLoading(false))
-    }
 
     // Dispatch plan (LS cache → backend)
     const cached = lsGet(key)
@@ -192,9 +164,9 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
         return { time: label, value, lower, upper }
       })
     }
-    // Fall back to ML forecast if dispatch not yet available
-    return forecastData
-  }, [dispatchResult, forecastData, selectedRouteId])
+    // No dispatch data yet — return empty (chart shows loading state)
+    return []
+  }, [dispatchResult, selectedRouteId])
 
   if (!warehouse) return null
 
@@ -356,13 +328,13 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
             </div>
             <div className="section-label mb-2 flex items-center gap-2">
               Прогноз отгрузок — ближайшие 6 часов
-              {forecastLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />}
+              {dispatchLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />}
               {selectedRoute && <span className="text-[11px] text-muted font-normal">· {selectedRoute.fromCity} → {selectedRoute.toCity}</span>}
             </div>
             <div className="bg-elevated rounded-lg p-3">
               {chartForecastData.length > 0
                 ? <ForecastChart data={chartForecastData} scale={1} />
-                : (forecastLoading || dispatchLoading)
+                : dispatchLoading
                   ? <div className="h-[200px] flex items-center justify-center text-muted text-xs">Загрузка прогноза…</div>
                   : <div className="h-[200px] flex items-center justify-center text-muted text-xs">Нет данных прогноза</div>
               }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ApiPlanRow, RouteDistance, ApiRoutePlan, RiskSettings, VehicleType } from '../../types'
 import { fmtCurrency, fmt } from '../../lib/utils'
-import { TrendingDown, ChevronDown, ChevronUp, Calculator } from 'lucide-react'
+import { TrendingDown, ChevronDown, ChevronUp, Calculator, ShieldCheck } from 'lucide-react'
 
 interface CostBenefitCardProps {
   route: RouteDistance | null
@@ -61,8 +61,54 @@ function FormulaBreakdown({
   const underloadTotal = dispatched.reduce((s, r) => s + r.cost_underload, 0)
   const total = fixedTotal + underloadTotal + totalWait
 
+  const ciPct = Math.round(riskSettings.confidenceLevel * 100)
+  const ciMargin = Math.max(0, Math.round((summaryRow.demand_upper ?? summaryRow.demand_new) - summaryRow.demand_new))
+  const hasCi = ciMargin > 0
+
   return (
     <div className="mt-2 border-t border-border/50 pt-4 space-y-4">
+      {/* ── CI impact block ───────────────────────────────────────────────── */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#58A6FF] shrink-0" />
+          <span className="text-[11px] text-muted font-semibold tracking-wide">ВЛИЯНИЕ ДОВЕРИТЕЛЬНОЙ ВЕРОЯТНОСТИ</span>
+        </div>
+        <div className="bg-elevated rounded-lg border border-border/50 px-3 py-2.5 text-xs space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="text-muted">Уровень уверенности</span>
+            <span className="font-mono font-semibold text-[#58A6FF]">{ciPct}%</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-muted">Точечный прогноз спроса</span>
+            <span className="font-mono text-foreground">{fmt(summaryRow.demand_new)} ед.</span>
+          </div>
+          {hasCi ? (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-muted">Доверительный интервал</span>
+                <span className="font-mono text-foreground">
+                  {fmt(Math.round(summaryRow.demand_lower ?? summaryRow.demand_new))}
+                  {' '}—{' '}
+                  {fmt(Math.round(summaryRow.demand_upper ?? summaryRow.demand_new))} ед.
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-t border-border/50 pt-1.5">
+                <span className="text-muted">Запас под неопределённость</span>
+                <span className="font-mono font-semibold text-status-yellow">+{fmt(ciMargin)} ед.</span>
+              </div>
+              <p className="text-[10px] text-muted pt-0.5 leading-relaxed">
+                Оптимизатор использовал верхнюю границу ДИ ({fmt(Math.round(summaryRow.demand_upper ?? summaryRow.demand_new))} ед.)
+                как плановый спрос. Это обеспечивает покрытие в&nbsp;{ciPct}% случаев,
+                но может увеличить стоимость из-за резервного транспорта.
+              </p>
+            </>
+          ) : (
+            <p className="text-[10px] text-muted pt-0.5">
+              Горизонт «Сейчас» детерминирован — данные о текущих запасах точны, ДИ не применяется.
+            </p>
+          )}
+        </div>
+      </section>
       {/* <div className="bg-elevated rounded-lg px-3 py-2.5 text-[11px] text-muted leading-relaxed">
         <div className="font-mono text-foreground/90">J = Σ(C<sub>рейс,i</sub> × N<sub>i</sub>)</div>
         <div className="font-mono ml-3 text-foreground/90">+ U × P<sub>empty,i</sub></div>

@@ -184,7 +184,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     const toRemove: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
-      if (k?.startsWith('dispatch_cache__') || k?.startsWith('forecast_cache__') || k?.startsWith('called_')) {
+      if (k?.startsWith('dispatch_cache__') || k?.startsWith('called_')) {
         toRemove.push(k)
       }
     }

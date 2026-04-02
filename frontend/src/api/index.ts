@@ -7,7 +7,6 @@ import type {
   ApiDispatchRequest,
   ApiDispatchResponse,
   ApiWarehouseInfo,
-  ApiForecastPoint,
   ApiRouteDistance,
   ApiCallRequest,
   ApiCallResponse,
@@ -21,10 +20,6 @@ export function getWarehouses(): Promise<ApiWarehouseInfo[]> {
 
 export function getWarehouse(id: string): Promise<ApiWarehouseInfo> {
   return apiFetch<ApiWarehouseInfo>(`/warehouses/${id}`)
-}
-
-export function getWarehouseForecast(id: string, timestamp: string): Promise<ApiForecastPoint[]> {
-  return apiFetch<ApiForecastPoint[]>(`/warehouses/${id}/forecast?timestamp=${encodeURIComponent(timestamp)}`)
 }
 
 // ── Route distances ───────────────────────────────────────────────────────────
