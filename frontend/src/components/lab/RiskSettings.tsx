@@ -1,4 +1,4 @@
-import { useState, useEffect, type ChangeEvent } from 'react'
+import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import type { RiskSettings } from '../../types'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
@@ -14,6 +14,8 @@ interface RiskSettingsProps {
 
 export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
   const [local, setLocal] = useState<RiskSettings>(settings)
+  // Remember last non-zero CI level so toggling back restores it
+  const lastCiLevel = useRef(settings.confidenceLevel > 0 ? settings.confidenceLevel : 0.9)
 
   // Sync local state when backend config is loaded and updates settings prop
   useEffect(() => {
@@ -88,23 +90,51 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
         <CardHeader>
           <CardTitle>Уверенность прогноза</CardTitle>
           <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
-            Доверительная вероятность: <strong>{Math.round(local.confidenceLevel * 100)}%</strong>
+            {local.confidenceLevel === 0
+              ? <span className="text-muted">Отключено</span>
+              : <>Доверительная вероятность: <strong>{Math.round(local.confidenceLevel * 100)}%</strong></>
+            }
           </span>
         </CardHeader>
         <CardContent>
+          {/* Toggle ДИ on/off */}
+          <label className="flex items-center gap-2 mb-3 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              className="w-3.5 h-3.5 accent-[#58A6FF] cursor-pointer"
+              checked={local.confidenceLevel > 0}
+              onChange={e => {
+                if (e.target.checked) {
+                  update('confidenceLevel', lastCiLevel.current)
+                } else {
+                  if (local.confidenceLevel > 0) lastCiLevel.current = local.confidenceLevel
+                  update('confidenceLevel', 0)
+                }
+                setSaved(false)
+              }}
+            />
+            <span className="text-xs text-muted">Применять доверительный интервал</span>
+          </label>
           <Slider
             min={0.8}
             max={0.99}
             step={0.01}
-            value={local.confidenceLevel}
-            onChange={v => update('confidenceLevel', v)}
+            value={local.confidenceLevel > 0 ? local.confidenceLevel : lastCiLevel.current}
+            onChange={v => {
+              lastCiLevel.current = v
+              if (local.confidenceLevel > 0) update('confidenceLevel', v)
+            }}
+            disabled={local.confidenceLevel === 0}
           />
           <div className="flex justify-between mt-2">
             <span className="text-[10px] text-muted max-w-[44%]">80% — узкий ДИ</span>
             <span className="text-[10px] text-muted max-w-[44%] text-right">99% — широкий ДИ</span>
           </div>
           <p className="text-xs text-muted mt-2">
-            Чем выше уверенность, тем шире диапазон прогноза и больше резерв транспорта.
+            {local.confidenceLevel === 0
+              ? 'ДИ отключён — оптимизатор использует точечный прогноз без запаса под неопределённость.'
+              : 'Чем выше уверенность, тем шире диапазон прогноза и больше резерв транспорта.'
+            }
           </p>
         </CardContent>
       </Card>

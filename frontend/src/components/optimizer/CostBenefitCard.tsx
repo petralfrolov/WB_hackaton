@@ -62,8 +62,9 @@ function FormulaBreakdown({
   const total = fixedTotal + underloadTotal + totalWait
 
   const ciPct = Math.round(riskSettings.confidenceLevel * 100)
+  const ciDisabled = ciPct === 0
   const ciMargin = Math.max(0, Math.round((summaryRow.demand_upper ?? summaryRow.demand_new) - summaryRow.demand_new))
-  const hasCi = ciMargin > 0
+  const hasCi = !ciDisabled && ciMargin > 0
 
   return (
     <div className="mt-2 border-t border-border/50 pt-4 space-y-4">
@@ -76,8 +77,17 @@ function FormulaBreakdown({
         <div className="bg-elevated rounded-lg border border-border/50 px-3 py-2.5 text-xs space-y-1.5">
           <div className="flex justify-between items-center">
             <span className="text-muted">Уровень уверенности</span>
-            <span className="font-mono font-semibold text-[#58A6FF]">{ciPct}%</span>
+            {ciDisabled
+              ? <span className="font-mono font-semibold text-muted">Отключено</span>
+              : <span className="font-mono font-semibold text-[#58A6FF]">{ciPct}%</span>
+            }
           </div>
+          {ciDisabled ? (
+            <p className="text-[10px] text-muted pt-0.5 leading-relaxed">
+              ДИ отключён — оптимизатор использует точечный прогноз без запаса под неопределённость.
+            </p>
+          ) : (
+            <>
           <div className="flex justify-between items-center">
             <span className="text-muted">Точечный прогноз спроса</span>
             <span className="font-mono text-foreground">{fmt(summaryRow.demand_new)} ед.</span>
@@ -106,6 +116,8 @@ function FormulaBreakdown({
             <p className="text-[10px] text-muted pt-0.5">
               Горизонт «Сейчас» детерминирован — данные о текущих запасах точны, ДИ не применяется.
             </p>
+          )}
+            </>
           )}
         </div>
       </section>

@@ -117,6 +117,8 @@ def compute_margin(scores: np.ndarray, alpha: float) -> float:
     if n == 0:
         return 0.0
     alpha = float(np.clip(alpha, 0.0, 1.0))
+    if alpha == 0.0:
+        return 0.0
     level = min(1.0, np.ceil((n + 1) * alpha) / n)
     return float(np.quantile(scores, level, method="higher"))
 
