@@ -12,10 +12,6 @@ interface RiskSettingsProps {
   onChange: (settings: RiskSettings) => void
 }
 
-function mapWaitMinutes(v: number): number {
-  return Math.round((v / 100) * 360)
-}
-
 export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
   const [local, setLocal] = useState<RiskSettings>(settings)
 
@@ -37,7 +33,6 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
   }
 
   const economyPct = local.economyThreshold
-  const waitMin = mapWaitMinutes(local.maxWaitMinutes)
 
   return (
     <div className="space-y-3">
@@ -52,13 +47,13 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
         <CardContent>
           <Slider value={local.economyThreshold} onChange={v => update('economyThreshold', v)} />
           <div className="flex justify-between mt-2">
-            <span className="text-[10px] text-muted max-w-[44%]">0% — вызываем пустые ТС</span>
+            <span className="text-[10px] text-muted max-w-[44%]">0% — без ограничения загрузки</span>
             <span className="text-[10px] text-muted max-w-[44%] text-right">100% — только полная загрузка</span>
           </div>
           <p className="text-xs text-muted mt-2">
-            Минимальный порог заполняемости. Алгоритм не вызовет машину, если прогнозируемая
-            загрузка ниже&nbsp;
-            <span className="text-accent font-mono">{fmt(economyPct)}%</span>.
+            Минимальный процент заполнения ТС. При&nbsp;
+            <span className="text-accent font-mono">{fmt(economyPct)}%</span>
+            &nbsp;оптимизатор не отправит машину, если погрузка ниже этого порога.
           </p>
         </CardContent>
       </Card>
@@ -85,28 +80,6 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
               update('idleCostPerMinute', Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0)
             }}
           />
-        </CardContent>
-      </Card>
-
-      {/* Slider 2: Urgency / max wait */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Срочность</CardTitle>
-          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
-            Макс. ожидание: <strong>{waitMin} мин</strong>
-          </span>
-        </CardHeader>
-        <CardContent>
-          <Slider value={local.maxWaitMinutes} onChange={v => update('maxWaitMinutes', v)} />
-          <div className="flex justify-between mt-2">
-            <span className="text-[10px] text-muted max-w-[44%]">0 мин — вызов немедленно</span>
-            <span className="text-[10px] text-muted max-w-[44%] text-right">360 мин — ждём до 6 ч</span>
-          </div>
-          <p className="text-xs text-muted mt-2">
-            Максимальное время ожидания товара на складе до принудительного вызова ТС.
-            Текущий лимит:&nbsp;
-            <span className="text-accent font-mono">{waitMin} мин</span>.
-          </p>
         </CardContent>
       </Card>
 

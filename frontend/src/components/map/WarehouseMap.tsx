@@ -109,7 +109,7 @@ export function WarehouseMap({ warehouses, onSelect, statusOverrides }: Warehous
                 )}
                 {/* Core dot */}
                 <circle
-                  r={6 * markerScale}
+                  r={4 * markerScale}
                   fill={color}
                   stroke="#0D1117"
                   strokeWidth={1.5 * markerScale}

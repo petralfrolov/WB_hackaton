@@ -27,8 +27,8 @@ export function MapPage() {
       {/* Top KPI bar */}
       <div className="flex gap-3 px-4 py-3 border-b border-border bg-surface shrink-0 items-center">
         <KpiCard label="Всего складов" value={fmt(totalWarehouses)} color="#E6EDF3" />
-        <KpiCard label="Требуют внимания" value={fmt(attentionCount)} color="#D29922" />
-        <KpiCard label="Критических" value={fmt(criticalCount)} color="#F85149" />
+        <KpiCard label="Прогнозируются простои товаров" value={fmt(attentionCount)} color="#D29922" />
+        <KpiCard label="Прогнозируются критические простои" value={fmt(criticalCount)} color="#F85149" />
         <div className="ml-auto shrink-0">
           <button
             onClick={refreshAllWarehouses}

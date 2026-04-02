@@ -114,6 +114,9 @@ def solve_irp_milp(
 
     penalty_by_v = [float(v["underload_penalty"]) for v in vehicles]
     P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * PERIOD_MINUTES
+    # economy_threshold: minimum fill-rate ratio in (0, 1]; 0 = no constraint
+    economy_q = float(vehicles_cfg.get("economy_threshold", 0)) / 100.0
+    economy_q = max(0.0, min(1.0, economy_q))
 
     default_dist = 15.0
     route_ids = list(demands.keys())
@@ -207,6 +210,17 @@ def solve_irp_milp(
                 row[ix(r, v, t)] = -caps[v]
                 A_rows.append(row); lb_c.append(-np.inf); ub_c.append(0.0)
 
+    # (2c) Fill-rate: y[r,t] ≥ economy_q * Σ_v cap_v*x[r,v,t]  for all t
+    #      Rearranged: y[r,t] - economy_q * Σ_v cap_v*x[r,v,t] ≥ 0
+    if economy_q > 0.0:
+        for r in range(nR):
+            for t in range(nT):
+                row = np.zeros(n_tot)
+                row[iy(r, t)] = 1.0
+                for v in range(nV):
+                    row[ix(r, v, t)] = -economy_q * caps[v]
+                A_rows.append(row); lb_c.append(0.0); ub_c.append(np.inf)
+
     # (3) Общий автопарк с учётом прибывающих ТС
     if global_fleet:
         # Для каждого горизонта t накопленная сумма отправленных ТС (от 0 до t включительно)
@@ -287,16 +301,21 @@ def build_plan(
     nV = len(vehicles)
 
     # Build adjusted demands for MILP (use upper CI bound as effective demand)
+    # Demands are rounded to integers: physical goods are discrete units, and the
+    # MILP balance y+s = D gives integer y/s only when D is integer.
     if conformal_margins:
         demands_effective = {
             rid: [
-                d + (conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[i] if i > 0 else 0.0)
+                round(d + (conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[i] if i > 0 else 0.0))
                 for i, d in enumerate(dlist)
             ]
             for rid, dlist in demands.items()
         }
     else:
-        demands_effective = demands
+        demands_effective = {
+            rid: [round(d) for d in dlist]
+            for rid, dlist in demands.items()
+        }
 
     res = solve_irp_milp(demands_effective, vehicles_cfg, route_distances, global_fleet, incoming_vehicles)
     route_ids = res["route_ids"]
@@ -313,14 +332,14 @@ def build_plan(
             u_vec = [float(U[r_idx, vi, t_idx]) for vi in range(nV)]
             u_sum = sum(u_vec)
             d_rt  = float(D[r_idx, t_idx])  # effective demand (may include margin)
-            # point forecast demand (original, without margin)
-            d_point = float(demands[rid][t_idx]) if rid in demands else d_rt
+            # point forecast demand (original, without margin) — rounded to int (goods are discrete)
+            d_point = round(float(demands[rid][t_idx])) if rid in demands else round(d_rt)
             m = (
                 conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[t_idx]
                 if conformal_margins else 0.0
             )
-            d_lower = round(max(0.0, d_point - m), 2)
-            d_upper = round(d_point + m, 2)
+            d_lower = round(max(0.0, d_point - m))
+            d_upper = round(d_point + m)
             s_prev = float(S[r_idx, t_idx - 1]) if t_idx > 0 else 0.0
 
             dispatched = [vi for vi in range(nV) if X[r_idx, vi, t_idx] > 0]
@@ -338,13 +357,13 @@ def build_plan(
                         "horizon":               label,
                         "vehicle_type":          v_names[vi],
                         "vehicles_count":        int(X[r_idx, vi, t_idx]),
-                        "demand_new":            round(d_point, 2),
+                        "demand_new":            round(d_point),
                         "demand_lower":          d_lower,
                         "demand_upper":          d_upper,
-                        "demand_carried_over":   round(s_prev, 2),
-                        "total_available":       round(d_rt + s_prev, 2),
-                        "actually_shipped":      round(y_rt, 2),
-                        "leftover_stock":        round(s_rt, 2),
+                        "demand_carried_over":   round(s_prev),
+                        "total_available":       round(d_rt + s_prev),
+                        "actually_shipped":      round(y_rt),
+                        "leftover_stock":        round(s_rt),
                         "empty_capacity_units":  round(u_vec[vi], 2),
                         "cost_fixed":            round(cost_fixed_v, 2),
                         "cost_underload":        round(cost_under_v, 2),
@@ -360,13 +379,13 @@ def build_plan(
                     "horizon":               label,
                     "vehicle_type":          "none",
                     "vehicles_count":        0,
-                    "demand_new":            round(d_point, 2),
+                    "demand_new":            round(d_point),
                     "demand_lower":          d_lower,
                     "demand_upper":          d_upper,
-                    "demand_carried_over":   round(s_prev, 2),
-                    "total_available":       round(d_rt + s_prev, 2),
-                    "actually_shipped":      round(y_rt, 2),
-                    "leftover_stock":        round(s_rt, 2),
+                    "demand_carried_over":   round(s_prev),
+                    "total_available":       round(d_rt + s_prev),
+                    "actually_shipped":      0,
+                    "leftover_stock":        round(s_rt),
                     "empty_capacity_units":  round(u_sum, 2),
                     "cost_fixed":            0.0,
                     "cost_underload":        round(cost_under, 2),

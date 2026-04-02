@@ -43,7 +43,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   const navigate = useNavigate()
   // '' = aggregate (все маршруты), otherwise specific route id
   const [selectedRouteId, setSelectedRouteId] = useState('')
-  const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings } = useSimulationContext()
+  const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings, warehouseStatuses } = useSimulationContext()
 
   // ── Forecast fetch on warehouse open ────────────────────────────────────
   // Dispatch fetch on warehouse open (LS-backed) ────────────────────────
@@ -208,8 +208,8 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-bold text-foreground">{warehouse.name}</h2>
-              <Badge variant={STATUS_BADGE[warehouse.status]}>
-                {STATUS_LABEL[warehouse.status]}
+              <Badge variant={STATUS_BADGE[(warehouseStatuses[warehouse.id] ?? warehouse.status) as Warehouse['status']] ?? STATUS_BADGE[warehouse.status]}>
+                {STATUS_LABEL[(warehouseStatuses[warehouse.id] ?? warehouse.status) as Warehouse['status']] ?? STATUS_LABEL[warehouse.status]}
               </Badge>
             </div>
             <p className="text-muted text-sm mt-0.5">{warehouse.city}</p>

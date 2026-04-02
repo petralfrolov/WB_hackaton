@@ -35,7 +35,7 @@ export function fmtCurrency(n: number) {
 // ─── Default risk settings ────────────────────────────────────────────────────
 
 export const defaultRiskSettings: RiskSettings = {
-  economyThreshold: 65,
+  economyThreshold: 0,
   maxWaitMinutes: 55,
   idleCostPerMinute: 8,
   emptyPenaltyPerUnit: 12,
