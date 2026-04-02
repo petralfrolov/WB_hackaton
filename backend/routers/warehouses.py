@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from conformal import compute_margin, conformal_interval
+from conformal import conformal_interval, get_margin
 from ml_prediction import predict_lazy
 from schemas.warehouses import ForecastPoint, WarehouseInfo
 from state import AppState, get_state
@@ -72,14 +72,16 @@ def get_warehouse_forecast(warehouse_id: str, timestamp: str, state: AppState = 
     except ValueError:
         base_dt = datetime.now()
 
-    margin = compute_margin(state.ncs_scores, state.confidence_level)
-    lo0, hi0 = conformal_interval(init_stock, margin)
-    lo1, hi1 = conformal_interval(totals[0], margin)
-    lo2, hi2 = conformal_interval(totals[1], margin)
-    lo3, hi3 = conformal_interval(totals[2], margin)
+    margin_h1 = get_margin(state.ncs_scores, "__global__", "0-2h", state.confidence_level)
+    margin_h2 = get_margin(state.ncs_scores, "__global__", "2-4h", state.confidence_level)
+    margin_h3 = get_margin(state.ncs_scores, "__global__", "4-6h", state.confidence_level)
+    # init_stock is the current observable stock — deterministic, no CI
+    lo1, hi1 = conformal_interval(totals[0], margin_h1)
+    lo2, hi2 = conformal_interval(totals[1], margin_h2)
+    lo3, hi3 = conformal_interval(totals[2], margin_h3)
 
     points = [
-        ForecastPoint(time=base_dt.strftime("%H:%M"), value=round(init_stock, 1), lower=lo0, upper=hi0),
+        ForecastPoint(time=base_dt.strftime("%H:%M"), value=round(init_stock, 1), lower=round(init_stock, 1), upper=round(init_stock, 1)),
         ForecastPoint(time=(base_dt + timedelta(hours=2)).strftime("%H:%M"), value=round(totals[0], 1), lower=lo1, upper=hi1),
         ForecastPoint(time=(base_dt + timedelta(hours=4)).strftime("%H:%M"), value=round(totals[1], 1), lower=lo2, upper=hi2),
         ForecastPoint(time=(base_dt + timedelta(hours=6)).strftime("%H:%M"), value=round(totals[2], 1), lower=lo3, upper=hi3),

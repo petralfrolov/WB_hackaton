@@ -272,22 +272,27 @@ def build_plan(
     route_distances: Optional[Dict[str, float]] = None,
     global_fleet: bool = False,
     incoming_vehicles: Optional[List[Dict]] = None,
-    conformal_margin: float = 0.0,
+    conformal_margins: Optional[Dict[str, List[float]]] = None,
 ) -> pd.DataFrame:
     """Собрать план отправок в DataFrame из решения MILP.
 
-    conformal_margin: if > 0, effective demand = D + margin (conservative upper CI).
-    The original point forecast is kept in demand_new; demand_lower/demand_upper
-    reflect the conformal prediction interval [max(0, D-margin), D+margin].
+    conformal_margins: optional dict {route_id: [m_t0, m_t1, m_t2, m_t3]}.
+    m_t0 should be 0 (init_stock is deterministic); m_t1/t2/t3 are the
+    per-horizon conformal margins.  When provided, effective demand used in
+    the MILP upper-bounds each horizon by pred + margin (conservative).
+    demand_lower/demand_upper in the output reflect the full CI per row.
     """
     vehicles = vehicles_cfg.get("vehicles", vehicles_cfg)
     v_names = [v["vehicle_type"] for v in vehicles]
     nV = len(vehicles)
 
     # Build adjusted demands for MILP (use upper CI bound as effective demand)
-    if conformal_margin > 0:
+    if conformal_margins:
         demands_effective = {
-            rid: [d + conformal_margin if i > 0 else d for i, d in enumerate(dlist)]
+            rid: [
+                d + (conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[i] if i > 0 else 0.0)
+                for i, d in enumerate(dlist)
+            ]
             for rid, dlist in demands.items()
         }
     else:
@@ -308,10 +313,14 @@ def build_plan(
             u_vec = [float(U[r_idx, vi, t_idx]) for vi in range(nV)]
             u_sum = sum(u_vec)
             d_rt  = float(D[r_idx, t_idx])  # effective demand (may include margin)
-            # point forecast demand (exclude margin for first horizon slot, t_idx==0 is ready_to_ship)
+            # point forecast demand (original, without margin)
             d_point = float(demands[rid][t_idx]) if rid in demands else d_rt
-            d_lower = round(max(0.0, d_point - conformal_margin), 2)
-            d_upper = round(d_point + conformal_margin, 2)
+            m = (
+                conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[t_idx]
+                if conformal_margins else 0.0
+            )
+            d_lower = round(max(0.0, d_point - m), 2)
+            d_upper = round(d_point + m, 2)
             s_prev = float(S[r_idx, t_idx - 1]) if t_idx > 0 else 0.0
 
             dispatched = [vi for vi in range(nV) if X[r_idx, vi, t_idx] > 0]

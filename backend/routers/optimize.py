@@ -3,7 +3,7 @@ import json
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
-from conformal import compute_margin
+from conformal import get_margin
 from ml_prediction import predict_lazy
 from optimizer_horizons import build_plan
 from schemas.optimize import OptimizeRequest, OptimizeResponse, PlanRow
@@ -41,6 +41,15 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
     route_distance = float(route_meta.get("distance_km", 15.0))
     demands = {route_id: [round(init_stock), preds["pred_0_2h"], preds["pred_2_4h"], preds["pred_4_6h"]]}
 
+    alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
+    conformal_margins = {
+        route_id: [
+            0.0,  # t0: init_stock is deterministic, no uncertainty
+            get_margin(state.ncs_scores, route_id, "0-2h", alpha),
+            get_margin(state.ncs_scores, route_id, "2-4h", alpha),
+            get_margin(state.ncs_scores, route_id, "4-6h", alpha),
+        ]
+    }
     plan_df = build_plan(
         timestamp=ts_str,
         demands=demands,
@@ -48,10 +57,7 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
         office_id=state.office_map.get(route_id, ""),
         route_distances={route_id: route_distance},
         incoming_vehicles=state.incoming_cfg,
-        conformal_margin=compute_margin(
-            state.ncs_scores,
-            req.confidence_level if req.confidence_level is not None else state.confidence_level,
-        ),
+        conformal_margins=conformal_margins,
     )
     plan_df["timestamp"] = pd.to_datetime(plan_df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
 

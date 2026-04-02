@@ -5,7 +5,7 @@ from typing import Dict, List
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
-from conformal import compute_margin
+from conformal import get_margin
 from ml_prediction import predict_lazy
 from optimizer_horizons import build_plan
 from schemas.dispatch import DispatchRequest, DispatchResponse, RoutePlan
@@ -75,8 +75,17 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
             detail=f"None of the warehouse routes found in train data. Missing: {missing_routes}",
         )
 
-    # ── 4. Joint MILP for all routes at once ─────────────────────────────────    alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
-    conformal_margin = compute_margin(state.ncs_scores, alpha)
+    # ── 4. Joint MILP for all routes at once ─────────────────────────────────
+    alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
+    conformal_margins = {
+        rid: [
+            0.0,  # t0: init_stock is deterministic, no uncertainty
+            get_margin(state.ncs_scores, rid, "0-2h", alpha),
+            get_margin(state.ncs_scores, rid, "2-4h", alpha),
+            get_margin(state.ncs_scores, rid, "4-6h", alpha),
+        ]
+        for rid in demands
+    }
     plan_df = build_plan(
         timestamp=ts_str,
         demands=demands,
@@ -85,7 +94,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         route_distances=route_distances,
         global_fleet=req.global_fleet,
         incoming_vehicles=incoming,
-        conformal_margin=conformal_margin,
+        conformal_margins=conformal_margins,
     )
 
     if plan_df.empty:
