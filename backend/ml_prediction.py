@@ -1,10 +1,15 @@
 """Standalone inference pipeline for exp_best_features_full.
 
 Produces three forecasts for a selected route_id and timestamp using the saved
-ensemble of LightGBM step models:
-1) 0-2h ahead  -> target_step_1
-2) 2-4h ahead  -> target_step_5
-3) 4-6h ahead  -> target_step_9
+ensemble of LightGBM step models.
+
+Target column is target_2h — a 2-hour rolling window value.  Each step is
+30 minutes, so to predict the 2-hour window anchored exactly at a horizon
+boundary we pick the step at that boundary:
+  step_4  = target_2h in 4×30min = exactly +2h ahead  (0–2h window)
+  step_8  = target_2h in 8×30min = exactly +4h ahead  (2–4h window)
+  step_12 = target_2h in 12×30min = exactly +6h ahead (4–6h window)
+             — requires models trained beyond step 10; returns None if absent.
 
 This file is fully independent from project modules (no local imports).
 """
@@ -255,7 +260,9 @@ def load_models(models_dir: Path) -> List[Dict[str, object]]:
         m = joblib.load(p)
         if not isinstance(m, dict):
             raise TypeError(f"Unexpected model object in {p.name}: {type(m)}")
-        for required_key in ("target_step_1", "target_step_5", "target_step_9"):
+        # step_4 (+2h) and step_8 (+4h) are required; step_12 (+6h) is optional
+        # (needs to be trained separately — only 10 steps exist in current ensembles)
+        for required_key in ("target_step_4", "target_step_8"):
             if required_key not in m:
                 raise KeyError(f"{p.name} missing key: {required_key}")
         models.append(m)
@@ -285,7 +292,14 @@ def predict_for_route_timestamp(
     route_id: str,
     timestamp: str,
 ) -> Dict[str, float]:
-    """Predict 0-2h / 2-4h / 4-6h for one route_id and timestamp."""
+    """Predict 0-2h / 2-4h / 4-6h for one route_id and timestamp.
+
+    Horizon mapping (each step = 30 min, target_2h = 2-hour window value):
+      target_step_4  -> +2h boundary -> 0-2h window forecast
+      target_step_8  -> +4h boundary -> 2-4h window forecast
+      target_step_12 -> +6h boundary -> 4-6h window forecast (optional, requires
+                        models trained beyond step 10; set to None if absent)
+    """
     ts = pd.to_datetime(timestamp)
 
     row_mask = (X_all["route_id"].astype(str) == str(route_id)) & (X_all["timestamp"] == ts)
@@ -299,25 +313,33 @@ def predict_for_route_timestamp(
 
     row_df = encode_id_categoricals(row_df, feature_cols)
 
-    p_step1 = []
-    p_step5 = []
-    p_step9 = []
+    # Check whether step_12 models are present in the ensemble
+    has_step12 = all("target_step_12" in m for m in models)
+
+    p_step4: List[float] = []
+    p_step8: List[float] = []
+    p_step12: List[float] = []
 
     for m in models:
-        p_step1.append(float(np.clip(m["target_step_1"].predict(row_df)[0], 0.0, None)))
-        p_step5.append(float(np.clip(m["target_step_5"].predict(row_df)[0], 0.0, None)))
-        p_step9.append(float(np.clip(m["target_step_9"].predict(row_df)[0], 0.0, None)))
+        p_step4.append(float(np.clip(m["target_step_4"].predict(row_df)[0], 0.0, None)))
+        p_step8.append(float(np.clip(m["target_step_8"].predict(row_df)[0], 0.0, None)))
+        if has_step12:
+            p_step12.append(float(np.clip(m["target_step_12"].predict(row_df)[0], 0.0, None)))
 
-    out = {
+    out: Dict[str, object] = {
         "route_id": str(route_id),
         "timestamp": str(ts),
         "n_models": len(models),
-        "pred_0_2h": float(round(np.mean(p_step1))),
-        "pred_2_4h": float(round(np.mean(p_step5))),
-        "pred_4_6h": float(round(np.mean(p_step9))),
-        "pred_0_2h_std": float(np.std(p_step1)),
-        "pred_2_4h_std": float(np.std(p_step5)),
-        "pred_4_6h_std": float(np.std(p_step9)),
+        # step_4 = target_2h exactly 2h ahead (0-2h window)
+        "pred_0_2h": float(round(np.mean(p_step4))),
+        "pred_0_2h_std": float(np.std(p_step4)),
+        # step_8 = target_2h exactly 4h ahead (2-4h window)
+        "pred_2_4h": float(round(np.mean(p_step8))),
+        "pred_2_4h_std": float(np.std(p_step8)),
+        # step_12 = target_2h exactly 6h ahead (4-6h window); None until trained
+        "pred_4_6h": float(round(np.mean(p_step12))) if has_step12 else None,
+        "pred_4_6h_std": float(np.std(p_step12)) if has_step12 else None,
+        "pred_4_6h_available": has_step12,
     }
     return out
 
