@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from conformal import NCS_DEFAULT_PATH, load_ncs
+from conformal import NCS_DEFAULT_PATH, NCS_NORM_PATH, load_ncs
 from ml_prediction import (
     DEFAULT_MODELS_DIR,
     DEFAULT_TRAIN_PATH,
@@ -31,7 +31,8 @@ class AppState:
     route_distances: List[Dict] = field(default_factory=list)   # route_distances.json
     last_dispatch_by_warehouse: Dict[str, Dict] = field(default_factory=dict)  # warehouse_id → last dispatch
     confidence_level: float = 0.9       # conformal coverage level (0-1)
-    ncs_scores: Any = field(default_factory=lambda: load_ncs())  # non-conformity scores
+    ncs_scores: Any = field(default_factory=lambda: load_ncs()[0])  # non-conformity scores
+    ncs_normalized: bool = False          # True when scores are relative |y-ŷ|/(ŷ+1)
 
 
 _state: Optional[AppState] = None
@@ -68,7 +69,7 @@ def load_state(
     warehouses = json.loads(warehouses_path.read_text(encoding="utf-8")).get("warehouses", [])
     route_distances = json.loads(route_distances_path.read_text(encoding="utf-8")).get("route_distances", [])
 
-    ncs_scores = load_ncs(NCS_DEFAULT_PATH)
+    ncs_scores, ncs_normalized = load_ncs(NCS_DEFAULT_PATH)
 
     _state = AppState(
         models=models,
@@ -81,6 +82,7 @@ def load_state(
         route_distances=route_distances,
         confidence_level=float(vehicles_cfg.get("confidence_level", 0.9)),
         ncs_scores=ncs_scores,
+        ncs_normalized=ncs_normalized,
     )
     # cache for last dispatch result
     _state.last_dispatch = None

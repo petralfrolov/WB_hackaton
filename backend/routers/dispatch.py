@@ -77,12 +77,13 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
 
     # ── 4. Joint MILP for all routes at once ─────────────────────────────────
     alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
+    normalized = state.ncs_normalized
     conformal_margins = {
         rid: [
             0.0,  # t0: init_stock is deterministic, no uncertainty
-            get_margin(state.ncs_scores, rid, "0-2h", alpha),
-            get_margin(state.ncs_scores, rid, "2-4h", alpha),
-            get_margin(state.ncs_scores, rid, "4-6h", alpha),
+            get_margin(state.ncs_scores, rid, "0-2h", alpha, pred=demands[rid][1], normalized=normalized),
+            get_margin(state.ncs_scores, rid, "2-4h", alpha, pred=demands[rid][2], normalized=normalized),
+            get_margin(state.ncs_scores, rid, "4-6h", alpha, pred=demands[rid][3], normalized=normalized),
         ]
         for rid in demands
     }

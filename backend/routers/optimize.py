@@ -42,12 +42,13 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
     demands = {route_id: [round(init_stock), preds["pred_0_2h"], preds["pred_2_4h"], preds["pred_4_6h"]]}
 
     alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
+    normalized = state.ncs_normalized
     conformal_margins = {
         route_id: [
             0.0,  # t0: init_stock is deterministic, no uncertainty
-            get_margin(state.ncs_scores, route_id, "0-2h", alpha),
-            get_margin(state.ncs_scores, route_id, "2-4h", alpha),
-            get_margin(state.ncs_scores, route_id, "4-6h", alpha),
+            get_margin(state.ncs_scores, route_id, "0-2h", alpha, pred=preds["pred_0_2h"], normalized=normalized),
+            get_margin(state.ncs_scores, route_id, "2-4h", alpha, pred=preds["pred_2_4h"], normalized=normalized),
+            get_margin(state.ncs_scores, route_id, "4-6h", alpha, pred=preds["pred_4_6h"], normalized=normalized),
         ]
     }
     plan_df = build_plan(
