@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, ArrowRight, Loader2 } from 'lucide-react'
-import type { Warehouse, RouteDistance, ForecastPoint, ApiDispatchResponse } from '../../types'
+import type { Warehouse, RouteDistance, ForecastPoint, ApiDispatchResponse, ApiWarehouseMetrics } from '../../types'
 import { Badge } from '../ui/badge'
 import type { BadgeVariant } from '../ui/badge'
 import { ForecastChart } from './ForecastChart'
@@ -38,12 +38,74 @@ const STATUS_BADGE: Record<Warehouse['status'], BadgeVariant> = {
   critical: 'critical',
 }
 
+function PCoverColor(p: number): string {
+  if (p >= 0.9) return 'text-green-400'
+  if (p >= 0.7) return 'text-yellow-400'
+  return 'text-red-400'
+}
+
+function DispatchMetricsBar({
+  metrics,
+  selectedRouteId,
+}: {
+  metrics: ApiWarehouseMetrics
+  selectedRouteId: string | null
+}) {
+  const routeM = selectedRouteId
+    ? metrics.route_metrics.find((r) => r.route_id === selectedRouteId)
+    : null
+
+  const fillRate = routeM ? routeM.fill_rate : metrics.fill_rate
+  const cpo = routeM ? routeM.cpo : metrics.cpo
+  const horizonLabels = ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
+
+  return (
+    <div className="rounded-lg bg-[#1A2040] border border-[#2A3560] p-3 space-y-3">
+      {/* Warehouse-level P_cover — shown only when all routes selected */}
+      {!selectedRouteId && (
+        <div>
+          <div className="text-xs text-[#8A9CC0] mb-1">Вероятность достаточности транспорта</div>
+          <div className={`text-xl font-bold ${PCoverColor(metrics.p_cover)}`}>
+            {(metrics.p_cover * 100).toFixed(1)}%
+          </div>
+          <div className="grid grid-cols-4 gap-1 mt-1">
+            {metrics.p_cover_by_horizon.map((p, i) => (
+              <div key={i} className="text-center">
+                <div className="text-[10px] text-[#8A9CC0]">{horizonLabels[i]}</div>
+                <div className={`text-xs font-semibold ${PCoverColor(p)}`}>
+                  {i === 0 ? '—' : `${(p * 100).toFixed(0)}%`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Fill Rate + CPO */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs text-[#8A9CC0] mb-0.5">Fill Rate</div>
+          <div className="text-base font-bold text-white">
+            {(fillRate * 100).toFixed(1)}%
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-[#8A9CC0] mb-0.5">CPO</div>
+          <div className="text-base font-bold text-white">
+            {cpo.toFixed(0)} ₽/ед.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   // '' = aggregate (все маршруты), otherwise specific route id
   const [selectedRouteId, setSelectedRouteId] = useState('')
-  const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings, warehouseStatuses } = useSimulationContext()
+  const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings, warehouseStatuses, setWarehouseMetrics } = useSimulationContext()
 
   // ── Forecast fetch on warehouse open ────────────────────────────────────
   // Dispatch fetch on warehouse open (LS-backed) ────────────────────────
@@ -74,6 +136,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
       setDispatchResult(cached)
       setDispatchLoading(false)
       setWarehouseStatus(warehouse.id, deriveWarehouseStatus(cached))
+      if (cached.metrics) setWarehouseMetrics(warehouse.id, cached.metrics)
     } else {
       postDispatch({
         warehouse_id: warehouse.id,
@@ -85,6 +148,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
           lsSet(key, result)
           setDispatchResult(result)
           setWarehouseStatus(warehouse.id, deriveWarehouseStatus(result))
+          if (result.metrics) setWarehouseMetrics(warehouse.id, result.metrics)
         })
         .catch(() => {})
         .finally(() => setDispatchLoading(false))
@@ -325,6 +389,14 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                     </>
                 }
               </select>
+
+              {/* ── Metrics under selector ───────────────────────── */}
+              {dispatchResult?.metrics && (
+                <DispatchMetricsBar
+                  metrics={dispatchResult.metrics}
+                  selectedRouteId={selectedRouteId || null}
+                />
+              )}
             </div>
             <div className="section-label mb-2 flex items-center gap-2">
               Прогноз отгрузок — ближайшие 6 часов

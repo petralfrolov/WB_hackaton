@@ -38,6 +38,12 @@ def update_settings(s: Settings, state: AppState = Depends(get_state)):
         state.confidence_level = max(0.0, min(1.0, cl))
         state.vehicles_cfg["confidence_level"] = state.confidence_level
 
+    # route_correlation is stored separately in AppState
+    if "route_correlation" in payload:
+        rho = float(payload.pop("route_correlation"))
+        state.route_correlation = max(0.0, min(1.0, rho))
+        state.vehicles_cfg["route_correlation"] = state.route_correlation
+
     for key, val in payload.items():
         state.vehicles_cfg[key] = val
     _VEHICLES_PATH.write_text(
@@ -45,6 +51,7 @@ def update_settings(s: Settings, state: AppState = Depends(get_state)):
     )
     changed = {k: state.vehicles_cfg[k] for k in s.model_dump(exclude_none=True) if k in state.vehicles_cfg}
     changed["confidence_level"] = state.confidence_level
+    changed["route_correlation"] = state.route_correlation
     return {"status": "ok", "settings": changed}
 
 

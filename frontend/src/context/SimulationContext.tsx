@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { ApiIncomingVehicle, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
+import type { ApiIncomingVehicle, ApiWarehouseMetrics, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
 import { getWarehouses, getRouteDistances, getConfig, getVehicles, getIncomingVehicles, patchSettings, postDispatch } from '../api'
 import {
   defaultRiskSettings,
@@ -26,6 +26,8 @@ interface SimulationContextValue {
   setIncomingVehicles: (list: ApiIncomingVehicle[]) => void
   warehouseStatuses: Record<string, 'none' | 'ok' | 'warning' | 'critical'>
   setWarehouseStatus: (id: string, status: 'none' | 'ok' | 'warning' | 'critical') => void
+  warehouseMetrics: Record<string, ApiWarehouseMetrics>
+  setWarehouseMetrics: (id: string, metrics: ApiWarehouseMetrics) => void
   clearCache: () => void
   refreshAllWarehouses: () => Promise<void>
   refreshingAll: boolean
@@ -82,6 +84,11 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null)
   const [incomingVehicles, setIncomingVehicles] = useState<ApiIncomingVehicle[]>([])
   const [warehouseStatuses, setWarehouseStatuses] = useState<Record<string, 'none' | 'ok' | 'warning' | 'critical'>>({});
+  const [warehouseMetrics, setWarehouseMetricsState] = useState<Record<string, ApiWarehouseMetrics>>({});
+
+  const setWarehouseMetrics = useCallback((id: string, metrics: ApiWarehouseMetrics) => {
+    setWarehouseMetricsState(prev => ({ ...prev, [id]: metrics }))
+  }, [])
 
   const setWarehouseStatus = useCallback((id: string, status: 'none' | 'ok' | 'warning' | 'critical') => {
     setWarehouseStatuses(prev => prev[id] === status ? prev : { ...prev, [id]: status })
@@ -117,6 +124,20 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       } catch { /* corrupt entry, skip */ }
     }
     setWarehouseStatuses(statuses)
+    // Restore metrics from LS cache for new datetime
+    const newMetrics: Record<string, ApiWarehouseMetrics> = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k?.startsWith(prefix)) continue
+      const inner = k.slice(prefix.length)
+      if (!inner.endsWith(suffix)) continue
+      const warehouseId = inner.slice(0, inner.length - suffix.length)
+      try {
+        const cached = JSON.parse(localStorage.getItem(k)!)
+        if (cached.metrics) newMetrics[warehouseId] = cached.metrics
+      } catch { /* corrupt */ }
+    }
+    setWarehouseMetricsState(newMetrics)
   }, [analysisDateTime])
 
   const setRoutesAndSyncWarehouses = (nextRoutes: RouteDistance[]) => {
@@ -206,6 +227,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     }
     toRemove.forEach(k => localStorage.removeItem(k))
     setWarehouseStatuses({})
+    setWarehouseMetricsState({})
     // Fetch all warehouses in parallel
     const currentIncoming = incomingVehicles
     const results = await Promise.allSettled(
@@ -233,6 +255,13 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       newStatuses[warehouseId] = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
     }
     setWarehouseStatuses(newStatuses)
+    const newMetrics: Record<string, ApiWarehouseMetrics> = {}
+    for (const r of results) {
+      if (r.status === 'rejected') continue
+      const { warehouseId, result } = r.value
+      if (result.metrics) newMetrics[warehouseId] = result.metrics
+    }
+    setWarehouseMetricsState(newMetrics)
     refreshingAllRef.current = false
     setRefreshingAll(false)
   }, [analysisDateTime, incomingVehicles, warehouses, riskSettings])
@@ -270,11 +299,13 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       setIncomingVehicles,
       warehouseStatuses,
       setWarehouseStatus,
+      warehouseMetrics,
+      setWarehouseMetrics,
       clearCache,
       refreshAllWarehouses,
       refreshingAll,
     }),
-    [warehouses, routes, vehicleTypes, riskSettings, analysisDateTime, selectedWarehouseId, incomingVehicles, warehouseStatuses, clearCache, refreshAllWarehouses, refreshingAll],
+    [warehouses, routes, vehicleTypes, riskSettings, analysisDateTime, selectedWarehouseId, incomingVehicles, warehouseStatuses, warehouseMetrics, clearCache, refreshAllWarehouses, refreshingAll],
   )
 
   return (

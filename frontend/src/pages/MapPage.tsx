@@ -10,7 +10,7 @@ import { cn } from '../lib/utils'
 
 export function MapPage() {
   const [selected, setSelected] = useState<Warehouse | null>(null)
-  const { warehouses, routes, warehouseStatuses, refreshAllWarehouses, refreshingAll } = useSimulationContext()
+  const { warehouses, routes, warehouseStatuses, warehouseMetrics, refreshAllWarehouses, refreshingAll } = useSimulationContext()
 
   const handleSelect = useCallback((wh: Warehouse) => setSelected(wh), [])
   const handleClose = useCallback(() => setSelected(null), [])
@@ -46,7 +46,7 @@ export function MapPage() {
 
       {/* Map + Drawer */}
       <div className="relative flex-1 overflow-hidden">
-        <WarehouseMap warehouses={warehouses} onSelect={handleSelect} statusOverrides={warehouseStatuses} />
+        <WarehouseMap warehouses={warehouses} onSelect={handleSelect} statusOverrides={warehouseStatuses} warehouseMetrics={warehouseMetrics} />
         <WarehouseDrawer warehouse={selected} onClose={handleClose} routes={routes} />
       </div>
     </div>

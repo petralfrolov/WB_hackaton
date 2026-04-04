@@ -31,6 +31,7 @@ class AppState:
     route_distances: List[Dict] = field(default_factory=list)   # route_distances.json
     last_dispatch_by_warehouse: Dict[str, Dict] = field(default_factory=dict)  # warehouse_id → last dispatch
     confidence_level: float = 0.9       # conformal coverage level (0-1)
+    route_correlation: float = 0.3        # assumed inter-route demand correlation ρ ∈ [0,1]
     ncs_scores: Any = field(default_factory=lambda: load_ncs()[0])  # non-conformity scores
     ncs_normalized: bool = False          # True when scores are relative |y-ŷ|/(ŷ+1)
 

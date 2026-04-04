@@ -214,12 +214,27 @@ export interface ApiDispatchRequest {
   confidence_level?: number
 }
 
+export interface ApiRouteMetrics {
+  route_id: string
+  fill_rate: number   // 0–1
+  cpo: number         // ₽ per shipped unit
+}
+
+export interface ApiWarehouseMetrics {
+  p_cover: number                  // 0–1, probability capacity suffices across all horizons
+  p_cover_by_horizon: number[]     // [A, B, C, D]
+  fill_rate: number                // 0–1
+  cpo: number                      // ₽ per shipped unit
+  route_metrics: ApiRouteMetrics[]
+}
+
 export interface ApiDispatchResponse {
   warehouse_id: string
   office_from_id: string
   timestamp: string
   routes: ApiRoutePlan[]
   total_cost: number
+  metrics?: ApiWarehouseMetrics
 }
 
 export interface ApiCallRequest {

@@ -295,6 +295,34 @@ export function OptimizerPage() {
         </button>
       </div>
 
+      {/* P_cover + metrics strip */}
+      {dispatchResult?.metrics && (() => {
+        const m = dispatchResult.metrics
+        const pColor = m.p_cover >= 0.9 ? 'text-green-400' : m.p_cover >= 0.7 ? 'text-yellow-400' : 'text-red-400'
+        const horizonLabels = ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
+        return (
+          <div className="px-4 py-2 border-b border-border bg-elevated flex items-center gap-6 text-xs shrink-0 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-muted">P(хватит транспорта):</span>
+              <span className={`font-bold text-sm ${pColor}`}>{(m.p_cover * 100).toFixed(1)}%</span>
+              <span className="text-muted hidden sm:inline">
+                ({m.p_cover_by_horizon.map((p, i) => i === 0 ? null : (
+                  <span key={i}>{horizonLabels[i]}&nbsp;<span className={p >= 0.9 ? 'text-green-400' : p >= 0.7 ? 'text-yellow-400' : 'text-red-400'}>{(p*100).toFixed(0)}%</span>{i < 3 ? ' · ' : ''}</span>
+                ))})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted">Fill Rate:</span>
+              <span className="font-semibold text-foreground">{(m.fill_rate * 100).toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted">CPO:</span>
+              <span className="font-semibold text-foreground">{m.cpo.toFixed(0)} ₽/ед.</span>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── Warehouse sidebar ──────────────────────────────────────────── */}

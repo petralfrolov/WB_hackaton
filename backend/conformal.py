@@ -178,7 +178,7 @@ def get_margin(
     alpha: float,
     pred: float = 0.0,
     normalized: bool = False,
-    max_margin_factor: float = 0.5,
+    max_margin_factor: float = float("inf"),
 ) -> float:
     """Resolve the conformal margin for a specific (route, horizon) pair.
 

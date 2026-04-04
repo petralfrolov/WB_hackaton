@@ -6,7 +6,7 @@ import {
   Marker,
   ZoomableGroup,
 } from 'react-simple-maps'
-import type { Warehouse } from '../../types'
+import type { Warehouse, ApiWarehouseMetrics } from '../../types'
 import { fmt } from '../../lib/utils'
 import { ZoomIn, ZoomOut, Locate } from 'lucide-react'
 
@@ -29,9 +29,10 @@ interface WarehouseMapProps {
   warehouses: Warehouse[]
   onSelect: (warehouse: Warehouse) => void
   statusOverrides?: Record<string, 'none' | 'ok' | 'warning' | 'critical'>
+  warehouseMetrics?: Record<string, ApiWarehouseMetrics>
 }
 
-export function WarehouseMap({ warehouses, onSelect, statusOverrides }: WarehouseMapProps) {
+export function WarehouseMap({ warehouses, onSelect, statusOverrides, warehouseMetrics }: WarehouseMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [position, setPosition] = useState<{ coordinates: [number, number]; zoom: number }>({
     coordinates: [50, 57],
@@ -170,6 +171,17 @@ export function WarehouseMap({ warehouses, onSelect, statusOverrides }: Warehous
                 {fmt(tooltip.warehouse.readyToShip)} ед.
               </span>
             </div>
+            {warehouseMetrics?.[tooltip.warehouse.id] && (() => {
+              const m = warehouseMetrics[tooltip.warehouse.id]
+              const pct = (m.p_cover * 100).toFixed(1)
+              const color = m.p_cover >= 0.9 ? '#3FB950' : m.p_cover >= 0.7 ? '#D29922' : '#F85149'
+              return (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-muted text-xs">P(хватит транспорта):</span>
+                  <span className="font-mono font-semibold text-xs" style={{ color }}>{pct}%</span>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}

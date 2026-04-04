@@ -9,6 +9,20 @@ from .optimize import PlanRow
 from .vehicles import IncomingVehicle, Vehicle
 
 
+class RouteMetrics(BaseModel):
+    route_id: str
+    fill_rate: float        # avg fraction of capacity used across dispatched horizons (0–1)
+    cpo: float              # cost per shipped unit, ₽
+
+
+class WarehouseMetrics(BaseModel):
+    p_cover: float          # P(total demand ≤ total planned capacity), normal approx, across all horizons
+    p_cover_by_horizon: List[float]   # per-horizon [A,B,C,D], A is always 1.0 (deterministic)
+    fill_rate: float        # warehouse-level weighted fill rate (0–1)
+    cpo: float              # warehouse-level cost per shipped unit, ₽
+    route_metrics: List[RouteMetrics]
+
+
 class RoutePlan(BaseModel):
     route_id: str
     plan: List[PlanRow]
@@ -31,3 +45,4 @@ class DispatchResponse(BaseModel):
     timestamp: datetime
     routes: List[RoutePlan]
     total_cost: float
+    metrics: Optional[WarehouseMetrics] = None

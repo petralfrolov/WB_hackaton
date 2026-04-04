@@ -10,3 +10,4 @@ class Settings(BaseModel):
     economy_threshold: Optional[float] = None
     max_wait_minutes: Optional[int] = None
     confidence_level: Optional[float] = None  # conformal coverage, e.g. 0.90
+    route_correlation: Optional[float] = None  # assumed inter-route demand correlation ρ ∈ [0,1]
