@@ -1,3 +1,9 @@
+"""Multi-route dispatch planning router.
+
+Handles POST /dispatch: resolves all routes for a warehouse, runs ML forecasts,
+applies conformal uncertainty margins with portfolio scaling, solves the joint
+IRP MILP, and returns per-route plans with aggregate coverage metrics.
+"""
 import copy
 import math
 from collections import defaultdict  # noqa: F401
@@ -7,12 +13,12 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from scipy.stats import norm as scipy_norm
 
-from conformal import get_margin
-from ml_prediction import predict_lazy
-from optimizer_horizons import build_plan
+from core.conformal import get_margin
+from ml.prediction import predict_lazy
+from optimizer.horizons import build_plan
 from schemas.dispatch import DispatchRequest, DispatchResponse, RouteMetrics, RoutePlan, WarehouseMetrics
 from schemas.optimize import PlanRow
-from state import AppState, get_state
+from core.state import AppState, get_state
 
 router = APIRouter(tags=["dispatch"])
 
@@ -73,6 +79,142 @@ def _apply_portfolio_scaling(
     return scaled
 
 
+def _aggregate_route_buckets(
+    plan_df: pd.DataFrame,
+    conformal_margins: Dict[str, List[float]],
+    horizon_labels: List[str],
+) -> tuple:
+    """Aggregate per-route MILP output into totals and per-horizon buckets.
+
+    Args:
+        plan_df: Plan DataFrame produced by ``build_plan``.
+        conformal_margins: Dict ``{route_id: [m0, m1, m2, m3]}`` of portfolio-scaled
+            conformal margins.
+        horizon_labels: Ordered list of horizon label strings (must match plan_df
+            ``horizon`` column values).
+
+    Returns:
+        Tuple of:
+            horizon_total_cap   — ``{label: float}`` total dispatched capacity
+            horizon_total_demand — ``{label: float}`` total point-forecast demand
+            horizon_total_margin — ``{label: float}`` total conformal margin (stochastic only)
+            route_metrics_list   — list of per-route ``RouteMetrics`` objects
+            total_capacity_sent — warehouse-wide total capacity float
+            total_shipped       — warehouse-wide total shipped float
+            total_cost_all      — warehouse-wide total cost float
+    """
+    total_capacity_sent = 0.0
+    total_shipped = 0.0
+    total_cost_all = 0.0
+    route_metrics_list: List[RouteMetrics] = []
+
+    horizon_total_cap: Dict[str, float]    = {h: 0.0 for h in horizon_labels}
+    horizon_total_demand: Dict[str, float] = {h: 0.0 for h in horizon_labels}
+    horizon_total_margin: Dict[str, float] = {h: 0.0 for h in horizon_labels}
+
+    for rid, margins in conformal_margins.items():
+        sub = plan_df[plan_df["route_id"] == rid]
+        if sub.empty:
+            continue
+
+        r_cap_sent = 0.0
+        r_shipped = 0.0
+        r_cost = 0.0
+
+        for i, hlabel in enumerate(horizon_labels):
+            rows = sub[sub["horizon"] == hlabel]
+            if rows.empty:
+                continue
+            first = rows.iloc[0]
+            demand_pt = float(first["demand_new"])
+            shipped = float(first["actually_shipped"])
+            total_empty = float(rows["empty_capacity_units"].sum())
+            cap_row = shipped + total_empty
+            margin = margins[i] if i < len(margins) else 0.0
+
+            r_cap_sent += cap_row
+            r_shipped += shipped
+            r_cost += float(rows["cost_total"].sum())
+
+            horizon_total_cap[hlabel]    += cap_row
+            horizon_total_demand[hlabel] += demand_pt
+            if hlabel != "A: now":
+                horizon_total_margin[hlabel] += margin
+
+        total_capacity_sent += r_cap_sent
+        total_shipped += r_shipped
+        total_cost_all += r_cost
+
+        r_fill = (r_shipped / r_cap_sent) if r_cap_sent > 0 else 0.0
+        r_cpo  = (r_cost / r_shipped)    if r_shipped > 0 else 0.0
+        route_metrics_list.append(RouteMetrics(
+            route_id=rid,
+            fill_rate=round(r_fill, 4),
+            cpo=round(r_cpo, 2),
+        ))
+
+    return (
+        horizon_total_cap,
+        horizon_total_demand,
+        horizon_total_margin,
+        route_metrics_list,
+        total_capacity_sent,
+        total_shipped,
+        total_cost_all,
+    )
+
+
+def _compute_p_cover_by_horizon(
+    horizon_total_cap: Dict[str, float],
+    horizon_total_demand: Dict[str, float],
+    horizon_total_margin: Dict[str, float],
+    z_alpha: float,
+    horizon_labels: List[str],
+) -> List[float]:
+    """Compute per-horizon aggregate coverage probability using a normal approximation.
+
+    Horizon A (``"A: now"``) is always 1.0 (deterministic init stock). For
+    stochastic horizons B–D the portfolio aggregate std is recovered from the
+    already-scaled margins:
+        std_t = total_margin_t / z_alpha
+        z_t   = (total_cap_t - total_demand_t) / std_t
+        p_t   = Φ(z_t)
+
+    When ``total_margin_t == 0`` (conformal CI disabled), falls back to a
+    hard 1.0 / 0.5 rule based on whether point-forecast demand is covered.
+
+    Args:
+        horizon_total_cap: Total dispatched + empty capacity per horizon label.
+        horizon_total_demand: Total point-forecast demand per horizon label.
+        horizon_total_margin: Total portfolio-scaled conformal margin per horizon
+            label (0.0 for ``"A: now"``).
+        z_alpha: Normal quantile ``Φ⁻¹(α)``; must be positive.
+        horizon_labels: Ordered list of all horizon label strings.
+
+    Returns:
+        List of probabilities aligned with ``horizon_labels``.
+    """
+    p_cover_by_horizon: List[float] = []
+    for hlabel in horizon_labels:
+        if hlabel == "A: now":
+            p_cover_by_horizon.append(1.0)
+            continue
+
+        total_cap_t    = horizon_total_cap[hlabel]
+        total_demand_t = horizon_total_demand[hlabel]
+        total_margin_t = horizon_total_margin[hlabel]
+
+        if total_margin_t > 0 and z_alpha > 0:
+            std_t = total_margin_t / z_alpha
+            z_t   = (total_cap_t - total_demand_t) / std_t
+            p_t   = round(float(scipy_norm.cdf(z_t)), 4)
+        else:
+            p_t = 1.0 if total_cap_t > total_demand_t else 0.5
+
+        p_cover_by_horizon.append(p_t)
+    return p_cover_by_horizon
+
+
 def _compute_warehouse_metrics(
     plan_df: pd.DataFrame,
     conformal_margins: Dict[str, List[float]],
@@ -98,95 +240,33 @@ def _compute_warehouse_metrics(
         z_t     = (total_cap_t - total_demand_t) / (total_margin_t / z_alpha)
         p_t     = Φ(z_t)
 
-    When the optimizer covers all routes:
-        total_cap_t ≈ total_demand_t + total_margin_t  →  z_t = z_alpha  →  p_t = α.
-
-    When some routes are deferred to a later horizon (valid MILP scheduling
-    decision, not fleet exhaustion), total_cap_t is reduced for that horizon
-    but increases for the next, keeping the window-level guarantee intact.
-    This avoids the false 0% reading caused by per-route min logic.
-
-    When fleet is genuinely exhausted across all routes:
-        total_cap_t < total_demand_t  →  z_t < 0  →  p_t < 0.5  (correctly penalized).
-
     Horizon A (t=0) is always 1.0 (init_stock is deterministic).
     p_cover = min over stochastic horizons B–D.
+
+    Args:
+        plan_df: Plan DataFrame from ``build_plan``.
+        conformal_margins: Portfolio-scaled margins ``{route_id: [m0..m3]}``.
+        alpha: Conformal coverage level in (0, 1).
+
+    Returns:
+        ``WarehouseMetrics`` with p_cover, p_cover_by_horizon, fill_rate, cpo,
+        and per-route RouteMetrics.
     """
     z_alpha = float(scipy_norm.ppf(alpha)) if 0.0 < alpha < 1.0 else 1.645
 
-    total_capacity_sent = 0.0
-    total_shipped = 0.0
-    total_cost_all = 0.0
-    route_metrics_list: List[RouteMetrics] = []
+    (
+        horizon_total_cap,
+        horizon_total_demand,
+        horizon_total_margin,
+        route_metrics_list,
+        total_capacity_sent,
+        total_shipped,
+        total_cost_all,
+    ) = _aggregate_route_buckets(plan_df, conformal_margins, _HORIZON_LABELS)
 
-    # Aggregate per-horizon accumulators: total_cap_t, total_demand_t, total_margin_t
-    horizon_total_cap: Dict[str, float] = {h: 0.0 for h in _HORIZON_LABELS}
-    horizon_total_demand: Dict[str, float] = {h: 0.0 for h in _HORIZON_LABELS}
-    horizon_total_margin: Dict[str, float] = {h: 0.0 for h in _HORIZON_LABELS}
-
-    for rid, margins in conformal_margins.items():
-        sub = plan_df[plan_df["route_id"] == rid]
-        if sub.empty:
-            continue
-
-        r_cap_sent = 0.0
-        r_shipped = 0.0
-        r_cost = 0.0
-
-        for i, hlabel in enumerate(_HORIZON_LABELS):
-            rows = sub[sub["horizon"] == hlabel]
-            if rows.empty:
-                continue
-            first = rows.iloc[0]
-            demand_pt = float(first["demand_new"])
-            shipped = float(first["actually_shipped"])
-            total_empty = float(rows["empty_capacity_units"].sum())
-            cap_row = shipped + total_empty
-            margin = margins[i] if i < len(margins) else 0.0
-
-            r_cap_sent += cap_row
-            r_shipped += shipped
-            r_cost += float(rows["cost_total"].sum())
-
-            # Aggregate horizon buckets
-            horizon_total_cap[hlabel] += cap_row
-            horizon_total_demand[hlabel] += demand_pt
-            if hlabel != "A: now":
-                horizon_total_margin[hlabel] += margin
-
-        total_capacity_sent += r_cap_sent
-        total_shipped += r_shipped
-        total_cost_all += r_cost
-
-        r_fill = (r_shipped / r_cap_sent) if r_cap_sent > 0 else 0.0
-        r_cpo = (r_cost / r_shipped) if r_shipped > 0 else 0.0
-        route_metrics_list.append(RouteMetrics(
-            route_id=rid,
-            fill_rate=round(r_fill, 4),
-            cpo=round(r_cpo, 2),
-        ))
-
-    # Compute aggregate p_cover per stochastic horizon
-    p_cover_by_horizon: List[float] = []
-    for hlabel in _HORIZON_LABELS:
-        if hlabel == "A: now":
-            p_cover_by_horizon.append(1.0)
-            continue
-
-        total_cap_t = horizon_total_cap[hlabel]
-        total_demand_t = horizon_total_demand[hlabel]
-        total_margin_t = horizon_total_margin[hlabel]
-
-        if total_margin_t > 0 and z_alpha > 0:
-            # portfolio_std_t = total_margin_t / z_alpha (see docstring)
-            std_t = total_margin_t / z_alpha
-            z_t = (total_cap_t - total_demand_t) / std_t
-            p_t = round(float(scipy_norm.cdf(z_t)), 4)
-        else:
-            # CI disabled: at least 50% if point forecast is covered
-            p_t = 1.0 if total_cap_t > total_demand_t else 0.5
-
-        p_cover_by_horizon.append(p_t)
+    p_cover_by_horizon = _compute_p_cover_by_horizon(
+        horizon_total_cap, horizon_total_demand, horizon_total_margin, z_alpha, _HORIZON_LABELS
+    )
 
     stochastic = p_cover_by_horizon[1:]
     p_cover = round(min(stochastic), 4) if stochastic else 1.0
@@ -205,6 +285,25 @@ def _compute_warehouse_metrics(
 
 @router.post("/dispatch", response_model=DispatchResponse)
 def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
+    """Plan joint transport dispatch for all routes of a warehouse.
+
+    Runs the full pipeline: ML demand forecast → conformal margins →
+    portfolio scaling → joint MILP → coverage metrics.
+
+    Args:
+        req: Dispatch request containing warehouse_id, timestamp, and optional
+            overrides for vehicles, confidence level, and incoming vehicles.
+        state: Application state injected by FastAPI.
+
+    Returns:
+        ``DispatchResponse`` with per-route plans, total cost, and aggregate
+        warehouse metrics (p_cover, fill_rate, CPO).
+
+    Raises:
+        HTTPException 404: Warehouse not found.
+        HTTPException 422: No routes from this warehouse found in train data.
+        HTTPException 500: MILP optimizer returned an empty plan.
+    """
     # ── 1. Resolve warehouse ─────────────────────────────────────────────────
     warehouse = next((w for w in state.warehouses if w["id"] == req.warehouse_id), None)
     if warehouse is None:

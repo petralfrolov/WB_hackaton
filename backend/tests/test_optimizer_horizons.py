@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from optimizer_horizons import (
+from optimizer.horizons import (
     build_plan, solve_irp_milp, _build_fleet_limits, HORIZONS, PERIOD_MINUTES,
 )
 

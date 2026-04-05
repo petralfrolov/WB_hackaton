@@ -39,11 +39,8 @@ DEFAULT_TRAIN_PATH = "data/train_team_track.parquet"
 DEFAULT_MODELS_DIR = "models/exp_best_features_full"
 
 
-def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
-    """Replicate training feature engineering used in experiments."""
-    df = df.sort_values(["route_id", "timestamp"]).copy()
-
-    # Time features
+def _add_time_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add calendar time features: hour, day-of-week, cyclic encodings, half-hour slot."""
     df["hour"] = df["timestamp"].dt.hour
     df["day_of_week"] = df["timestamp"].dt.dayofweek
     df["is_weekend"] = (df["day_of_week"] >= 5).astype(np.int8)
@@ -52,17 +49,19 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
     df["dow_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
     df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
     df["halfhour_slot"] = df["hour"] * 2 + df["timestamp"].dt.minute // 30
+    return df
 
+
+def _add_lag_rolling_features(df: pd.DataFrame, extended: bool) -> pd.DataFrame:
+    """Add target lags, rolling statistics (mean/std/min/max), EMA, and first-differences."""
     g = df.groupby("route_id", sort=False)
 
-    # Target lags
     base_lags = [1, 2, 4, 8, 16, 48]
     if extended:
         base_lags += [96, 192, 336]
     for lag in base_lags:
         df[f"target_lag_{lag}"] = g[TARGET_COL].shift(lag)
 
-    # Rolling stats
     for w in [4, 8, 16, 48]:
         df[f"target_roll_mean_{w}"] = g[TARGET_COL].transform(
             lambda x, w=w: x.shift(1).rolling(w, min_periods=1).mean()
@@ -70,14 +69,12 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
         df[f"target_roll_std_{w}"] = g[TARGET_COL].transform(
             lambda x, w=w: x.shift(1).rolling(w, min_periods=2).std().fillna(0)
         )
-
     if extended:
         for w in [96, 336]:
             df[f"target_roll_mean_{w}"] = g[TARGET_COL].transform(
                 lambda x, w=w: x.shift(1).rolling(w, min_periods=1).mean()
             )
 
-    # EMA
     df["target_ema_8"] = g[TARGET_COL].transform(
         lambda x: x.shift(1).ewm(span=8, adjust=False).mean()
     )
@@ -89,12 +86,10 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
             lambda x: x.shift(1).ewm(span=96, adjust=False).mean()
         )
 
-    # Diff
     df["target_diff_1"] = g[TARGET_COL].diff(1)
     df["target_diff_2"] = g[TARGET_COL].diff(2)
     df["target_diff_4"] = g[TARGET_COL].diff(4)
 
-    # Rolling min/max
     for w in [8, 48]:
         df[f"target_roll_min_{w}"] = g[TARGET_COL].transform(
             lambda x, w=w: x.shift(1).rolling(w, min_periods=1).min()
@@ -102,33 +97,47 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
         df[f"target_roll_max_{w}"] = g[TARGET_COL].transform(
             lambda x, w=w: x.shift(1).rolling(w, min_periods=1).max()
         )
+    return df
 
-    # Status features
-    status_cols = sorted(
-        [
-            c
-            for c in df.columns
-            if c.startswith("status_")
-            and not c.endswith("_ratio")
-            and "_lag" not in c
-            and "_roll" not in c
-        ]
-    )
-    if status_cols:
-        df["status_sum"] = df[status_cols].sum(axis=1)
-        for col in status_cols:
-            df[f"{col}_ratio"] = df[col] / (df["status_sum"] + 1e-6)
-            df[f"{col}_lag1"] = g[col].shift(1)
-            df[f"{col}_lag2"] = g[col].shift(2)
-            df[f"{col}_roll_mean_8"] = g[col].transform(
-                lambda x: x.shift(1).rolling(8, min_periods=1).mean()
-            )
-        if len(status_cols) >= 2:
-            df["status_first"] = df[status_cols[0]]
-            df["status_last"] = df[status_cols[-1]]
-            df["status_last_ratio"] = df["status_last"] / (df["status_sum"] + 1e-6)
 
-    # Deconvolution features — собираем новые столбцы отдельно, затем pd.concat
+def _add_status_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add status-column lags, rolling means, ratio encodings, and summary stats.
+
+    Only executed when ``status_*`` columns are present in ``df``.
+    """
+    status_cols = sorted([
+        c for c in df.columns
+        if c.startswith("status_")
+        and not c.endswith("_ratio")
+        and "_lag" not in c
+        and "_roll" not in c
+    ])
+    if not status_cols:
+        return df
+
+    g = df.groupby("route_id", sort=False)
+    df["status_sum"] = df[status_cols].sum(axis=1)
+    for col in status_cols:
+        df[f"{col}_ratio"] = df[col] / (df["status_sum"] + 1e-6)
+        df[f"{col}_lag1"] = g[col].shift(1)
+        df[f"{col}_lag2"] = g[col].shift(2)
+        df[f"{col}_roll_mean_8"] = g[col].transform(
+            lambda x: x.shift(1).rolling(8, min_periods=1).mean()
+        )
+    if len(status_cols) >= 2:
+        df["status_first"] = df[status_cols[0]]
+        df["status_last"] = df[status_cols[-1]]
+        df["status_last_ratio"] = df["status_last"] / (df["status_sum"] + 1e-6)
+    return df
+
+
+def _add_deconvolution_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add deconvolution features s_t0..s_t3 by summing alternating-sign lagged targets.
+
+    Each s_ti is a clipped running difference that approximates a discrete-time
+    deconvolution of the demand signal over 12 periods.
+    """
+    g = df.groupby("route_id", sort=False)
     n_deconv_pairs = 12
     extra_lag_cols: dict = {}
     deconv_cols: dict = {}
@@ -143,11 +152,10 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
                 extra_lag_cols[lag_add_name] = g[TARGET_COL].shift(lag_add)
             if lag_sub_name not in df.columns and lag_sub_name not in extra_lag_cols:
                 extra_lag_cols[lag_sub_name] = g[TARGET_COL].shift(lag_sub)
-            lag_add_series = df[lag_add_name] if lag_add_name in df.columns else extra_lag_cols[lag_add_name]
-            lag_sub_series = df[lag_sub_name] if lag_sub_name in df.columns else extra_lag_cols[lag_sub_name]
-            terms.append(lag_add_series)
-            terms.append(-lag_sub_series)
-
+            lag_add_s = df[lag_add_name] if lag_add_name in df.columns else extra_lag_cols[lag_add_name]
+            lag_sub_s = df[lag_sub_name] if lag_sub_name in df.columns else extra_lag_cols[lag_sub_name]
+            terms.append(lag_add_s)
+            terms.append(-lag_sub_s)
         s = terms[0]
         for t in terms[1:]:
             s = s + t
@@ -156,8 +164,11 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
     new_cols = {**extra_lag_cols, **deconv_cols}
     if new_cols:
         df = pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
+    return df
 
-    # Office-level agg
+
+def _add_office_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add office-level aggregated target statistics (mean, sum, std) via left merge."""
     office_agg = (
         df.groupby(["office_from_id", "timestamp"])[TARGET_COL]
         .agg(office_target_mean="mean", office_target_sum="sum", office_target_std="std")
@@ -165,52 +176,69 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
     )
     df = df.merge(office_agg, on=["office_from_id", "timestamp"], how="left")
     df["office_target_std"] = df["office_target_std"].fillna(0)
+    return df
 
+
+def _add_extended_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add route-level encoding, seasonal slot stats, office lags, and weekly lags.
+
+    Requires ``office_target_sum``, ``day_of_week``, and ``halfhour_slot`` columns
+    to already exist in ``df`` (added by earlier helpers).
+    """
+    g = df.groupby("route_id", sort=False)
+
+    route_stats = (
+        df.groupby("route_id")[TARGET_COL]
+        .agg(
+            route_target_mean="mean",
+            route_target_median="median",
+            route_target_std="std",
+            route_target_p75=lambda x: x.quantile(0.75),
+            route_target_p25=lambda x: x.quantile(0.25),
+        )
+        .reset_index()
+    )
+    df = df.merge(route_stats, on="route_id", how="left")
+    df["route_target_std"] = df["route_target_std"].fillna(0)
+    df["route_target_rel"] = df[TARGET_COL] / (df["route_target_mean"] + 1e-6)
+
+    office_g = df.sort_values("timestamp").groupby("office_from_id", sort=False)
+    df["office_target_lag1"] = office_g["office_target_sum"].shift(1)
+    df["office_target_lag48"] = office_g["office_target_sum"].shift(48)
+
+    seasonal_enc = (
+        df.groupby(["route_id", "day_of_week", "halfhour_slot"])[TARGET_COL]
+        .agg(route_slot_mean="mean", route_slot_median="median", route_slot_std="std")
+        .reset_index()
+    )
+    df = df.merge(seasonal_enc, on=["route_id", "day_of_week", "halfhour_slot"], how="left")
+    df["route_slot_std"] = df["route_slot_std"].fillna(0)
+    df["slot_ratio"] = df[TARGET_COL] / (df["route_slot_mean"] + 1e-6)
+
+    df["target_lag_672"] = g[TARGET_COL].shift(672)
+    weekly_lags = ["target_lag_336", "target_lag_672"]
+    existing_weekly = [c for c in weekly_lags if c in df.columns]
+    if existing_weekly:
+        df["target_weekly_avg"] = df[existing_weekly].mean(axis=1)
+    return df
+
+
+def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
+    """Replicate training feature engineering used in experiments.
+
+    Applies the full feature pipeline in order:
+    time features → lags/rolling → status → deconvolution → office agg → extended.
+    The ``extended`` flag enables longer lags, EMA-96, and route/seasonal encodings
+    used in the exp_best_features_full ensemble.
+    """
+    df = df.sort_values(["route_id", "timestamp"]).copy()
+    df = _add_time_features(df)
+    df = _add_lag_rolling_features(df, extended)
+    df = _add_status_features(df)
+    df = _add_deconvolution_features(df)
+    df = _add_office_features(df)
     if extended:
-        # Route-level target encoding
-        route_stats = (
-            df.groupby("route_id")[TARGET_COL]
-            .agg(
-                route_target_mean="mean",
-                route_target_median="median",
-                route_target_std="std",
-                route_target_p75=lambda x: x.quantile(0.75),
-                route_target_p25=lambda x: x.quantile(0.25),
-            )
-            .reset_index()
-        )
-        df = df.merge(route_stats, on="route_id", how="left")
-        df["route_target_std"] = df["route_target_std"].fillna(0)
-        df["route_target_rel"] = df[TARGET_COL] / (df["route_target_mean"] + 1e-6)
-
-        office_g = df.sort_values("timestamp").groupby("office_from_id", sort=False)
-        df["office_target_lag1"] = office_g["office_target_sum"].shift(1)
-        df["office_target_lag48"] = office_g["office_target_sum"].shift(48)
-
-        seasonal_enc = (
-            df.groupby(["route_id", "day_of_week", "halfhour_slot"])[TARGET_COL]
-            .agg(
-                route_slot_mean="mean",
-                route_slot_median="median",
-                route_slot_std="std",
-            )
-            .reset_index()
-        )
-        df = df.merge(
-            seasonal_enc,
-            on=["route_id", "day_of_week", "halfhour_slot"],
-            how="left",
-        )
-        df["route_slot_std"] = df["route_slot_std"].fillna(0)
-        df["slot_ratio"] = df[TARGET_COL] / (df["route_slot_mean"] + 1e-6)
-
-        df["target_lag_672"] = g[TARGET_COL].shift(672)
-
-        weekly_lags = ["target_lag_336", "target_lag_672"]
-        existing_weekly = [c for c in weekly_lags if c in df.columns]
-        if existing_weekly:
-            df["target_weekly_avg"] = df[existing_weekly].mean(axis=1)
-
+        df = _add_extended_features(df)
     return df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
 
 

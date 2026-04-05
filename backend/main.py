@@ -21,7 +21,7 @@ from routers import (
     warehouses_router,
     call_router,
 )
-from state import load_state
+from core.state import load_state
 
 
 @asynccontextmanager

@@ -1,13 +1,18 @@
+"""Single-route transport optimisation router.
+
+Handles POST /optimize: a lightweight wrapper around the full dispatch pipeline
+scoped to one route_id. Useful for per-route what-if analysis.
+"""
 import json
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
-from conformal import get_margin
-from ml_prediction import predict_lazy
-from optimizer_horizons import build_plan
+from core.conformal import get_margin
+from ml.prediction import predict_lazy
+from optimizer.horizons import build_plan
 from schemas.optimize import OptimizeRequest, OptimizeResponse, PlanRow
-from state import AppState, get_state
+from core.state import AppState, get_state
 
 router = APIRouter(tags=["optimize"])
 
@@ -21,6 +26,22 @@ def _apply_overrides(cfg: dict, req: OptimizeRequest) -> dict:
 
 @router.post("/optimize", response_model=OptimizeResponse)
 def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
+    """Optimise transport dispatch for a single route.
+
+    Convenience wrapper around the full dispatch pipeline scoped to one route.
+    Uses ``predict_lazy`` for on-demand ML forecasting and ``build_plan`` for
+    the MILP solution.
+
+    Args:
+        req: Optimization request with route_id, timestamp, and optional overrides.
+        state: Application state injected by FastAPI.
+
+    Returns:
+        ``OptimizeResponse`` with a per-horizon plan and the minimum coverage slack.
+
+    Raises:
+        HTTPException 404: route_id not found in training data.
+    """
     route_id = str(req.route_id)
     ts_str = req.timestamp.strftime("%Y-%m-%d %H:%M:%S")
 

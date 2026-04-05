@@ -1,9 +1,14 @@
+"""Transport call request builder router.
+
+Handles POST /call: formats a structured transport call payload from the most
+recent cached dispatch plan for a given route and warehouse.
+"""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from schemas.call import CallRequest, CallResponse, CallVehicle, CallPayload
-from state import AppState, get_state
+from core.state import AppState, get_state
 
 router = APIRouter(tags=["call"])
 

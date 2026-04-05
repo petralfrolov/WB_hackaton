@@ -1,10 +1,15 @@
+"""Warehouse information router.
+
+Handles GET /warehouses and GET /warehouses/{id}: returns warehouse metadata
+with current aggregated ready-to-ship quantities from route_distances config.
+"""
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ml_prediction import predict_lazy
+from ml.prediction import predict_lazy
 from schemas.warehouses import WarehouseInfo
-from state import AppState, get_state
+from core.state import AppState, get_state
 
 router = APIRouter(tags=["warehouses"])
 
@@ -20,6 +25,7 @@ def _warehouse_ready_to_ship(warehouse: dict, state: AppState) -> int:
 
 @router.get("/warehouses", response_model=List[WarehouseInfo])
 def list_warehouses(state: AppState = Depends(get_state)):
+    """Return all warehouses with their current ready-to-ship totals."""
     items = []
     for warehouse in state.warehouses:
         payload = {**warehouse, "ready_to_ship": _warehouse_ready_to_ship(warehouse, state)}
@@ -29,6 +35,11 @@ def list_warehouses(state: AppState = Depends(get_state)):
 
 @router.get("/warehouses/{warehouse_id}", response_model=WarehouseInfo)
 def get_warehouse(warehouse_id: str, state: AppState = Depends(get_state)):
+    """Return a single warehouse by ID with its ready-to-ship total.
+
+    Raises:
+        HTTPException 404: Warehouse not found.
+    """
     item = next((w for w in state.warehouses if w["id"] == warehouse_id), None)
     if item is None:
         raise HTTPException(status_code=404, detail="warehouse not found")

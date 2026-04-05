@@ -3,7 +3,7 @@ import numpy as np
 import joblib
 import pytest
 
-from ml_prediction import (
+from ml.prediction import (
     build_feature_cols,
     encode_id_categoricals,
     load_models,

@@ -49,10 +49,10 @@ def get_state() -> AppState:
 def load_state(
     train_path: Path = Path(DEFAULT_TRAIN_PATH),
     models_dir: Path = Path(DEFAULT_MODELS_DIR),
-    vehicles_path: Path = Path("vehicles.json"),
-    incoming_path: Path = Path("incoming_vehicles.json"),
-    warehouses_path: Path = Path("warehouse_metadata.json"),
-    route_distances_path: Path = Path("route_distances.json"),
+    vehicles_path: Path = Path("data/vehicles.json"),
+    incoming_path: Path = Path("data/incoming_vehicles.json"),
+    warehouses_path: Path = Path("data/warehouse_metadata.json"),
+    route_distances_path: Path = Path("data/route_distances.json"),
 ) -> AppState:
     global _state
 
