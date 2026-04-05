@@ -192,6 +192,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           confidenceLevel: typeof (cfg as any).confidence_level === 'number'
             ? (cfg as any).confidence_level
             : prev.confidenceLevel,
+          granularity: typeof (cfg as any).granularity === 'number'
+            ? (cfg as any).granularity
+            : prev.granularity,
         }))
       })
       .catch(() => {})
@@ -237,6 +240,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           timestamp: ts,
           incoming_vehicles: currentIncoming.length > 0 ? currentIncoming : undefined,
           confidence_level: riskSettings.confidenceLevel,
+          granularity: riskSettings.granularity,
         }).then(result => ({ warehouseId: w.id, result }))
       )
     )
@@ -279,6 +283,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       economy_threshold: settings.economyThreshold,
       max_wait_minutes: settings.maxWaitMinutes,
       confidence_level: settings.confidenceLevel,
+      granularity: settings.granularity,
     }).catch(() => {})
   }
 

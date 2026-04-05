@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge'
 import type { BadgeVariant } from '../ui/badge'
 import { ForecastChart } from './ForecastChart'
 import { SankeyChart } from './SankeyChart'
-import { fmt, makeSankey } from '../../lib/utils'
+import { fmt, makeSankey, horizonDisplayLabel, getFutureHorizonKeys } from '../../lib/utils'
 import { Button } from '../ui/button'
 import { useSimulationContext } from '../../context/SimulationContext'
 import { postDispatch } from '../../api'
@@ -57,7 +57,7 @@ function DispatchMetricsBar({
 
   const fillRate = routeM ? routeM.fill_rate : metrics.fill_rate
   const cpo = routeM ? routeM.cpo : metrics.cpo
-  const horizonLabels = ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
+  const horizonLabels = metrics.horizon_labels ?? ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
 
   return (
     <div className="rounded-lg bg-[#1A2040] border border-[#2A3560] p-3 space-y-3">
@@ -68,10 +68,10 @@ function DispatchMetricsBar({
           <div className={`text-xl font-bold ${PCoverColor(metrics.p_cover)}`}>
             {(metrics.p_cover * 100).toFixed(1)}%
           </div>
-          <div className="grid grid-cols-4 gap-1 mt-1">
+          <div className="grid grid-cols-4 gap-1 mt-1" style={{ gridTemplateColumns: `repeat(${horizonLabels.length}, minmax(0, 1fr))` }}>
             {metrics.p_cover_by_horizon.map((p, i) => (
               <div key={i} className="text-center">
-                <div className="text-[10px] text-[#8A9CC0]">{horizonLabels[i]}</div>
+                <div className="text-[10px] text-[#8A9CC0]">{horizonDisplayLabel(horizonLabels[i])}</div>
                 <div className={`text-xs font-semibold ${PCoverColor(p)}`}>
                   {i === 0 ? '—' : `${(p * 100).toFixed(0)}%`}
                 </div>
@@ -106,6 +106,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   // '' = aggregate (все маршруты), otherwise specific route id
   const [selectedRouteId, setSelectedRouteId] = useState('')
   const { vehicleTypes, analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings, warehouseStatuses, setWarehouseMetrics } = useSimulationContext()
+  const granularity = riskSettings.granularity
 
   // ── Forecast fetch on warehouse open ────────────────────────────────────
   // Dispatch fetch on warehouse open (LS-backed) ────────────────────────
@@ -143,6 +144,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
         confidence_level: riskSettings.confidenceLevel,
+        granularity: granularity,
       })
         .then(result => {
           lsSet(key, result)
@@ -189,55 +191,54 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   }, [selectedRouteId, selectedRoute, warehouse, warehouseRoutes.length])
 
   // Build chart data from dispatch results (same numbers as table above)
+  const futureHorizonKeys = useMemo(() => getFutureHorizonKeys(dispatchResult, granularity), [dispatchResult, granularity])
+
   const chartForecastData = useMemo<ForecastPoint[]>(() => {
+    if (!dispatchResult) return []
+
     const horizonKeys = [
       { key: 'ready', label: 'Сейчас' },
-      { key: 'B: +2h', label: '+2ч' },
-      { key: 'C: +4h', label: '+4ч' },
-      { key: 'D: +6h', label: '+6ч' },
+      ...futureHorizonKeys.map(k => ({ key: k, label: horizonDisplayLabel(k) })),
     ]
-    if (dispatchResult) {
-      return horizonKeys.map(({ key, label }) => {
-        let value = 0
-        let lower = 0
-        let upper = 0
-        if (key === 'ready') {
-          if (selectedRouteId) {
-            value = warehouseRoutes.find(r => r.id === selectedRouteId)?.readyToShip ?? 0
-          } else {
-            value = warehouseRoutes.reduce((s, r) => s + r.readyToShip, 0)
-          }
-          lower = value
-          upper = value
+
+    return horizonKeys.map(({ key, label }) => {
+      let value = 0
+      let lower = 0
+      let upper = 0
+      if (key === 'ready') {
+        if (selectedRouteId) {
+          value = warehouseRoutes.find(r => r.id === selectedRouteId)?.readyToShip ?? 0
         } else {
-          if (selectedRouteId) {
-            const rp = dispatchResult.routes.find(r => r.route_id === selectedRouteId)
-            const row = rp?.plan.find(p => p.horizon === key)
-            value = Math.round(row?.demand_new ?? 0)
-            lower = Math.round(row?.demand_lower ?? value)
-            upper = Math.round(row?.demand_upper ?? value)
-          } else {
-            for (const rp of dispatchResult.routes) {
-              const row = rp.plan.find(p => p.horizon === key)
-              value += Math.round(row?.demand_new ?? 0)
-              lower += Math.round(row?.demand_lower ?? 0)
-              upper += Math.round(row?.demand_upper ?? 0)
-            }
+          value = warehouseRoutes.reduce((s, r) => s + r.readyToShip, 0)
+        }
+        lower = value
+        upper = value
+      } else {
+        if (selectedRouteId) {
+          const rp = dispatchResult.routes.find(r => r.route_id === selectedRouteId)
+          const row = rp?.plan.find(p => p.horizon === key)
+          value = Math.round(row?.demand_new ?? 0)
+          lower = Math.round(row?.demand_lower ?? value)
+          upper = Math.round(row?.demand_upper ?? value)
+        } else {
+          for (const rp of dispatchResult.routes) {
+            const row = rp.plan.find(p => p.horizon === key)
+            value += Math.round(row?.demand_new ?? 0)
+            lower += Math.round(row?.demand_lower ?? 0)
+            upper += Math.round(row?.demand_upper ?? 0)
           }
         }
-        return { time: label, value, lower, upper }
-      })
-    }
-    // No dispatch data yet — return empty (chart shows loading state)
-    return []
-  }, [dispatchResult, selectedRouteId])
+      }
+      return { time: label, value, lower, upper }
+    })
+  }, [dispatchResult, selectedRouteId, futureHorizonKeys, granularity])
 
   if (!warehouse) return null
 
   // Build per-route forecast rows from dispatch result
   const routeForecastRows = warehouseRoutes.map(r => {
     const rp = dispatchResult?.routes.find(x => x.route_id === r.id)
-    const horizons = ['B: +2h', 'C: +4h', 'D: +6h'].map(hk => {
+    const horizons = futureHorizonKeys.map(hk => {
       const row = rp?.plan.find(p => p.horizon === hk)
       return row
         ? { demand: row.demand_new, vehicles: row.vehicles_count, leftover: row.leftover_stock }
@@ -299,14 +300,14 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                   <tr className="border-b border-border">
                     <th className="px-3 py-2 text-left section-label">Маршрут</th>
                     <th className="px-3 py-2 text-right section-label">К отгрузке</th>
-                    <th className="px-3 py-2 text-right section-label">+2ч</th>
-                    <th className="px-3 py-2 text-right section-label">+4ч</th>
-                    <th className="px-3 py-2 text-right section-label">+6ч</th>
+                    {futureHorizonKeys.map(hk => (
+                      <th key={hk} className="px-3 py-2 text-right section-label">{horizonDisplayLabel(hk)}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {routeForecastRows.length === 0 ? (
-                    <tr><td colSpan={5} className="px-3 py-4 text-center text-muted text-xs">Нет маршрутов</td></tr>
+                    <tr><td colSpan={2 + futureHorizonKeys.length} className="px-3 py-4 text-center text-muted text-xs">Нет маршрутов</td></tr>
                   ) : routeForecastRows.map(({ route, horizons }) => (
                     <tr
                       key={route.id}
@@ -333,13 +334,13 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                       <td className="px-3 py-2 text-right font-mono text-accent font-semibold">
                         {fmt(warehouseRoutes.reduce((s, r) => s + r.readyToShip, 0))}
                       </td>
-                      {[0, 1, 2].map(i => {
+                      {futureHorizonKeys.map((hk, i) => {
                         const total = routeForecastRows.reduce((s, { horizons }) => {
                           const h = horizons[i]
                           return s + (h?.demand ?? 0)
                         }, 0)
                         return (
-                          <td key={i} className="px-3 py-2 text-right font-mono">
+                          <td key={hk} className="px-3 py-2 text-right font-mono">
                             {dispatchResult
                               ? <span className="text-foreground font-semibold">{fmt(Math.round(total))}</span>
                               : <span className="text-muted">—</span>}

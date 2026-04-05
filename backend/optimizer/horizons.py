@@ -50,6 +50,33 @@ HORIZONS: List[tuple[str, int]] = [
 PERIOD_MINUTES = 120  # длительность одного горизонта, мин
 
 
+def make_horizons(granularity: float = 2.0) -> tuple:
+    """Build horizon list and period minutes for a given granularity.
+
+    Args:
+        granularity: Forecast granularity in hours (0.5, 1.0, or 2.0).
+
+    Returns:
+        Tuple of (horizons_list, period_minutes) where horizons_list is
+        [(label, offset_minutes), ...] including the initial "A: now" slot.
+    """
+    if granularity == 2.0:
+        return HORIZONS, 120
+    period = int(granularity * 60)
+    n_future = int(6.0 / granularity)
+    labels_abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    horizons = [("A: now", 0)]
+    for i in range(1, n_future + 1):
+        offset = i * period
+        h_val = offset / 60
+        if h_val == int(h_val):
+            label = f"{labels_abc[i]}: +{int(h_val)}h"
+        else:
+            label = f"{labels_abc[i]}: +{h_val}h"
+        horizons.append((label, offset))
+    return horizons, period
+
+
 def load_route_office_map(train_path: Path) -> Dict[str, str]:
     """Read the parquet file and return a mapping of route_id to office_from_id.
 
@@ -85,7 +112,11 @@ def _build_fleet_limits(
         if vtype not in v_names:
             raise ValueError(f"incoming_vehicles: unknown vehicle_type '{vtype}'")
         vi = v_names.index(vtype)
+        # Map original 4-horizon indices to current nT horizons
         if not (0 <= h < nT):
+            # Skip entries beyond current horizon count
+            if h >= nT:
+                continue
             raise ValueError(f"incoming_vehicles: horizon_idx {h} out of range [0, {nT-1}]")
         fleet[vi, h:] += cnt
 
@@ -289,6 +320,7 @@ def solve_irp_milp(
     route_distances: Optional[Dict[str, float]] = None,
     global_fleet: bool = True,
     incoming_vehicles: Optional[List[Dict]] = None,
+    granularity: float = 2.0,
 ) -> Dict:
     """Solve the IRP MILP jointly across all routes and planning horizons.
 
@@ -313,11 +345,12 @@ def solve_irp_milp(
     vehicles = vehicles_cfg.get("vehicles", vehicles_cfg)
     nV = len(vehicles)
     caps = np.array([v["capacity_units"] for v in vehicles], dtype=float)
-    nT = len(HORIZONS)
+    horizons_list, period_minutes = make_horizons(granularity)
+    nT = len(horizons_list)
     max_fleet = _build_fleet_limits(vehicles, incoming_vehicles, nT)
 
     penalty_by_v = [float(v["underload_penalty"]) for v in vehicles]
-    P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * PERIOD_MINUTES
+    P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * period_minutes
     economy_q = float(vehicles_cfg.get("economy_threshold", 0)) / 100.0
     economy_q = max(0.0, min(1.0, economy_q))
 
@@ -377,7 +410,7 @@ def _compute_effective_demands(
     if conformal_margins:
         return {
             rid: [
-                round(d + (conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[i] if i > 0 else 0.0))
+                round(d + (conformal_margins.get(rid, [0.0] * len(dlist))[i] if i > 0 else 0.0))
                 for i, d in enumerate(dlist)
             ]
             for rid, dlist in demands.items()
@@ -393,6 +426,7 @@ def _build_horizon_rows(
     conformal_margins: Optional[Dict[str, List[float]]],
     v_names: List[str],
     timestamp: str,
+    horizons_list: Optional[List[tuple]] = None,
 ) -> List[Dict]:
     """Build plan row dicts for all horizons of one route.
 
@@ -418,14 +452,16 @@ def _build_horizon_rows(
     nV = len(v_names)
 
     rows = []
-    for t_idx, (label, _) in enumerate(HORIZONS):
+    _horizons = horizons_list if horizons_list is not None else HORIZONS
+    for t_idx, (label, _) in enumerate(_horizons):
         y_rt  = float(Y[r_idx, t_idx])
         s_rt  = float(S[r_idx, t_idx])
         u_vec = [float(U[r_idx, vi, t_idx]) for vi in range(nV)]
         u_sum = sum(u_vec)
         d_rt  = float(D[r_idx, t_idx])
         d_point = round(float(demands[rid][t_idx])) if rid in demands else round(d_rt)
-        m = (conformal_margins.get(rid, [0.0, 0.0, 0.0, 0.0])[t_idx] if conformal_margins else 0.0)
+        margins_list = conformal_margins.get(rid, [0.0] * (t_idx + 1)) if conformal_margins else None
+        m = (margins_list[t_idx] if margins_list and t_idx < len(margins_list) else 0.0)
         d_lower = round(max(0.0, d_point - m))
         d_upper = round(d_point + m)
         s_prev = float(S[r_idx, t_idx - 1]) if t_idx > 0 else 0.0
@@ -491,6 +527,7 @@ def build_plan(
     global_fleet: bool = False,
     incoming_vehicles: Optional[List[Dict]] = None,
     conformal_margins: Optional[Dict[str, List[float]]] = None,
+    granularity: float = 2.0,
 ) -> pd.DataFrame:
     """Assemble a dispatch plan DataFrame from the MILP solution.
 
@@ -514,11 +551,13 @@ def build_plan(
     v_names = [v["vehicle_type"] for v in vehicles]
 
     demands_effective = _compute_effective_demands(demands, conformal_margins)
-    res = solve_irp_milp(demands_effective, vehicles_cfg, route_distances, global_fleet, incoming_vehicles)
+    res = solve_irp_milp(demands_effective, vehicles_cfg, route_distances, global_fleet, incoming_vehicles, granularity)
+
+    horizons_list, _ = make_horizons(granularity)
 
     rows = []
     for r_idx, rid in enumerate(res["route_ids"]):
-        rows.extend(_build_horizon_rows(r_idx, rid, res, demands, conformal_margins, v_names, timestamp))
+        rows.extend(_build_horizon_rows(r_idx, rid, res, demands, conformal_margins, v_names, timestamp, horizons_list))
 
     df = pd.DataFrame(rows)
     if office_id and not df.empty:

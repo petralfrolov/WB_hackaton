@@ -41,8 +41,16 @@ import pandas as pd
 
 NCS_DEFAULT_PATH = Path("data/non_conformity_scores.csv")
 NCS_NORM_PATH = Path("data/non_conformity_scores_norm.csv")
+NCS_ALLSTEPS_PATH = Path("data/non_conformity_scores_norm_allsteps.csv")
 
 HORIZONS = ("0-2h", "2-4h", "4-6h")
+
+# All 12 step horizons (step i covers [(i-4)*0.5, (i-4)*0.5+2] hours)
+ALLSTEP_HORIZONS = (
+    "-1.5-0.5h", "-1-1h", "-0.5-1.5h", "0-2h",
+    "0.5-2.5h", "1-3h", "1.5-3.5h", "2-4h",
+    "2.5-4.5h", "3-5h", "3.5-5.5h", "4-6h",
+)
 
 # Fallback calibration scores when a file is absent or a key is missing.
 # Medians intentionally grow with forecast horizon (realistically ~×1.7 each step).
@@ -217,3 +225,42 @@ def conformal_interval(pred: float, margin: float) -> Tuple[float, float]:
     lower = max(0.0, round(pred - margin, 2))
     upper = round(pred + margin, 2)
     return lower, upper
+
+
+def load_ncs_allsteps(path: Path = NCS_ALLSTEPS_PATH) -> Tuple[NcsData, bool]:
+    """Load per-step non-conformity scores from the allsteps CSV.
+
+    CSV format: route_id,horizon,step,score
+    Horizons are the 12 step labels (e.g. '-1.5-0.5h', '0-2h', '4-6h').
+    Indexed by (route_id, horizon) and ('__global__', horizon).
+    Always normalised.
+    """
+    is_normalized = True
+    if not path.exists():
+        return {}, is_normalized
+
+    try:
+        df = pd.read_csv(path, comment="#")
+        if "score" not in df.columns or "horizon" not in df.columns:
+            return {}, is_normalized
+
+        df = df.dropna(subset=["score"]).copy()
+        df["route_id"] = df["route_id"].astype(str)
+        df["horizon"] = df["horizon"].astype(str)
+        df["score"] = df["score"].astype(float)
+
+        ncs: NcsData = {}
+
+        for (rid, hor), grp in df.groupby(["route_id", "horizon"], sort=False):
+            ncs[(rid, hor)] = grp["score"].to_numpy(dtype=float)
+
+        for hor in ALLSTEP_HORIZONS:
+            sub = df[df["horizon"] == hor]["score"].to_numpy(dtype=float)
+            if len(sub) > 0:
+                ncs[("__global__", hor)] = sub
+
+        ncs[("__global__", "__all__")] = df["score"].to_numpy(dtype=float)
+        return ncs, is_normalized
+
+    except Exception:
+        return {}, is_normalized

@@ -52,5 +52,6 @@
   "wait_penalty_per_minute": 8.0,
   "economy_threshold": 0.0,
   "max_wait_minutes": 55,
-  "confidence_level": 0.9
+  "confidence_level": 0.9,
+  "granularity": 1.0
 }

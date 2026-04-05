@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -21,6 +21,7 @@ class WarehouseMetrics(BaseModel):
     fill_rate: float        # warehouse-level weighted fill rate (0–1)
     cpo: float              # warehouse-level cost per shipped unit, ₽
     route_metrics: List[RouteMetrics]
+    horizon_labels: Optional[List[str]] = None  # dynamic labels based on granularity
 
 
 class RoutePlan(BaseModel):
@@ -37,6 +38,7 @@ class DispatchRequest(BaseModel):
     wait_penalty_per_minute: Optional[float] = None
     global_fleet: bool = True
     confidence_level: Optional[float] = None  # override state confidence_level
+    granularity: Optional[Literal[0.5, 1.0, 2.0]] = None  # forecast granularity in hours
 
 
 class DispatchResponse(BaseModel):
@@ -46,3 +48,5 @@ class DispatchResponse(BaseModel):
     routes: List[RoutePlan]
     total_cost: float
     metrics: Optional[WarehouseMetrics] = None
+    granularity: float = 2.0  # echoed back to frontend
+    horizon_labels: Optional[List[str]] = None  # dynamic horizon labels

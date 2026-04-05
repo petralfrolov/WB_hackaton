@@ -32,7 +32,7 @@ import pandas as pd
 # -----------------------------
 TRACK = "team"
 TARGET_COL = "target_2h"
-FORECAST_POINTS = 10
+FORECAST_POINTS = 12
 FUTURE_TARGET_COLS = [f"target_step_{i}" for i in range(1, FORECAST_POINTS + 1)]
 
 DEFAULT_TRAIN_PATH = "data/train_team_track.parquet"
@@ -320,13 +320,13 @@ def predict_for_route_timestamp(
     route_id: str,
     timestamp: str,
 ) -> Dict[str, float]:
-    """Predict 0-2h / 2-4h / 4-6h for one route_id and timestamp.
+    """Predict all step horizons for one route_id and timestamp.
 
-    Horizon mapping (each step = 30 min, target_2h = 2-hour window value):
-      target_step_4  -> +2h boundary -> 0-2h window forecast
-      target_step_8  -> +4h boundary -> 2-4h window forecast
-      target_step_12 -> +6h boundary -> 4-6h window forecast (optional, requires
-                        models trained beyond step 10; set to None if absent)
+    Returns per-step ensemble-averaged predictions (pred_step_1 through
+    pred_step_12) plus backward-compatible named outputs:
+      pred_0_2h  = step_4  (0-2h window)
+      pred_2_4h  = step_8  (2-4h window)
+      pred_4_6h  = step_12 (4-6h window)
     """
     ts = pd.to_datetime(timestamp)
 
@@ -341,34 +341,39 @@ def predict_for_route_timestamp(
 
     row_df = encode_id_categoricals(row_df, feature_cols)
 
-    # Check whether step_12 models are present in the ensemble
-    has_step12 = all("target_step_12" in m for m in models)
+    # Discover step keys common to ALL ensemble members
+    step_keys = sorted(
+        {k for k in models[0] if k.startswith("target_step_")}
+        & set.intersection(*(set(m) for m in models))
+    )
 
-    p_step4: List[float] = []
-    p_step8: List[float] = []
-    p_step12: List[float] = []
-
+    # Predict every available step across all ensemble members
+    step_preds: Dict[str, List[float]] = {k: [] for k in step_keys}
     for m in models:
-        p_step4.append(float(np.clip(m["target_step_4"].predict(row_df)[0], 0.0, None)))
-        p_step8.append(float(np.clip(m["target_step_8"].predict(row_df)[0], 0.0, None)))
-        if has_step12:
-            p_step12.append(float(np.clip(m["target_step_12"].predict(row_df)[0], 0.0, None)))
+        for k in step_keys:
+            step_preds[k].append(float(np.clip(m[k].predict(row_df)[0], 0.0, None)))
 
     out: Dict[str, object] = {
         "route_id": str(route_id),
         "timestamp": str(ts),
         "n_models": len(models),
-        # step_4 = target_2h exactly 2h ahead (0-2h window)
-        "pred_0_2h": float(round(np.mean(p_step4))),
-        "pred_0_2h_std": float(np.std(p_step4)),
-        # step_8 = target_2h exactly 4h ahead (2-4h window)
-        "pred_2_4h": float(round(np.mean(p_step8))),
-        "pred_2_4h_std": float(np.std(p_step8)),
-        # step_12 = target_2h exactly 6h ahead (4-6h window); None until trained
-        "pred_4_6h": float(round(np.mean(p_step12))) if has_step12 else None,
-        "pred_4_6h_std": float(np.std(p_step12)) if has_step12 else None,
-        "pred_4_6h_available": has_step12,
     }
+
+    # Per-step ensemble averages
+    for k, vals in step_preds.items():
+        step_num = int(k.replace("target_step_", ""))
+        out[f"pred_step_{step_num}"] = float(round(np.mean(vals)))
+        out[f"pred_step_{step_num}_std"] = float(np.std(vals))
+
+    # Backward-compatible named outputs
+    has_step12 = "target_step_12" in step_keys
+    out["pred_0_2h"] = out.get("pred_step_4", 0.0)
+    out["pred_0_2h_std"] = out.get("pred_step_4_std", 0.0)
+    out["pred_2_4h"] = out.get("pred_step_8", 0.0)
+    out["pred_2_4h_std"] = out.get("pred_step_8_std", 0.0)
+    out["pred_4_6h"] = out.get("pred_step_12") if has_step12 else None
+    out["pred_4_6h_std"] = out.get("pred_step_12_std") if has_step12 else None
+    out["pred_4_6h_available"] = has_step12
     return out
 
 

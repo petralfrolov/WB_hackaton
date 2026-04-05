@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ApiPlanRow, RouteDistance, ApiRoutePlan, RiskSettings, VehicleType } from '../../types'
-import { fmtCurrency, fmt } from '../../lib/utils'
+import { fmtCurrency, fmt, horizonDisplayLabel } from '../../lib/utils'
 import { TrendingDown, ChevronDown, ChevronUp, Calculator, ShieldCheck } from 'lucide-react'
 
 interface CostBenefitCardProps {
@@ -34,17 +34,8 @@ interface PlanHorizonGroup {
   totalWait: number
 }
 
-const HORIZON_ORDER = ['A: now', 'B: +2h', 'C: +4h', 'D: +6h']
-
-const HORIZON_DISPLAY: Record<string, string> = {
-  'A: now': 'Сейчас',
-  'B: +2h': '+2ч',
-  'C: +4h': '+4ч',
-  'D: +6h': '+6ч',
-}
-
 function horizonLabel(h: string): string {
-  return HORIZON_DISPLAY[h] ?? h
+  return horizonDisplayLabel(h)
 }
 
 function FormulaBreakdown({
@@ -343,7 +334,11 @@ export function CostBenefitCard({ route, routePlan, vehicleTypes, riskSettings }
           totalWait: rows.reduce((s, r) => s + r.cost_wait, 0),
         }
       })
-      .sort((left, right) => HORIZON_ORDER.indexOf(left.horizon) - HORIZON_ORDER.indexOf(right.horizon))
+      .sort((left, right) => {
+        // Preserve the order horizons appear in the plan
+        const allHorizons = routePlan!.plan.map(r => r.horizon)
+        return allHorizons.indexOf(left.horizon) - allHorizons.indexOf(right.horizon)
+      })
   }, [route, routePlan, vehicleMap])
 
   if (!route) {

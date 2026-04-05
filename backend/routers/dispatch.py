@@ -3,19 +3,22 @@
 Handles POST /dispatch: resolves all routes for a warehouse, runs ML forecasts,
 applies conformal uncertainty margins with portfolio scaling, solves the joint
 IRP MILP, and returns per-route plans with aggregate coverage metrics.
+
+Supports granularity 0.5h / 1h / 2h via deconvolution of 2h-window ML predictions.
 """
 import copy
 import math
 from collections import defaultdict  # noqa: F401
 from typing import Dict, List
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from scipy.stats import norm as scipy_norm
 
 from core.conformal import get_margin
 from ml.prediction import predict_lazy
-from optimizer.horizons import build_plan
+from optimizer.horizons import build_plan, make_horizons
 from schemas.dispatch import DispatchRequest, DispatchResponse, RouteMetrics, RoutePlan, WarehouseMetrics
 from schemas.optimize import PlanRow
 from core.state import AppState, get_state
@@ -24,6 +27,195 @@ router = APIRouter(tags=["dispatch"])
 
 # Horizon labels in plan_df, matching build_plan output
 _HORIZON_LABELS = ["A: now", "B: +2h", "C: +4h", "D: +6h"]
+
+
+# ── Deconvolution helpers ─────────────────────────────────────────────────────
+
+# Each step model predicts target_2h — the TOTAL demand within a sliding 2-hour
+# window.  Step j predicts the window [(j-4)×0.5h, j×0.5h]:
+#
+#   step_1:  [-1.5h, +0.5h]    step_7:  [+1.5h, +3.5h]
+#   step_2:  [-1.0h, +1.0h]    step_8:  [+2.0h, +4.0h]  = pred_2_4h
+#   step_3:  [-0.5h, +1.5h]    step_9:  [+2.5h, +4.5h]
+#   step_4:  [ 0.0h, +2.0h]    step_10: [+3.0h, +5.0h]  = pred_0_2h
+#   step_5:  [+0.5h, +2.5h]    step_11: [+3.5h, +5.5h]
+#   step_6:  [+1.0h, +3.0h]    step_12: [+4.0h, +6.0h]  = pred_4_6h
+#
+# Crucially, step_4, step_8, step_12 correspond to NON-OVERLAPPING 2h blocks:
+#   step_4  = s_0 + s_1 + s_2 + s_3   (demand in [0h, 2h])
+#   step_8  = s_4 + s_5 + s_6 + s_7   (demand in [2h, 4h])
+#   step_12 = s_8 + s_9 + s_10 + s_11 (demand in [4h, 6h])
+#
+# where s_k is the demand in the half-hour slot [k×0.5h, (k+1)×0.5h].
+#
+# Deconvolution uses the recurrence from overlapping windows:
+#   W_{j+1} − W_j = s_j − s_{j−4}
+#   ⟹  s_k = (W_{k+1} − W_k) + s_{k−4}
+#
+# Initial seed: assume past half-hour demand is uniform within step_1's window,
+# giving c = W_1 / 4 for s_{−3}, s_{−2}, s_{−1}.
+#
+# After computing raw s_k values, we clip negatives and rescale within each 2h
+# block so that block sums exactly equal pred_0_2h, pred_2_4h, pred_4_6h.
+
+def _deconvolve_predictions(preds: Dict[str, float], granularity: float) -> List[float]:
+    """Deconvolve 2h-window ML predictions into finer granularity demand buckets.
+
+    Args:
+        preds: Dict with pred_0_2h, pred_2_4h, pred_4_6h, and optionally
+               pred_step_1..pred_step_12 for shape-aware deconvolution.
+        granularity: Target granularity in hours (0.5, 1.0, or 2.0).
+
+    Returns:
+        List of demand values for each future horizon bucket (excluding the
+        "now" bucket which uses ready_to_ship).  Sums over each 2h block
+        exactly match the corresponding 2h model prediction.
+    """
+    pred_0_2h = preds["pred_0_2h"]
+    pred_2_4h = preds["pred_2_4h"]
+    pred_4_6h = preds.get("pred_4_6h") or pred_2_4h
+
+    if granularity == 2.0:
+        return [pred_0_2h, pred_2_4h, pred_4_6h]
+
+    # ── Collect step window predictions W[0..11] (W[i] = step_{i+1}) ─────────
+    W = [None] * 12
+    for i in range(12):
+        key = f"pred_step_{i + 1}"
+        if key in preds and preds[key] is not None:
+            W[i] = max(0.0, float(preds[key]))
+
+    # Ensure anchors are consistent with named predictions
+    W[3] = pred_0_2h
+    W[7] = pred_2_4h
+    W[11] = pred_4_6h
+
+    # Fill any remaining gaps via linear interpolation from anchors
+    anchors = {3: pred_0_2h, 7: pred_2_4h, 11: pred_4_6h}
+    for i in range(12):
+        if W[i] is None:
+            W[i] = _interpolate_step(i, anchors)
+
+    # ── Recover half-hour demands s_0..s_11 via the recurrence ───────────────
+    # Seed: past slots s_{-3} = s_{-2} = s_{-1} = c, where c = W[0] / 4
+    c = W[0] / 4.0
+
+    # s_0 = W[0] - 3c  (from step_1 = s_{-3} + s_{-2} + s_{-1} + s_0)
+    s_raw = [0.0] * 12
+    s_raw[0] = W[0] - 3.0 * c   # = c
+
+    # For k >= 1:  s_k = (W[k] - W[k-1]) + s_{k-4}
+    past = [c, c, c]  # s_{-3}, s_{-2}, s_{-1}
+    for k in range(1, 12):
+        s_km4 = past[k - 4 + 3] if k < 4 else s_raw[k - 4]
+        s_raw[k] = (W[k] - W[k - 1]) + s_km4
+
+    # ── Clip & rescale within each 2h block to preserve exact sums ───────────
+    blocks = [(0, 4, pred_0_2h), (4, 8, pred_2_4h), (8, 12, pred_4_6h)]
+    s = [0.0] * 12
+    for start, end, block_total in blocks:
+        raw = [max(0.0, s_raw[i]) for i in range(start, end)]
+        raw_sum = sum(raw)
+        if raw_sum > 0 and block_total > 0:
+            scale = block_total / raw_sum
+            for j, idx in enumerate(range(start, end)):
+                s[idx] = raw[j] * scale
+        elif block_total > 0:
+            per_slot = block_total / 4.0
+            for idx in range(start, end):
+                s[idx] = per_slot
+        # else: block_total <= 0, leave as 0
+
+    if granularity == 0.5:
+        return [round(v) for v in s]
+
+    if granularity == 1.0:
+        # Sum pairs of adjacent 0.5h slots into 1h buckets
+        return [round(s[2 * k] + s[2 * k + 1]) for k in range(6)]
+
+    # Fallback
+    return [pred_0_2h, pred_2_4h, pred_4_6h]
+
+
+def _interpolate_step(idx: int, known: Dict[int, float]) -> float:
+    """Linearly interpolate a missing step value from known anchor points."""
+    below = [(k, v) for k, v in known.items() if k <= idx]
+    above = [(k, v) for k, v in known.items() if k >= idx]
+
+    if not below and not above:
+        return 0.0
+    if not below:
+        return above[0][1]
+    if not above:
+        return below[-1][1]
+
+    k_lo, v_lo = max(below, key=lambda x: x[0])
+    k_hi, v_hi = min(above, key=lambda x: x[0])
+
+    if k_lo == k_hi:
+        return v_lo
+
+    t = (idx - k_lo) / (k_hi - k_lo)
+    return v_lo + t * (v_hi - v_lo)
+
+
+# ── Conformal horizon labels for allsteps NCS ────────────────────────────────
+
+# Map granularity slots to the matching allstep horizon labels for NCS lookup.
+# allstep horizons: "-1.5-0.5h", "-1-1h", "-0.5-1.5h", "0-2h", "0.5-2.5h",
+#   "1-3h", "1.5-3.5h", "2-4h", "2.5-4.5h", "3-5h", "3.5-5.5h", "4-6h"
+# These correspond to steps 1..12 (0-indexed: 0..11).
+_ALLSTEP_HORIZON_LABELS = [
+    "-1.5-0.5h", "-1-1h", "-0.5-1.5h", "0-2h",
+    "0.5-2.5h", "1-3h", "1.5-3.5h", "2-4h",
+    "2.5-4.5h", "3-5h", "3.5-5.5h", "4-6h",
+]
+
+def _get_conformal_margin_for_slot(
+    ncs_allsteps: Dict,
+    ncs_scores: Dict,
+    route_id: str,
+    slot_idx: int,
+    granularity: float,
+    alpha: float,
+    pred: float,
+    normalized: bool,
+) -> float:
+    """Get conformal margin for a deconvolved demand slot.
+
+    For 2h granularity, uses the original 3-horizon NCS.
+    For finer granularity, uses the allsteps NCS keyed by step horizon label.
+    """
+    if granularity == 2.0:
+        horizon_map = {0: "0-2h", 1: "2-4h", 2: "4-6h"}
+        h = horizon_map.get(slot_idx, "0-2h")
+        return get_margin(ncs_scores, route_id, h, alpha, pred=pred, normalized=normalized)
+
+    # For fine-grained: map slot to the corresponding step's allstep NCS
+    if granularity == 0.5:
+        # slot k → the deconvolution uses steps (k+3) and (k+4), use the upper step's NCS
+        step_idx = min(slot_idx + 3, 11)
+    elif granularity == 1.0:
+        # slot k → uses steps around 2k+3, use that step's NCS
+        step_idx = min(2 * slot_idx + 3, 11)
+    else:
+        step_idx = 3  # fallback
+
+    h_label = _ALLSTEP_HORIZON_LABELS[step_idx]
+
+    # Try allsteps NCS first, fallback to original NCS
+    if ncs_allsteps:
+        margin = get_margin(ncs_allsteps, route_id, h_label, alpha, pred=pred, normalized=True)
+        if margin > 0:
+            return margin
+
+    # Fallback to nearest 2h horizon NCS
+    if step_idx <= 5:
+        return get_margin(ncs_scores, route_id, "0-2h", alpha, pred=pred, normalized=normalized)
+    elif step_idx <= 9:
+        return get_margin(ncs_scores, route_id, "2-4h", alpha, pred=pred, normalized=normalized)
+    else:
+        return get_margin(ncs_scores, route_id, "4-6h", alpha, pred=pred, normalized=normalized)
 
 
 def _apply_portfolio_scaling(
@@ -219,6 +411,7 @@ def _compute_warehouse_metrics(
     plan_df: pd.DataFrame,
     conformal_margins: Dict[str, List[float]],
     alpha: float,
+    horizon_labels: List[str] = None,
 ) -> WarehouseMetrics:
     """Compute p_cover, fill_rate and CPO from the solved plan.
 
@@ -254,6 +447,9 @@ def _compute_warehouse_metrics(
     """
     z_alpha = float(scipy_norm.ppf(alpha)) if 0.0 < alpha < 1.0 else 1.645
 
+    if horizon_labels is None:
+        horizon_labels = _HORIZON_LABELS
+
     (
         horizon_total_cap,
         horizon_total_demand,
@@ -262,10 +458,10 @@ def _compute_warehouse_metrics(
         total_capacity_sent,
         total_shipped,
         total_cost_all,
-    ) = _aggregate_route_buckets(plan_df, conformal_margins, _HORIZON_LABELS)
+    ) = _aggregate_route_buckets(plan_df, conformal_margins, horizon_labels)
 
     p_cover_by_horizon = _compute_p_cover_by_horizon(
-        horizon_total_cap, horizon_total_demand, horizon_total_margin, z_alpha, _HORIZON_LABELS
+        horizon_total_cap, horizon_total_demand, horizon_total_margin, z_alpha, horizon_labels
     )
 
     stochastic = p_cover_by_horizon[1:]
@@ -280,6 +476,7 @@ def _compute_warehouse_metrics(
         fill_rate=fill_rate,
         cpo=cpo,
         route_metrics=route_metrics_list,
+        horizon_labels=horizon_labels,
     )
 
 
@@ -329,6 +526,11 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
     )
 
     # ── 3. ML forecasts for all routes ───────────────────────────────────────
+    granularity = req.granularity if req.granularity is not None else state.granularity
+    horizons_list, _ = make_horizons(granularity)
+    dyn_horizon_labels = [h[0] for h in horizons_list]
+
+    raw_preds: Dict[str, Dict[str, float]] = {}
     demands: Dict[str, List[float]] = {}
     route_distances: Dict[str, float] = {}
     missing_routes: List[str] = []
@@ -346,14 +548,13 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
             timestamp=ts_str,
             office_routes=office_routes,
         )
+        raw_preds[rid] = preds
         route_cfg = route_meta.get(str(rid), {})
         ready_to_ship = float(route_cfg.get("ready_to_ship", 0))
-        demands[rid] = [
-            ready_to_ship,
-            preds["pred_0_2h"],
-            preds["pred_2_4h"],
-            preds["pred_4_6h"],
-        ]
+
+        # Deconvolve 2h predictions into finer-grained demand buckets
+        deconv = _deconvolve_predictions(preds, granularity)
+        demands[rid] = [ready_to_ship] + deconv
         route_distances[rid] = float(route_cfg.get("distance_km", 15.0))
 
     if not demands:
@@ -365,15 +566,20 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
     # ── 4. Joint MILP for all routes at once ─────────────────────────────────
     alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
     normalized = state.ncs_normalized
-    conformal_margins = {
-        rid: [
-            0.0,  # t0: init_stock is deterministic, no uncertainty
-            get_margin(state.ncs_scores, rid, "0-2h", alpha, pred=demands[rid][1], normalized=normalized),
-            get_margin(state.ncs_scores, rid, "2-4h", alpha, pred=demands[rid][2], normalized=normalized),
-            get_margin(state.ncs_scores, rid, "4-6h", alpha, pred=demands[rid][3], normalized=normalized),
-        ]
-        for rid in demands
-    }
+    n_future = len(demands[next(iter(demands))]) - 1  # exclude t0
+
+    conformal_margins: Dict[str, List[float]] = {}
+    for rid in demands:
+        margins = [0.0]  # t0 is deterministic
+        for slot_idx in range(n_future):
+            pred_val = demands[rid][slot_idx + 1]
+            m = _get_conformal_margin_for_slot(
+                state.ncs_allsteps, state.ncs_scores,
+                rid, slot_idx, granularity, alpha, pred=pred_val, normalized=normalized,
+            )
+            margins.append(m)
+        conformal_margins[rid] = margins
+
     # Portfolio scaling: reduce per-route margins so the *aggregate* buffer
     # achieves joint coverage alpha instead of inflating each route independently.
     conformal_margins = _apply_portfolio_scaling(
@@ -388,6 +594,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         global_fleet=req.global_fleet,
         incoming_vehicles=incoming,
         conformal_margins=conformal_margins,
+        granularity=granularity,
     )
 
     if plan_df.empty:
@@ -417,7 +624,9 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         timestamp=req.timestamp,
         routes=route_plans,
         total_cost=round(total_cost, 2),
-        metrics=_compute_warehouse_metrics(plan_df, conformal_margins, alpha),
+        metrics=_compute_warehouse_metrics(plan_df, conformal_margins, alpha, dyn_horizon_labels),
+        granularity=granularity,
+        horizon_labels=dyn_horizon_labels,
     )
 
     # cache last dispatch in state for /call reuse (timestamp + plan)

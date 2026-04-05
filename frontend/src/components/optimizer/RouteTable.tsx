@@ -1,6 +1,6 @@
 import { AlertTriangle, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { Warehouse, RouteDistance, ApiDispatchResponse, VehicleType, ApiIncomingVehicle } from '../../types'
+import { useEffect, useState, useMemo } from 'react'
+import type { Warehouse, RouteDistance, ApiDispatchResponse, VehicleType, ApiIncomingVehicle, Granularity } from '../../types'
 import {
   Table,
   TableHeader,
@@ -9,27 +9,26 @@ import {
   TableHead,
   TableCell,
 } from '../ui/table'
-import { fmt } from '../../lib/utils'
-
-const HORIZON_LABELS = ['Сейчас', '+2ч', '+4ч', '+6ч'] as const
+import { fmt, makeHorizonLabels, horizonDisplayLabel } from '../../lib/utils'
 
 function computeFleetByHorizon(
   vehicleTypes: VehicleType[],
   incomingVehicles: ApiIncomingVehicle[],
-): Array<{ type: string; h: [number, number, number, number] }> {
+  horizonCount: number,
+): Array<{ type: string; h: number[] }> {
   return vehicleTypes.map(vt => {
     const base = vt.available
-    const additions: [number, number, number, number] = [0, 0, 0, 0]
+    const additions = Array(horizonCount).fill(0) as number[]
     for (const iv of incomingVehicles) {
-      if (iv.vehicle_type === vt.id) {
-        for (let h = iv.horizon_idx; h < 4; h++) {
+      if (iv.vehicle_type === vt.id && iv.horizon_idx < horizonCount) {
+        for (let h = iv.horizon_idx; h < horizonCount; h++) {
           additions[h] += iv.count
         }
       }
     }
     return {
       type: vt.id,
-      h: [base + additions[0], base + additions[1], base + additions[2], base + additions[3]],
+      h: additions.map(a => base + a),
     }
   })
 }
@@ -48,8 +47,9 @@ interface RouteTableProps {
   onReadyDirtyChange?: (dirty: boolean) => void
   vehicleTypes?: VehicleType[]
   incomingVehicles?: ApiIncomingVehicle[]
-  onFleetChange?: (vehicleType: string, horizonIdx: 0 | 1 | 2 | 3, newCount: number) => Promise<void>
+  onFleetChange?: (vehicleType: string, horizonIdx: number, newCount: number) => Promise<void>
   analysisDateTime?: string
+  granularity?: Granularity
 }
 
 function forecastColor(demand: number, leftover: number | null, vehiclesCount: number | null): string {
@@ -60,27 +60,21 @@ function forecastColor(demand: number, leftover: number | null, vehiclesCount: n
   return 'text-foreground'                                           // fully covered
 }
 
+interface HorizonCell {
+  demand: number
+  lo: number
+  hi: number
+  leftover: number
+  vehicles: number
+}
+
 interface RouteRow {
   routeId: string
   fromCity: string
   toCity: string
   distanceKm: number
   readyToShip: number
-  h0: number | null
-  h1: number | null
-  h2: number | null
-  h0Lo: number | null
-  h1Lo: number | null
-  h2Lo: number | null
-  h0Hi: number | null
-  h1Hi: number | null
-  h2Hi: number | null
-  h0Leftover: number | null
-  h1Leftover: number | null
-  h2Leftover: number | null
-  h0Vehicles: number | null
-  h1Vehicles: number | null
-  h2Vehicles: number | null
+  horizons: (HorizonCell | null)[]  // one per future horizon
 }
 
 export function RouteTable({
@@ -99,6 +93,7 @@ export function RouteTable({
   incomingVehicles = [],
   onFleetChange,
   analysisDateTime = '',
+  granularity = 2,
 }: RouteTableProps) {
   const calledLsKey = (routeId: string) => `called_${routeId}__${analysisDateTime}`
   const [draftReady, setDraftReady] = useState<Record<string, string>>({})
@@ -129,62 +124,47 @@ export function RouteTable({
     setBulkCalled(warehouseRoutes.length > 0 && warehouseRoutes.every(r => calledFromLS[r.id]))
   }, [warehouseRoutes, analysisDateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build lookup: route_id → forecast + coverage by horizon
-  const forecastMap = new Map<string, { h0: number; h1: number; h2: number; h0Lo: number; h1Lo: number; h2Lo: number; h0Hi: number; h1Hi: number; h2Hi: number; h0l: number; h1l: number; h2l: number; h0v: number; h1v: number; h2v: number }>()
-  if (dispatchResult) {
-    for (const rp of dispatchResult.routes) {
-      const hB = rp.plan.find(r => r.horizon === 'B: +2h')
-      const hC = rp.plan.find(r => r.horizon === 'C: +4h')
-      const hD = rp.plan.find(r => r.horizon === 'D: +6h')
-      forecastMap.set(rp.route_id, {
-        h0: hB?.demand_new ?? 0,
-        h1: hC?.demand_new ?? 0,
-        h2: hD?.demand_new ?? 0,
-        h0Lo: hB?.demand_lower ?? 0,
-        h1Lo: hC?.demand_lower ?? 0,
-        h2Lo: hD?.demand_lower ?? 0,
-        h0Hi: hB?.demand_upper ?? 0,
-        h1Hi: hC?.demand_upper ?? 0,
-        h2Hi: hD?.demand_upper ?? 0,
-        h0l: hB?.leftover_stock ?? 0,
-        h1l: hC?.leftover_stock ?? 0,
-        h2l: hD?.leftover_stock ?? 0,
-        h0v: hB?.vehicles_count ?? 0,
-        h1v: hC?.vehicles_count ?? 0,
-        h2v: hD?.vehicles_count ?? 0,
-      })
-    }
-  }
+  // Derive horizon labels from dispatch response or granularity
+  const allHorizonLabels = useMemo(
+    () => dispatchResult?.horizon_labels ?? makeHorizonLabels(granularity as Granularity),
+    [dispatchResult, granularity],
+  )
+  // Future-only labels (skip the first "A: сейчас" / "A: now" label)
+  const futureLabels = useMemo(() => allHorizonLabels.slice(1), [allHorizonLabels])
 
-  const rows: RouteRow[] = warehouseRoutes.map(r => {
-    const fd = forecastMap.get(r.id)
-    return {
-      routeId: r.id,
-      fromCity: r.fromCity,
-      toCity: r.toCity,
-      distanceKm: r.distanceKm,
-      readyToShip: r.readyToShip,
-      h0: fd?.h0 ?? null,
-      h1: fd?.h1 ?? null,
-      h2: fd?.h2 ?? null,
-      h0Lo: fd?.h0Lo ?? null,
-      h1Lo: fd?.h1Lo ?? null,
-      h2Lo: fd?.h2Lo ?? null,
-      h0Hi: fd?.h0Hi ?? null,
-      h1Hi: fd?.h1Hi ?? null,
-      h2Hi: fd?.h2Hi ?? null,
-      h0Leftover: fd != null ? fd.h0l : null,
-      h1Leftover: fd != null ? fd.h1l : null,
-      h2Leftover: fd != null ? fd.h2l : null,
-      h0Vehicles: fd != null ? fd.h0v : null,
-      h1Vehicles: fd != null ? fd.h1v : null,
-      h2Vehicles: fd != null ? fd.h2v : null,
+  // Build lookup: route_id → horizon cells
+  const forecastMap = useMemo(() => {
+    const map = new Map<string, (HorizonCell | null)[]>()
+    if (!dispatchResult) return map
+    for (const rp of dispatchResult.routes) {
+      const cells: (HorizonCell | null)[] = futureLabels.map(label => {
+        const row = rp.plan.find(r => r.horizon === label)
+        if (!row) return null
+        return {
+          demand: row.demand_new,
+          lo: row.demand_lower,
+          hi: row.demand_upper,
+          leftover: row.leftover_stock,
+          vehicles: row.vehicles_count,
+        }
+      })
+      map.set(rp.route_id, cells)
     }
-  })
+    return map
+  }, [dispatchResult, futureLabels])
+
+  const rows: RouteRow[] = warehouseRoutes.map(r => ({
+    routeId: r.id,
+    fromCity: r.fromCity,
+    toCity: r.toCity,
+    distanceKm: r.distanceKm,
+    readyToShip: r.readyToShip,
+    horizons: forecastMap.get(r.id) ?? futureLabels.map(() => null),
+  }))
 
   const hasShortfall = dispatchResult !== null && dispatchResult.routes.some(r => r.coverage_min < -0.5)
 
-  const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles)
+  const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles, allHorizonLabels.length)
 
   const handleCall = async (routeId: string) => {
     const already = called[routeId]
@@ -285,16 +265,16 @@ export function RouteTable({
             <TableRow>
               <TableHead>Маршрут</TableHead>
               <TableHead className="text-right">Готово к отгрузке</TableHead>
-              <TableHead className="text-right">Прогноз на 2ч</TableHead>
-              <TableHead className="text-right">Прогноз 2–4ч</TableHead>
-              <TableHead className="text-right">Прогноз 4–6ч</TableHead>
+              {futureLabels.map(label => (
+                <TableHead key={label} className="text-right">{horizonDisplayLabel(label)}</TableHead>
+              ))}
               <TableHead className="text-right">Статус</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted py-10 text-sm">
+                <TableCell colSpan={3 + futureLabels.length} className="text-center text-muted py-10 text-sm">
                   Нет маршрутов для данного склада
                 </TableCell>
               </TableRow>
@@ -337,36 +317,18 @@ export function RouteTable({
                         className="w-24 h-8 rounded bg-elevated border border-border px-2 text-right text-sm text-status-green font-semibold focus:outline-none focus:border-accent"
                       />
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {row.h0 !== null
-                        ? <span className={forecastColor(row.h0, row.h0Leftover, row.h0Vehicles)} title={row.h0Lo !== null ? `ДИ: ${fmt(Math.round(row.h0Lo))} — ${fmt(Math.round(row.h0Hi ?? row.h0))}` : undefined}>
-                            {fmt(Math.round(row.h0))}
-                            {row.h0Hi !== null && row.h0Hi > row.h0
-                              ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(row.h0Hi - row.h0))}</span>
-                              : null}
-                          </span>
-                        : <span className="text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {row.h1 !== null
-                        ? <span className={forecastColor(row.h1, row.h1Leftover, row.h1Vehicles)} title={row.h1Lo !== null ? `ДИ: ${fmt(Math.round(row.h1Lo))} — ${fmt(Math.round(row.h1Hi ?? row.h1))}` : undefined}>
-                            {fmt(Math.round(row.h1))}
-                            {row.h1Hi !== null && row.h1Hi > row.h1
-                              ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(row.h1Hi - row.h1))}</span>
-                              : null}
-                          </span>
-                        : <span className="text-muted">—</span>}
-                    </TableCell>
-                <TableCell className="text-right font-mono">
-                  {row.h2 !== null
-                    ? <span className={forecastColor(row.h2, row.h2Leftover, row.h2Vehicles)} title={row.h2Lo !== null ? `ДИ: ${fmt(Math.round(row.h2Lo))} — ${fmt(Math.round(row.h2Hi ?? row.h2))}` : undefined}>
-                        {fmt(Math.round(row.h2))}
-                        {row.h2Hi !== null && row.h2Hi > row.h2
-                          ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(row.h2Hi - row.h2))}</span>
-                          : null}
-                      </span>
-                    : <span className="text-muted">—</span>}
-                </TableCell>
+                    {row.horizons.map((cell, i) => (
+                      <TableCell key={i} className="text-right font-mono">
+                        {cell !== null
+                          ? <span className={forecastColor(cell.demand, cell.leftover, cell.vehicles)} title={`ДИ: ${fmt(Math.round(cell.lo))} — ${fmt(Math.round(cell.hi))}`}>
+                              {fmt(Math.round(cell.demand))}
+                              {cell.hi > cell.demand
+                                ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(cell.hi - cell.demand))}</span>
+                                : null}
+                            </span>
+                          : <span className="text-muted">—</span>}
+                      </TableCell>
+                    ))}
                 <TableCell className="text-right">
                   <button
                     className={`px-3 py-1.5 text-xs rounded transition-colors ${
@@ -391,21 +353,13 @@ export function RouteTable({
                   <TableCell className="text-right font-mono text-status-green font-semibold">
                     {fmt(rows.reduce((s, r) => s + r.readyToShip, 0))}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {rows.some(r => r.h0 !== null)
-                      ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h0 ?? 0), 0)))}</span>
-                      : <span className="text-muted">—</span>}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {rows.some(r => r.h1 !== null)
-                      ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h1 ?? 0), 0)))}</span>
-                      : <span className="text-muted">—</span>}
-                  </TableCell>
-              <TableCell className="text-right font-mono">
-                {rows.some(r => r.h2 !== null)
-                  ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.h2 ?? 0), 0)))}</span>
-                  : <span className="text-muted">—</span>}
-              </TableCell>
+                  {futureLabels.map((_, i) => (
+                    <TableCell key={i} className="text-right font-mono">
+                      {rows.some(r => r.horizons[i] !== null)
+                        ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.horizons[i]?.demand ?? 0), 0)))}</span>
+                        : <span className="text-muted">—</span>}
+                    </TableCell>
+                  ))}
               <TableCell className="text-right">
                 {onCallAllRoutes && (
                   <button
@@ -455,8 +409,8 @@ export function RouteTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Тип ТС</TableHead>
-                {HORIZON_LABELS.map(label => (
-                  <TableHead key={label} className="text-right">{label}</TableHead>
+                {allHorizonLabels.map(label => (
+                  <TableHead key={label} className="text-right">{horizonDisplayLabel(label)}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -485,7 +439,7 @@ export function RouteTable({
                               if (next !== count) {
                                 setSavingFleet(prev => ({ ...prev, [k]: true }))
                                 try {
-                                  await onFleetChange(row.type, i as 0|1|2|3, next)
+                                  await onFleetChange(row.type, i, next)
                                 } finally {
                                   setSavingFleet(prev => ({ ...prev, [k]: false }))
                                 }

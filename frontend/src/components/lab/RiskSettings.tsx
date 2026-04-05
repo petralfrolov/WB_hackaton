@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
-import type { RiskSettings } from '../../types'
+import type { RiskSettings, Granularity } from '../../types'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Input } from '../ui/input'
 import { Check } from 'lucide-react'
 import { fmt } from '../../lib/utils'
+
+const GRANULARITY_OPTIONS: { value: Granularity; label: string; desc: string }[] = [
+  { value: 0.5, label: '0.5ч', desc: '12 горизонтов, макс. детализация' },
+  { value: 1, label: '1ч', desc: '6 горизонтов' },
+  { value: 2, label: '2ч', desc: '3 горизонта (по умолчанию)' },
+]
 
 interface RiskSettingsProps {
   settings: RiskSettings
@@ -135,6 +141,42 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
               ? 'ДИ отключён — оптимизатор использует точечный прогноз без запаса под неопределённость.'
               : 'Чем выше уверенность, тем шире диапазон прогноза и больше резерв транспорта.'
             }
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Granularity selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Гранулярность прогноза</CardTitle>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
+            Шаг: <strong>{local.granularity}ч</strong>
+          </span>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {GRANULARITY_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setSaved(false)
+                  setLocal(prev => ({ ...prev, granularity: opt.value }))
+                }}
+                className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  local.granularity === opt.value
+                    ? 'bg-accent/20 border-accent text-accent'
+                    : 'bg-elevated border-border text-muted hover:border-accent/50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted mt-2">
+            {GRANULARITY_OPTIONS.find(o => o.value === local.granularity)?.desc ?? ''}
+          </p>
+          <p className="text-[10px] text-muted mt-1">
+            Деконволюция разделяет 2-часовые прогнозы ML-моделей на более мелкие интервалы.
           </p>
         </CardContent>
       </Card>

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { ApiDispatchResponse } from '../types'
-import { cn, routeDistanceToApi } from '../lib/utils'
+import { cn, routeDistanceToApi, makeHorizonLabels, horizonDisplayLabel } from '../lib/utils'
 import { RouteTable } from '../components/optimizer/RouteTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
 import { useSimulationContext } from '../context/SimulationContext'
@@ -98,6 +98,7 @@ export function OptimizerPage() {
         warehouse_id: wid,
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
+        granularity: riskSettings.granularity,
       })
       lsSet(key, result)
       setDispatchResult(result)
@@ -108,7 +109,7 @@ export function OptimizerPage() {
     } finally {
       setDispatchLoading(false)
     }
-  }, [analysisDateTime, incomingVehicles, setWarehouseStatus])
+  }, [analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings.granularity])
 
   const runDispatchRef = useRef(runDispatch)
   useEffect(() => { runDispatchRef.current = runDispatch }, [runDispatch])
@@ -180,7 +181,7 @@ export function OptimizerPage() {
 
   const handleFleetChange = useCallback(async (
     vehicleType: string,
-    horizonIdx: 0 | 1 | 2 | 3,
+    horizonIdx: number,
     newCount: number,
   ) => {
     if (horizonIdx === 0) {
@@ -213,7 +214,7 @@ export function OptimizerPage() {
         iv => !(iv.vehicle_type === vehicleType && iv.horizon_idx === horizonIdx)
       )
       const newList = delta > 0
-        ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx as 0|1|2|3, count: delta }]
+        ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx, count: delta }]
         : filtered
       await putIncomingVehicles(newList)
       setIncomingVehicles(newList)
@@ -299,7 +300,7 @@ export function OptimizerPage() {
       {dispatchResult?.metrics && (() => {
         const m = dispatchResult.metrics
         const pColor = m.p_cover >= 0.9 ? 'text-green-400' : m.p_cover >= 0.7 ? 'text-yellow-400' : 'text-red-400'
-        const horizonLabels = ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
+        const horizonLabels = m.horizon_labels ?? makeHorizonLabels(riskSettings.granularity)
         return (
           <div className="px-4 py-2 border-b border-border bg-elevated flex items-center gap-6 text-xs shrink-0 flex-wrap">
             <div className="flex items-center gap-2">
@@ -307,7 +308,7 @@ export function OptimizerPage() {
               <span className={`font-bold text-sm ${pColor}`}>{(m.p_cover * 100).toFixed(1)}%</span>
               <span className="text-muted hidden sm:inline">
                 ({m.p_cover_by_horizon.map((p, i) => i === 0 ? null : (
-                  <span key={i}>{horizonLabels[i]}&nbsp;<span className={p >= 0.9 ? 'text-green-400' : p >= 0.7 ? 'text-yellow-400' : 'text-red-400'}>{(p*100).toFixed(0)}%</span>{i < 3 ? ' · ' : ''}</span>
+                  <span key={i}>{horizonDisplayLabel(horizonLabels[i])}&nbsp;<span className={p >= 0.9 ? 'text-green-400' : p >= 0.7 ? 'text-yellow-400' : 'text-red-400'}>{(p*100).toFixed(0)}%</span>{i < m.p_cover_by_horizon.length - 1 ? ' · ' : ''}</span>
                 ))})
               </span>
             </div>
@@ -388,6 +389,7 @@ export function OptimizerPage() {
                 onFleetChange={handleFleetChange}
                 onReadyDirtyChange={setReadyDirty}
                 analysisDateTime={analysisDateTime}
+                granularity={riskSettings.granularity}
               />
             )}
           </div>

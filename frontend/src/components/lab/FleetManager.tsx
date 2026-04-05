@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '../ui/table'
 import { Trash2, Plus, Clock, Pencil, Check, X } from 'lucide-react'
-import { cn, fmt } from '../../lib/utils'
+import { cn, fmt, makeHorizonLabels, horizonDisplayLabel } from '../../lib/utils'
 import {
   listVehicles,
   addVehicle,
@@ -27,8 +27,6 @@ import {
 interface FleetManagerProps {
   warehouses: Warehouse[]
 }
-
-const HORIZON_LABELS = ['Сейчас', '+2ч', '+4ч', '+6ч'] as const
 
 interface VehicleForm {
   vehicle_type: string
@@ -63,7 +61,8 @@ const EMPTY_INCOMING: IncomingForm = {
 }
 
 export function FleetManager({ warehouses }: FleetManagerProps) {
-  const { setIncomingVehicles } = useSimulationContext()
+  const { setIncomingVehicles, riskSettings } = useSimulationContext()
+  const horizonLabels = useMemo(() => makeHorizonLabels(riskSettings.granularity), [riskSettings.granularity])
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string>(warehouses[0]?.id ?? '')
 
@@ -200,10 +199,10 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
   const handleIncomingAdd = async () => {
     const horizon = parseInt(incomingForm.horizon_idx, 10)
     const count = parseInt(incomingForm.count, 10)
-    if (isNaN(horizon) || horizon < 0 || horizon > 3 || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
+    if (isNaN(horizon) || horizon < 0 || horizon >= horizonLabels.length || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
     try {
       await addIncoming({
-        horizon_idx: horizon as 0 | 1 | 2 | 3,
+        horizon_idx: horizon,
         vehicle_type: incomingForm.vehicle_type.trim(),
         count,
       })
@@ -219,10 +218,10 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
     if (incomingEditingIdx === null) return
     const horizon = parseInt(incomingForm.horizon_idx, 10)
     const count = parseInt(incomingForm.count, 10)
-    if (isNaN(horizon) || horizon < 0 || horizon > 3 || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
+    if (isNaN(horizon) || horizon < 0 || horizon >= horizonLabels.length || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
     try {
       await updateIncoming(incomingEditingIdx, {
-        horizon_idx: horizon as 0 | 1 | 2 | 3,
+        horizon_idx: horizon,
         vehicle_type: incomingForm.vehicle_type.trim(),
         count,
       })
@@ -525,8 +524,8 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                         onChange={e => setIncomingForm(f => ({ ...f, horizon_idx: e.target.value }))}
                         className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
                       >
-                        {HORIZON_LABELS.map((label, hi) => (
-                          <option key={hi} value={hi}>{label}</option>
+                        {horizonLabels.map((label, hi) => (
+                          <option key={hi} value={hi}>{horizonDisplayLabel(label)}</option>
                         ))}
                       </select>
                     </TableCell>
@@ -582,11 +581,23 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                             onChange={e => setIncomingForm(f => ({ ...f, horizon_idx: e.target.value }))}
                             className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
                           >
-                            {HORIZON_LABELS.map((label, hi) => (
-                              <option key={hi} value={hi}>{label}</option>
+                            {horizonLabels.map((label, hi) => (
+                              <option key={hi} value={hi}>{horizonDisplayLabel(label)}</option>
                             ))}
                           </select>
-                        ) : HORIZON_LABELS[row.horizon_idx] ?? row.horizon_idx}
+                        ) : (() => {
+                          const label = horizonLabels[row.horizon_idx]
+                          if (label) return horizonDisplayLabel(label)
+                          // horizon_idx is out of range for current granularity — show strikethrough + mapped
+                          const mappedIdx = Math.min(row.horizon_idx, horizonLabels.length - 1)
+                          const mappedLabel = horizonLabels[mappedIdx]
+                          return (
+                            <span>
+                              <span className="line-through text-muted/60 mr-1">#{row.horizon_idx}</span>
+                              <span className="text-status-yellow">{mappedLabel ? horizonDisplayLabel(mappedLabel) : `#${mappedIdx}`}</span>
+                            </span>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell className="text-right font-mono">
                         {isEdit ? (

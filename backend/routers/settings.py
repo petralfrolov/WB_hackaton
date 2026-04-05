@@ -22,7 +22,7 @@ _ROUTE_DISTANCES_PATH = Path("data/route_distances.json")
 @router.get("/config")
 def get_config(state: AppState = Depends(get_state)):
     """Return current vehicles configuration merged with the active confidence level."""
-    return {**state.vehicles_cfg, "confidence_level": state.confidence_level}
+    return {**state.vehicles_cfg, "confidence_level": state.confidence_level, "granularity": state.granularity}
 
 
 @router.post("/config")
@@ -57,6 +57,13 @@ def update_settings(s: Settings, state: AppState = Depends(get_state)):
         state.route_correlation = max(0.0, min(1.0, rho))
         state.vehicles_cfg["route_correlation"] = state.route_correlation
 
+    # granularity is stored separately in AppState
+    if "granularity" in payload:
+        g = float(payload.pop("granularity"))
+        if g in (0.5, 1.0, 2.0):
+            state.granularity = g
+            state.vehicles_cfg["granularity"] = state.granularity
+
     for key, val in payload.items():
         state.vehicles_cfg[key] = val
     _VEHICLES_PATH.write_text(
@@ -65,6 +72,7 @@ def update_settings(s: Settings, state: AppState = Depends(get_state)):
     changed = {k: state.vehicles_cfg[k] for k in s.model_dump(exclude_none=True) if k in state.vehicles_cfg}
     changed["confidence_level"] = state.confidence_level
     changed["route_correlation"] = state.route_correlation
+    changed["granularity"] = state.granularity
     return {"status": "ok", "settings": changed}
 
 

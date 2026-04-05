@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from core.conformal import NCS_DEFAULT_PATH, NCS_NORM_PATH, load_ncs
+from core.conformal import NCS_DEFAULT_PATH, NCS_NORM_PATH, load_ncs, load_ncs_allsteps
 from ml.prediction import (
     DEFAULT_MODELS_DIR,
     DEFAULT_TRAIN_PATH,
@@ -51,6 +51,8 @@ class AppState:
     route_correlation: float = 0.3        # assumed inter-route demand correlation ρ ∈ [0,1]
     ncs_scores: Any = field(default_factory=lambda: load_ncs()[0])  # non-conformity scores
     ncs_normalized: bool = False          # True when scores are relative |y-ŷ|/(ŷ+1)
+    ncs_allsteps: Any = field(default_factory=dict)  # per-step NCS from allsteps CSV
+    granularity: float = 2.0             # forecast granularity in hours: 0.5, 1.0, or 2.0
 
 
 _state: Optional[AppState] = None
@@ -139,6 +141,7 @@ def load_state(
     )
 
     ncs_scores, ncs_normalized = load_ncs(NCS_DEFAULT_PATH)
+    ncs_allsteps, _ = load_ncs_allsteps()
 
     _state = AppState(
         models=models,
@@ -152,6 +155,8 @@ def load_state(
         confidence_level=float(vehicles_cfg.get("confidence_level", 0.9)),
         ncs_scores=ncs_scores,
         ncs_normalized=ncs_normalized,
+        ncs_allsteps=ncs_allsteps,
+        granularity=float(vehicles_cfg.get("granularity", 2.0)),
     )
     _state.last_dispatch = None
     return _state

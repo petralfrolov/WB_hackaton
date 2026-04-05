@@ -4,6 +4,7 @@ import type {
   CostBreakdown,
   CostBreakdownVehicle,
   CostScenario,
+  Granularity,
   RiskSettings,
   SankeyData,
   ApiWarehouseInfo,
@@ -32,6 +33,50 @@ export function fmtCurrency(n: number) {
   }).format(n)
 }
 
+// ─── Granularity / horizon helpers ────────────────────────────────────────────
+
+/** Build the horizon labels that the backend generates for a given granularity. */
+export function makeHorizonLabels(granularity: Granularity): string[] {
+  if (granularity === 2) return ['A: now', 'B: +2h', 'C: +4h', 'D: +6h']
+  const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const period = granularity
+  const nFuture = Math.round(6 / period)
+  const labels = ['A: now']
+  for (let i = 1; i <= nFuture; i++) {
+    const h = i * period
+    const hStr = h === Math.floor(h) ? `${h}h` : `${h}h`
+    labels.push(`${abc[i]}: +${hStr}`)
+  }
+  return labels
+}
+
+/** Human-readable display labels for horizon labels. */
+export function horizonDisplayLabel(label: string): string {
+  if (label === 'A: now') return 'Сейчас'
+  // "B: +2h" → "+2ч", "C: +0.5h" → "+0.5ч"
+  const m = label.match(/\+(.+)h$/)
+  return m ? `+${m[1]}ч` : label
+}
+
+/** Get the future horizon keys (excluding "A: now") from dispatch result or granularity. */
+export function getFutureHorizonKeys(dispatchResult?: ApiDispatchResponse | null, granularity: Granularity = 2): string[] {
+  if (dispatchResult?.horizon_labels) {
+    return dispatchResult.horizon_labels.filter((l: string) => l !== 'A: now')
+  }
+  return makeHorizonLabels(granularity).filter(l => l !== 'A: now')
+}
+
+/** Map original 4-horizon incoming vehicle index to new horizon count. */
+export function mapIncomingHorizonIdx(
+  originalIdx: number,
+  fromGranularity: Granularity,
+  toGranularity: Granularity,
+): number {
+  // Convert original index to hours, then to new index
+  const hours = originalIdx * fromGranularity
+  return Math.round(hours / toGranularity)
+}
+
 // ─── Default risk settings ────────────────────────────────────────────────────
 
 export const defaultRiskSettings: RiskSettings = {
@@ -43,6 +88,7 @@ export const defaultRiskSettings: RiskSettings = {
   emptyPenaltyCompact: 12,
   emptyPenaltyMid: 12,
   emptyPenaltyLarge: 12,
+  granularity: 2,
 }
 
 // ─── Cost helpers ─────────────────────────────────────────────────────────────

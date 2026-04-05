@@ -99,6 +99,8 @@ export interface CostScenario {
   breakdown: CostBreakdown
 }
 
+export type Granularity = 0.5 | 1 | 2
+
 export interface RiskSettings {
   economyThreshold: number
   maxWaitMinutes: number
@@ -108,6 +110,7 @@ export interface RiskSettings {
   emptyPenaltyCompact?: number
   emptyPenaltyMid?: number
   emptyPenaltyLarge?: number
+  granularity: Granularity
 }
 
 // ── Backend API types (mirrors Pydantic schemas) ─────────────────────────────
@@ -152,9 +155,10 @@ export interface ApiVehicle {
 }
 
 export interface ApiIncomingVehicle {
-  horizon_idx: 0 | 1 | 2 | 3
+  horizon_idx: number
   vehicle_type: string
   count: number
+  original_horizon_idx?: number  // original index before granularity remap
 }
 
 export interface ApiIncomingVehicleList {
@@ -169,6 +173,7 @@ export interface ApiSettings {
   economy_threshold?: number
   max_wait_minutes?: number
   confidence_level?: number
+  granularity?: number
   underload_penalty_per_unit_by_cat?: {
     compact?: number
     mid?: number
@@ -212,6 +217,7 @@ export interface ApiDispatchRequest {
   underload_penalty_per_unit?: number
   global_fleet?: boolean
   confidence_level?: number
+  granularity?: number
 }
 
 export interface ApiRouteMetrics {
@@ -222,10 +228,11 @@ export interface ApiRouteMetrics {
 
 export interface ApiWarehouseMetrics {
   p_cover: number                  // 0–1, probability capacity suffices across all horizons
-  p_cover_by_horizon: number[]     // [A, B, C, D]
+  p_cover_by_horizon: number[]     // dynamic length based on granularity
   fill_rate: number                // 0–1
   cpo: number                      // ₽ per shipped unit
   route_metrics: ApiRouteMetrics[]
+  horizon_labels?: string[]        // dynamic labels from backend
 }
 
 export interface ApiDispatchResponse {
@@ -235,6 +242,8 @@ export interface ApiDispatchResponse {
   routes: ApiRoutePlan[]
   total_cost: number
   metrics?: ApiWarehouseMetrics
+  granularity?: number
+  horizon_labels?: string[]
 }
 
 export interface ApiCallRequest {
