@@ -412,6 +412,7 @@ def _compute_warehouse_metrics(
     conformal_margins: Dict[str, List[float]],
     alpha: float,
     horizon_labels: List[str] = None,
+    vehicles_cfg: Dict = None,
 ) -> WarehouseMetrics:
     """Compute p_cover, fill_rate and CPO from the solved plan.
 
@@ -450,6 +451,26 @@ def _compute_warehouse_metrics(
     if horizon_labels is None:
         horizon_labels = _HORIZON_LABELS
 
+    # Build vehicle capacity lookup from config
+    veh_cap: Dict[str, float] = {}
+    veh_avail: Dict[str, int] = {}
+    for v in (vehicles_cfg or {}).get("vehicles", []):
+        vt = v["vehicle_type"]
+        veh_cap[vt] = float(v.get("capacity_units", 0))
+        veh_avail[vt] = int(v.get("available", 0))
+
+    # Available fleet capacity = sum of (available_count × capacity) across all vehicle types
+    available_capacity_units = sum(
+        veh_avail.get(vt, 0) * cap for vt, cap in veh_cap.items()
+    )
+
+    # Required fleet capacity = sum of (vehicles_count × capacity) across all dispatched rows
+    dispatched_mask = (plan_df["vehicle_type"] != "none") & (plan_df["vehicles_count"] > 0)
+    required_capacity_units = 0.0
+    for _, row_ in plan_df[dispatched_mask].iterrows():
+        cap = veh_cap.get(str(row_["vehicle_type"]), 0.0)
+        required_capacity_units += float(row_["vehicles_count"]) * cap
+
     (
         horizon_total_cap,
         horizon_total_demand,
@@ -470,11 +491,21 @@ def _compute_warehouse_metrics(
     fill_rate = round(total_shipped / total_capacity_sent, 4) if total_capacity_sent > 0 else 0.0
     cpo = round(total_cost_all / total_shipped, 2) if total_shipped > 0 else 0.0
 
+    fleet_utilization_ratio = (
+        round(required_capacity_units / available_capacity_units, 4)
+        if available_capacity_units > 0 else None
+    )
+    fleet_capacity_shortfall = round(required_capacity_units - available_capacity_units, 1)
+
     return WarehouseMetrics(
         p_cover=p_cover,
         p_cover_by_horizon=p_cover_by_horizon,
         fill_rate=fill_rate,
         cpo=cpo,
+        fleet_utilization_ratio=fleet_utilization_ratio,
+        fleet_capacity_shortfall=fleet_capacity_shortfall,
+        required_capacity_units=round(required_capacity_units, 1),
+        available_capacity_units=round(available_capacity_units, 1),
         route_metrics=route_metrics_list,
         horizon_labels=horizon_labels,
     )
@@ -624,7 +655,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         timestamp=req.timestamp,
         routes=route_plans,
         total_cost=round(total_cost, 2),
-        metrics=_compute_warehouse_metrics(plan_df, conformal_margins, alpha, dyn_horizon_labels),
+        metrics=_compute_warehouse_metrics(plan_df, conformal_margins, alpha, dyn_horizon_labels, cfg),
         granularity=granularity,
         horizon_labels=dyn_horizon_labels,
     )

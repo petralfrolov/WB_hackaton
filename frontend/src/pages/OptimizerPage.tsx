@@ -312,14 +312,6 @@ export function OptimizerPage() {
                 ))})
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted">Fill Rate:</span>
-              <span className="font-semibold text-foreground">{(m.fill_rate * 100).toFixed(1)}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted">CPO:</span>
-              <span className="font-semibold text-foreground">{m.cpo.toFixed(0)} ₽/ед.</span>
-            </div>
           </div>
         )
       })()}
@@ -373,24 +365,90 @@ export function OptimizerPage() {
                 Выберите склад слева для просмотра маршрутов и прогноза
               </div>
             ) : (
-              <RouteTable
-                warehouse={selectedWarehouse}
-                warehouseRoutes={warehouseRoutes}
-                dispatchResult={dispatchResult}
-                loading={dispatchLoading}
-                error={dispatchError}
-                selectedRouteId={selectedRouteId}
-                onSelectRoute={setSelectedRouteId}
-                onChangeReadyToShip={handleUpdateRouteReadyToShip}
-                onCallRoute={handleCallRoute}
-                onCallAllRoutes={handleCallAllRoutes}
-                vehicleTypes={vehicleTypes}
-                incomingVehicles={incomingVehicles}
-                onFleetChange={handleFleetChange}
-                onReadyDirtyChange={setReadyDirty}
-                analysisDateTime={analysisDateTime}
-                granularity={riskSettings.granularity}
-              />
+              <div className="space-y-4">
+                {/* ── Бизнес-метрики ──────────────────────────────────────── */}
+                {dispatchResult?.metrics && (() => {
+                  const m = dispatchResult.metrics
+                  const pColor = m.p_cover >= 0.9 ? 'text-status-green' : m.p_cover >= 0.7 ? 'text-status-yellow' : 'text-status-red'
+                  const utilRatio = m.fleet_utilization_ratio
+                  const utilColor = utilRatio == null ? 'text-muted'
+                    : utilRatio <= 0.8 ? 'text-status-green'
+                    : utilRatio <= 1.0 ? 'text-status-yellow'
+                    : 'text-status-red'
+                  const shortfall = m.fleet_capacity_shortfall
+                  const shortColor = shortfall == null ? 'text-muted'
+                    : shortfall <= 0 ? 'text-status-green'
+                    : shortfall <= 50 ? 'text-status-yellow'
+                    : 'text-status-red'
+                  return (
+                    <div className="bg-surface border border-border rounded-lg px-4 py-3">
+                      <div className="section-label mb-3">Бизнес-метрики</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {/* P покрытия */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] text-muted leading-tight">Вероятность покрытия спроса</span>
+                          <span className={`text-xl font-bold font-mono ${pColor}`}>{(m.p_cover * 100).toFixed(1)}%</span>
+                          <span className="text-[10px] text-muted">P(флот ≥ спрос)</span>
+                        </div>
+                        {/* Fill Rate */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] text-muted leading-tight">Коэффициент загрузки ТС</span>
+                          <span className={`text-xl font-bold font-mono ${m.fill_rate >= 0.8 ? 'text-status-green' : m.fill_rate >= 0.5 ? 'text-status-yellow' : 'text-status-red'}`}>
+                            {(m.fill_rate * 100).toFixed(1)}%
+                          </span>
+                          <span className="text-[10px] text-muted">Отправлено / вместимость</span>
+                        </div>
+                        {/* CPO */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] text-muted leading-tight">Стоимость одной доставки</span>
+                          <span className="text-xl font-bold font-mono text-accent">{m.cpo.toFixed(0)} ₽</span>
+                          <span className="text-[10px] text-muted">Общие затраты / ед. отправлено</span>
+                        </div>
+                        {/* Fleet utilization ratio */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] text-muted leading-tight">Коэффициент утилизации флота</span>
+                          <span className={`text-xl font-bold font-mono ${utilColor}`}>
+                            {utilRatio != null ? utilRatio.toFixed(2) : '—'}
+                          </span>
+                          <span className="text-[10px] text-muted">
+                            {m.required_capacity_units != null && m.available_capacity_units != null
+                              ? `${Math.round(m.required_capacity_units)} / ${Math.round(m.available_capacity_units)} ед.`
+                              : 'Треб. / доступно'}
+                          </span>
+                        </div>
+                        {/* Capacity shortfall */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] text-muted leading-tight">Нехватка вместимости</span>
+                          <span className={`text-xl font-bold font-mono ${shortColor}`}>
+                            {shortfall != null
+                              ? (shortfall > 0 ? `+${Math.round(shortfall)}` : Math.round(shortfall).toString())
+                              : '—'} ед.
+                          </span>
+                          <span className="text-[10px] text-muted">Треб. − доступно</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+                <RouteTable
+                  warehouse={selectedWarehouse}
+                  warehouseRoutes={warehouseRoutes}
+                  dispatchResult={dispatchResult}
+                  loading={dispatchLoading}
+                  error={dispatchError}
+                  selectedRouteId={selectedRouteId}
+                  onSelectRoute={setSelectedRouteId}
+                  onChangeReadyToShip={handleUpdateRouteReadyToShip}
+                  onCallRoute={handleCallRoute}
+                  onCallAllRoutes={handleCallAllRoutes}
+                  vehicleTypes={vehicleTypes}
+                  incomingVehicles={incomingVehicles}
+                  onFleetChange={handleFleetChange}
+                  onReadyDirtyChange={setReadyDirty}
+                  analysisDateTime={analysisDateTime}
+                  granularity={riskSettings.granularity}
+                />
+              </div>
             )}
           </div>
 

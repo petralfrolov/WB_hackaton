@@ -22,6 +22,11 @@ class WarehouseMetrics(BaseModel):
     cpo: float              # warehouse-level cost per shipped unit, ₽
     route_metrics: List[RouteMetrics]
     horizon_labels: Optional[List[str]] = None  # dynamic labels based on granularity
+    # Fleet utilization metrics
+    fleet_utilization_ratio: Optional[float] = None   # required_capacity / available_capacity
+    fleet_capacity_shortfall: Optional[float] = None  # required_capacity - available_capacity (units)
+    required_capacity_units: Optional[float] = None   # total dispatched vehicle capacity (units)
+    available_capacity_units: Optional[float] = None  # total available fleet capacity (units)
 
 
 class RoutePlan(BaseModel):

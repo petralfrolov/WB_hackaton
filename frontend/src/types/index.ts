@@ -233,6 +233,10 @@ export interface ApiWarehouseMetrics {
   cpo: number                      // ₽ per shipped unit
   route_metrics: ApiRouteMetrics[]
   horizon_labels?: string[]        // dynamic labels from backend
+  fleet_utilization_ratio?: number   // required_capacity / available_capacity
+  fleet_capacity_shortfall?: number  // required_capacity - available_capacity (units)
+  required_capacity_units?: number   // total dispatched vehicle capacity (units)
+  available_capacity_units?: number  // total available fleet capacity (units)
 }
 
 export interface ApiDispatchResponse {
