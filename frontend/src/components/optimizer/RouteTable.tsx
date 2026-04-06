@@ -268,6 +268,7 @@ export function RouteTable({
               {futureLabels.map(label => (
                 <TableHead key={label} className="text-right">{horizonDisplayLabel(label)}</TableHead>
               ))}
+              <TableHead className="text-right">Итого</TableHead>
               <TableHead className="text-right">Статус</TableHead>
             </TableRow>
           </TableHeader>
@@ -329,6 +330,20 @@ export function RouteTable({
                           : <span className="text-muted">—</span>}
                       </TableCell>
                     ))}
+                    <TableCell className="text-right font-mono font-semibold text-foreground">
+                      {row.horizons.some(c => c !== null)
+                        ? (() => {
+                            const totalDemand = row.readyToShip + row.horizons.reduce((s, c) => s + (c?.demand ?? 0), 0)
+                            const ciHi = row.horizons.reduce((s, c) => s + ((c?.hi ?? c?.demand ?? 0) - (c?.demand ?? 0)), 0)
+                            return <>
+                              {fmt(Math.round(totalDemand))}
+                              {ciHi > 0.5
+                                ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(ciHi))}</span>
+                                : null}
+                            </>
+                          })()
+                        : <span className="text-muted">—</span>}
+                    </TableCell>
                 <TableCell className="text-right">
                   <button
                     className={`px-3 py-1.5 text-xs rounded transition-colors ${
@@ -356,10 +371,37 @@ export function RouteTable({
                   {futureLabels.map((_, i) => (
                     <TableCell key={i} className="text-right font-mono">
                       {rows.some(r => r.horizons[i] !== null)
-                        ? <span className="text-foreground font-semibold">{fmt(Math.round(rows.reduce((s, r) => s + (r.horizons[i]?.demand ?? 0), 0)))}</span>
+                        ? (() => {
+                            const sumDemand = rows.reduce((s, r) => s + (r.horizons[i]?.demand ?? 0), 0)
+                            const sumCi = rows.reduce((s, r) => {
+                              const c = r.horizons[i]
+                              return s + ((c?.hi ?? c?.demand ?? 0) - (c?.demand ?? 0))
+                            }, 0)
+                            return <span className="text-foreground font-semibold">
+                              {fmt(Math.round(sumDemand))}
+                              {sumCi > 0.5
+                                ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(sumCi))}</span>
+                                : null}
+                            </span>
+                          })()
                         : <span className="text-muted">—</span>}
                     </TableCell>
                   ))}
+                  <TableCell className="text-right font-mono font-bold text-accent">
+                    {rows.some(r => r.horizons.some(c => c !== null))
+                      ? (() => {
+                          const totalReady = rows.reduce((s, r) => s + r.readyToShip, 0)
+                          const totalDemand = totalReady + rows.reduce((s, r) => s + r.horizons.reduce((hs, c) => hs + (c?.demand ?? 0), 0), 0)
+                          const totalCi = rows.reduce((s, r) => s + r.horizons.reduce((hs, c) => hs + ((c?.hi ?? c?.demand ?? 0) - (c?.demand ?? 0)), 0), 0)
+                          return <>
+                            {fmt(Math.round(totalDemand))}
+                            {totalCi > 0.5
+                              ? <span className="text-[9px] text-muted/70 ml-0.5">±{fmt(Math.round(totalCi))}</span>
+                              : null}
+                          </>
+                        })()
+                      : <span className="text-muted">—</span>}
+                  </TableCell>
               <TableCell className="text-right">
                 {onCallAllRoutes && (
                   <button

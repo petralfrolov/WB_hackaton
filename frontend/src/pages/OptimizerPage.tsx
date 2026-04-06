@@ -4,6 +4,7 @@ import type { ApiDispatchResponse } from '../types'
 import { cn, routeDistanceToApi, makeHorizonLabels, horizonDisplayLabel } from '../lib/utils'
 import { RouteTable } from '../components/optimizer/RouteTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
+import { MetricDetailModal } from '../components/optimizer/MetricDetailModal'
 import { useSimulationContext } from '../context/SimulationContext'
 import { postDispatch, putRouteDistances, updateVehicle, getVehicles, putIncomingVehicles, callRoute } from '../api'
 import { apiVehicleToVehicleType } from '../lib/utils'
@@ -22,6 +23,7 @@ export function OptimizerPage() {
   const [sidebarWidth, setSidebarWidth] = useState(240)
   const [costPanelWidth, setCostPanelWidth] = useState(720)
   const [readyDirty, setReadyDirty] = useState(false)
+  const [metricDetail, setMetricDetail] = useState<'p_cover' | 'fill_rate' | 'cpo' | 'fleet_utilization' | 'capacity_shortfall' | null>(null)
 
   // ── Forecast cache: localStorage-backed, keyed by `wid__datetime` ────────
   const LS_PREFIX = 'dispatch_cache__'
@@ -159,10 +161,17 @@ export function OptimizerPage() {
     critical: 'bg-status-red',
   }
 
-  const filteredWarehouses = warehouses.filter(w =>
-    w.name.toLowerCase().includes(search.toLowerCase()) ||
-    w.city.toLowerCase().includes(search.toLowerCase()),
-  )
+  const STATUS_ORDER: Record<string, number> = { critical: 0, warning: 1, ok: 2, none: 3 }
+  const filteredWarehouses = warehouses
+    .filter(w =>
+      w.name.toLowerCase().includes(search.toLowerCase()) ||
+      w.city.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a, b) => {
+      const sa = STATUS_ORDER[warehouseStatuses[a.id] ?? 'none'] ?? 3
+      const sb = STATUS_ORDER[warehouseStatuses[b.id] ?? 'none'] ?? 3
+      return sa - sb
+    })
 
   const selectedRoute = warehouseRoutes.find(route => route.id === selectedRouteId) ?? null
   const selectedRoutePlan = dispatchResult?.routes.find(route => route.route_id === selectedRouteId) ?? null
@@ -296,25 +305,7 @@ export function OptimizerPage() {
         </button>
       </div>
 
-      {/* P_cover + metrics strip */}
-      {dispatchResult?.metrics && (() => {
-        const m = dispatchResult.metrics
-        const pColor = m.p_cover >= 0.9 ? 'text-green-400' : m.p_cover >= 0.7 ? 'text-yellow-400' : 'text-red-400'
-        const horizonLabels = m.horizon_labels ?? makeHorizonLabels(riskSettings.granularity)
-        return (
-          <div className="px-4 py-2 border-b border-border bg-elevated flex items-center gap-6 text-xs shrink-0 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-muted">P(хватит транспорта):</span>
-              <span className={`font-bold text-sm ${pColor}`}>{(m.p_cover * 100).toFixed(1)}%</span>
-              <span className="text-muted hidden sm:inline">
-                ({m.p_cover_by_horizon.map((p, i) => i === 0 ? null : (
-                  <span key={i}>{horizonDisplayLabel(horizonLabels[i])}&nbsp;<span className={p >= 0.9 ? 'text-green-400' : p >= 0.7 ? 'text-yellow-400' : 'text-red-400'}>{(p*100).toFixed(0)}%</span>{i < m.p_cover_by_horizon.length - 1 ? ' · ' : ''}</span>
-                ))})
-              </span>
-            </div>
-          </div>
-        )
-      })()}
+      {/* P_cover + metrics strip — removed; P-cover moved to Бизнес-метрики block below */}
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
@@ -367,8 +358,25 @@ export function OptimizerPage() {
             ) : (
               <div className="space-y-4">
                 {/* ── Бизнес-метрики ──────────────────────────────────────── */}
-                {dispatchResult?.metrics && (() => {
-                  const m = dispatchResult.metrics
+                {(dispatchResult?.metrics || dispatchLoading) && (() => {
+                  if (dispatchLoading && !dispatchResult?.metrics) {
+                    return (
+                      <div className="bg-surface border border-border rounded-lg px-4 py-3">
+                        <div className="section-label mb-3">Бизнес-метрики</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 animate-pulse">
+                          {[...Array(5)].map((_, i) => (
+                            <div key={i} className="flex flex-col gap-1.5">
+                              <div className="h-3 bg-elevated rounded w-3/4" />
+                              <div className="h-7 bg-elevated rounded w-1/2" />
+                              <div className="h-2.5 bg-elevated rounded w-2/3" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  }
+                  const m = dispatchResult!.metrics!
+                  const horizonLabels = m.horizon_labels ?? makeHorizonLabels(riskSettings.granularity)
                   const pColor = m.p_cover >= 0.9 ? 'text-status-green' : m.p_cover >= 0.7 ? 'text-status-yellow' : 'text-status-red'
                   const utilRatio = m.fleet_utilization_ratio
                   const utilColor = utilRatio == null ? 'text-muted'
@@ -381,17 +389,23 @@ export function OptimizerPage() {
                     : shortfall <= 50 ? 'text-status-yellow'
                     : 'text-status-red'
                   return (
-                    <div className="bg-surface border border-border rounded-lg px-4 py-3">
-                      <div className="section-label mb-3">Бизнес-метрики</div>
+                    <div className={`bg-surface border border-border rounded-lg px-4 py-3 transition-opacity ${dispatchLoading ? 'opacity-50' : ''}`}>
+                      <div className="section-label mb-3">Бизнес-метрики <span className="text-[10px] text-muted font-normal ml-1">(клик → детализация)</span></div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                         {/* P покрытия */}
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('p_cover')}>
                           <span className="text-[11px] text-muted leading-tight">Вероятность покрытия спроса</span>
                           <span className={`text-xl font-bold font-mono ${pColor}`}>{(m.p_cover * 100).toFixed(1)}%</span>
-                          <span className="text-[10px] text-muted">P(флот ≥ спрос)</span>
+                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                            {m.p_cover_by_horizon.map((p, i) => i === 0 ? null : (
+                              <span key={i} className="text-[10px] text-muted">
+                                {horizonDisplayLabel(horizonLabels[i])}&nbsp;<span className={p >= 0.9 ? 'text-status-green' : p >= 0.7 ? 'text-status-yellow' : 'text-status-red'}>{(p*100).toFixed(0)}%</span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
                         {/* Fill Rate */}
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('fill_rate')}>
                           <span className="text-[11px] text-muted leading-tight">Коэффициент загрузки ТС</span>
                           <span className={`text-xl font-bold font-mono ${m.fill_rate >= 0.8 ? 'text-status-green' : m.fill_rate >= 0.5 ? 'text-status-yellow' : 'text-status-red'}`}>
                             {(m.fill_rate * 100).toFixed(1)}%
@@ -399,13 +413,13 @@ export function OptimizerPage() {
                           <span className="text-[10px] text-muted">Отправлено / вместимость</span>
                         </div>
                         {/* CPO */}
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('cpo')}>
                           <span className="text-[11px] text-muted leading-tight">Стоимость одной доставки</span>
                           <span className="text-xl font-bold font-mono text-accent">{m.cpo.toFixed(0)} ₽</span>
                           <span className="text-[10px] text-muted">Общие затраты / ед. отправлено</span>
                         </div>
                         {/* Fleet utilization ratio */}
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('fleet_utilization')}>
                           <span className="text-[11px] text-muted leading-tight">Коэффициент утилизации флота</span>
                           <span className={`text-xl font-bold font-mono ${utilColor}`}>
                             {utilRatio != null ? utilRatio.toFixed(2) : '—'}
@@ -417,7 +431,7 @@ export function OptimizerPage() {
                           </span>
                         </div>
                         {/* Capacity shortfall */}
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('capacity_shortfall')}>
                           <span className="text-[11px] text-muted leading-tight">Нехватка вместимости</span>
                           <span className={`text-xl font-bold font-mono ${shortColor}`}>
                             {shortfall != null
@@ -427,6 +441,7 @@ export function OptimizerPage() {
                           <span className="text-[10px] text-muted">Треб. − доступно</span>
                         </div>
                       </div>
+                      <MetricDetailModal metricKey={metricDetail} metrics={m} onClose={() => setMetricDetail(null)} />
                     </div>
                   )
                 })()}

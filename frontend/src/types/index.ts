@@ -235,8 +235,18 @@ export interface ApiWarehouseMetrics {
   horizon_labels?: string[]        // dynamic labels from backend
   fleet_utilization_ratio?: number   // required_capacity / available_capacity
   fleet_capacity_shortfall?: number  // required_capacity - available_capacity (units)
-  required_capacity_units?: number   // total dispatched vehicle capacity (units)
+  required_capacity_units?: number   // total demand + conformal margin (units needed)
   available_capacity_units?: number  // total available fleet capacity (units)
+  dispatched_capacity_units?: number // what the MILP actually allocated (units)
+  total_demand_units?: number        // raw demand without margin (units)
+  total_conformal_margin?: number    // safety buffer from conformal prediction
+  // Metric detail breakdowns (for clickable drill-down)
+  p_cover_detail?: { horizon: string; capacity: number; demand: number; margin: number; p_cover: number }[]
+  fill_rate_detail?: { route_id: string; shipped: number; capacity_sent: number; fill_rate: number }[]
+  cpo_detail?: { route_id: string; cost: number; shipped: number; cpo: number }[]
+  fleet_detail?: { vehicle_type: string; available: number; available_at_6h: number; capacity_units: number; total_capacity: number }[]
+  dispatched_detail?: { vehicle_type: string; vehicles_count: number; capacity_units: number; total_capacity: number }[]
+  utilization_detail?: { horizon: string; demand: number; margin: number; demand_with_margin: number; dispatched_capacity: number }[]
 }
 
 export interface ApiDispatchResponse {

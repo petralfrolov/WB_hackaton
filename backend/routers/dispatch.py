@@ -413,6 +413,7 @@ def _compute_warehouse_metrics(
     alpha: float,
     horizon_labels: List[str] = None,
     vehicles_cfg: Dict = None,
+    incoming_vehicles: List[Dict] = None,
 ) -> WarehouseMetrics:
     """Compute p_cover, fill_rate and CPO from the solved plan.
 
@@ -459,17 +460,69 @@ def _compute_warehouse_metrics(
         veh_cap[vt] = float(v.get("capacity_units", 0))
         veh_avail[vt] = int(v.get("available", 0))
 
-    # Available fleet capacity = sum of (available_count × capacity) across all vehicle types
+    # Fleet at last horizon (+6h): base + all incoming that arrive within the window
+    last_horizon_idx = len(horizon_labels) - 1 if horizon_labels else 3
+    veh_avail_at_last: Dict[str, int] = dict(veh_avail)  # copy base counts
+    for iv in (incoming_vehicles or []):
+        iv_vt = str(iv.get("vehicle_type", ""))
+        iv_h = int(iv.get("horizon_idx", 0))
+        if iv_vt in veh_avail_at_last and iv_h <= last_horizon_idx:
+            veh_avail_at_last[iv_vt] = veh_avail_at_last.get(iv_vt, 0) + int(iv.get("count", 0))
+
+    # Available fleet capacity = fleet at last horizon × capacity per type
     available_capacity_units = sum(
-        veh_avail.get(vt, 0) * cap for vt, cap in veh_cap.items()
+        veh_avail_at_last.get(vt, 0) * cap for vt, cap in veh_cap.items()
     )
 
-    # Required fleet capacity = sum of (vehicles_count × capacity) across all dispatched rows
+    # Available fleet detail per vehicle type (show counts at +6h)
+    fleet_detail: List[Dict] = []
+    for v in (vehicles_cfg or {}).get("vehicles", []):
+        vt = v["vehicle_type"]
+        cap = float(v.get("capacity_units", 0))
+        avail_base = int(v.get("available", 0))
+        avail_6h = veh_avail_at_last.get(vt, avail_base)
+        fleet_detail.append({
+            "vehicle_type": vt,
+            "available": avail_base,
+            "available_at_6h": avail_6h,
+            "capacity_units": cap,
+            "total_capacity": round(avail_6h * cap, 1),
+        })
+
+    # Required capacity = total demand across all routes and horizons.
+    # plan_df has one row per (route_id, horizon, vehicle_type) — demand_new is the
+    # same for all vehicle-type rows at a given route×horizon, so we must deduplicate
+    # before summing to avoid counting demand once per vehicle type.
+    required_capacity_units = float(
+        plan_df.drop_duplicates(subset=["route_id", "horizon"])["demand_new"].sum()
+    )
+    # Add conformal safety buffer (stochastic demand margin)
+    total_conformal_margin = sum(
+        sum(margins[1:]) for margins in conformal_margins.values()
+    )
+    required_capacity_with_margin = required_capacity_units + total_conformal_margin
+
+    # Dispatched capacity = what the MILP actually allocated (may be < required)
     dispatched_mask = (plan_df["vehicle_type"] != "none") & (plan_df["vehicles_count"] > 0)
-    required_capacity_units = 0.0
+    dispatched_capacity_units = 0.0
+    dispatched_detail: List[Dict] = []
+    vtype_dispatch: Dict[str, Dict] = {}
     for _, row_ in plan_df[dispatched_mask].iterrows():
-        cap = veh_cap.get(str(row_["vehicle_type"]), 0.0)
-        required_capacity_units += float(row_["vehicles_count"]) * cap
+        vt = str(row_["vehicle_type"])
+        cap = veh_cap.get(vt, 0.0)
+        cnt = float(row_["vehicles_count"])
+        dispatched_capacity_units += cnt * cap
+        if vt not in vtype_dispatch:
+            vtype_dispatch[vt] = {"vehicle_type": vt, "vehicles_count": 0.0, "capacity_units": cap, "total_capacity": 0.0}
+        vtype_dispatch[vt]["vehicles_count"] += cnt
+        vtype_dispatch[vt]["total_capacity"] += cnt * cap
+    for vt, d in vtype_dispatch.items():
+        dispatched_detail.append({
+            "vehicle_type": d["vehicle_type"],
+            "vehicles_count": round(d["vehicles_count"], 1),
+            "capacity_units": d["capacity_units"],
+            "total_capacity": round(d["total_capacity"], 1),
+        })
 
     (
         horizon_total_cap,
@@ -492,10 +545,62 @@ def _compute_warehouse_metrics(
     cpo = round(total_cost_all / total_shipped, 2) if total_shipped > 0 else 0.0
 
     fleet_utilization_ratio = (
-        round(required_capacity_units / available_capacity_units, 4)
+        round(required_capacity_with_margin / available_capacity_units, 4)
         if available_capacity_units > 0 else None
     )
-    fleet_capacity_shortfall = round(required_capacity_units - available_capacity_units, 1)
+    fleet_capacity_shortfall = round(required_capacity_with_margin - available_capacity_units, 1)
+
+    # ── Build detail breakdowns for each metric ──────────────────────────────
+    # p_cover detail: per-horizon breakdown
+    p_cover_detail: List[Dict] = []
+    for i, hlabel in enumerate(horizon_labels):
+        p_cover_detail.append({
+            "horizon": hlabel,
+            "capacity": round(horizon_total_cap.get(hlabel, 0), 1),
+            "demand": round(horizon_total_demand.get(hlabel, 0), 1),
+            "margin": round(horizon_total_margin.get(hlabel, 0), 1),
+            "p_cover": p_cover_by_horizon[i] if i < len(p_cover_by_horizon) else 1.0,
+        })
+
+    # fill_rate detail: per-route
+    fill_rate_detail: List[Dict] = []
+    for rm in route_metrics_list:
+        sub = plan_df[plan_df["route_id"] == rm.route_id]
+        r_shipped = float(sub["actually_shipped"].sum()) if not sub.empty else 0.0
+        r_cap = r_shipped + float(sub["empty_capacity_units"].sum()) if not sub.empty else 0.0
+        fill_rate_detail.append({
+            "route_id": rm.route_id,
+            "shipped": round(r_shipped, 1),
+            "capacity_sent": round(r_cap, 1),
+            "fill_rate": rm.fill_rate,
+        })
+
+    # cpo detail: per-route
+    cpo_detail: List[Dict] = []
+    for rm in route_metrics_list:
+        sub = plan_df[plan_df["route_id"] == rm.route_id]
+        r_cost = float(sub["cost_total"].sum()) if not sub.empty else 0.0
+        r_shipped = float(sub["actually_shipped"].sum()) if not sub.empty else 0.0
+        cpo_detail.append({
+            "route_id": rm.route_id,
+            "cost": round(r_cost, 2),
+            "shipped": round(r_shipped, 1),
+            "cpo": rm.cpo,
+        })
+
+    # fleet utilization detail: demand vs available by horizon
+    util_detail: List[Dict] = []
+    for i, hlabel in enumerate(horizon_labels):
+        demand_h = horizon_total_demand.get(hlabel, 0)
+        margin_h = horizon_total_margin.get(hlabel, 0)
+        cap_h = horizon_total_cap.get(hlabel, 0)
+        util_detail.append({
+            "horizon": hlabel,
+            "demand": round(demand_h, 1),
+            "margin": round(margin_h, 1),
+            "demand_with_margin": round(demand_h + margin_h, 1),
+            "dispatched_capacity": round(cap_h, 1),
+        })
 
     return WarehouseMetrics(
         p_cover=p_cover,
@@ -504,10 +609,19 @@ def _compute_warehouse_metrics(
         cpo=cpo,
         fleet_utilization_ratio=fleet_utilization_ratio,
         fleet_capacity_shortfall=fleet_capacity_shortfall,
-        required_capacity_units=round(required_capacity_units, 1),
+        required_capacity_units=round(required_capacity_with_margin, 1),
         available_capacity_units=round(available_capacity_units, 1),
+        dispatched_capacity_units=round(dispatched_capacity_units, 1),
+        total_demand_units=round(required_capacity_units, 1),
+        total_conformal_margin=round(total_conformal_margin, 1),
         route_metrics=route_metrics_list,
         horizon_labels=horizon_labels,
+        p_cover_detail=p_cover_detail,
+        fill_rate_detail=fill_rate_detail,
+        cpo_detail=cpo_detail,
+        fleet_detail=fleet_detail,
+        dispatched_detail=dispatched_detail,
+        utilization_detail=util_detail,
     )
 
 
@@ -655,7 +769,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
         timestamp=req.timestamp,
         routes=route_plans,
         total_cost=round(total_cost, 2),
-        metrics=_compute_warehouse_metrics(plan_df, conformal_margins, alpha, dyn_horizon_labels, cfg),
+        metrics=_compute_warehouse_metrics(plan_df, conformal_margins, alpha, dyn_horizon_labels, cfg, incoming),
         granularity=granularity,
         horizon_labels=dyn_horizon_labels,
     )

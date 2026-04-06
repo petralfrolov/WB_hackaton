@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -25,8 +25,18 @@ class WarehouseMetrics(BaseModel):
     # Fleet utilization metrics
     fleet_utilization_ratio: Optional[float] = None   # required_capacity / available_capacity
     fleet_capacity_shortfall: Optional[float] = None  # required_capacity - available_capacity (units)
-    required_capacity_units: Optional[float] = None   # total dispatched vehicle capacity (units)
+    required_capacity_units: Optional[float] = None   # total demand + conformal margin (units needed)
     available_capacity_units: Optional[float] = None  # total available fleet capacity (units)
+    dispatched_capacity_units: Optional[float] = None  # what the MILP actually allocated (units)
+    total_demand_units: Optional[float] = None         # raw demand without margin (units)
+    total_conformal_margin: Optional[float] = None     # safety buffer from conformal prediction
+    # Metric detail breakdowns (for clickable drill-down)
+    p_cover_detail: Optional[List[Dict[str, Any]]] = None
+    fill_rate_detail: Optional[List[Dict[str, Any]]] = None
+    cpo_detail: Optional[List[Dict[str, Any]]] = None
+    fleet_detail: Optional[List[Dict[str, Any]]] = None          # available fleet per vehicle type
+    dispatched_detail: Optional[List[Dict[str, Any]]] = None     # dispatched per vehicle type
+    utilization_detail: Optional[List[Dict[str, Any]]] = None    # demand vs capacity per horizon
 
 
 class RoutePlan(BaseModel):

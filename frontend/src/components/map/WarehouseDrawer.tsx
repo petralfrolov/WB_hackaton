@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, ArrowRight, Loader2 } from 'lucide-react'
-import type { Warehouse, RouteDistance, ForecastPoint, ApiDispatchResponse, ApiWarehouseMetrics } from '../../types'
+import type { Warehouse, RouteDistance, ForecastPoint, ApiDispatchResponse } from '../../types'
 import { Badge } from '../ui/badge'
 import type { BadgeVariant } from '../ui/badge'
 import { ForecastChart } from './ForecastChart'
@@ -10,6 +10,7 @@ import { fmt, makeSankey, horizonDisplayLabel, getFutureHorizonKeys } from '../.
 import { Button } from '../ui/button'
 import { useSimulationContext } from '../../context/SimulationContext'
 import { postDispatch } from '../../api'
+import { MetricDetailModal } from '../optimizer/MetricDetailModal'
 
 // ── LS cache helpers (same key scheme as OptimizerPage) ──────────────────────
 const LS_PREFIX = 'dispatch_cache__'
@@ -38,68 +39,6 @@ const STATUS_BADGE: Record<Warehouse['status'], BadgeVariant> = {
   critical: 'critical',
 }
 
-function PCoverColor(p: number): string {
-  if (p >= 0.9) return 'text-green-400'
-  if (p >= 0.7) return 'text-yellow-400'
-  return 'text-red-400'
-}
-
-function DispatchMetricsBar({
-  metrics,
-  selectedRouteId,
-}: {
-  metrics: ApiWarehouseMetrics
-  selectedRouteId: string | null
-}) {
-  const routeM = selectedRouteId
-    ? metrics.route_metrics.find((r) => r.route_id === selectedRouteId)
-    : null
-
-  const fillRate = routeM ? routeM.fill_rate : metrics.fill_rate
-  const cpo = routeM ? routeM.cpo : metrics.cpo
-  const horizonLabels = metrics.horizon_labels ?? ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
-
-  return (
-    <div className="rounded-lg bg-[#1A2040] border border-[#2A3560] p-3 space-y-3">
-      {/* Warehouse-level P_cover — shown only when all routes selected */}
-      {!selectedRouteId && (
-        <div>
-          <div className="text-xs text-[#8A9CC0] mb-1">Вероятность достаточности транспорта</div>
-          <div className={`text-xl font-bold ${PCoverColor(metrics.p_cover)}`}>
-            {(metrics.p_cover * 100).toFixed(1)}%
-          </div>
-          <div className="grid grid-cols-4 gap-1 mt-1" style={{ gridTemplateColumns: `repeat(${horizonLabels.length}, minmax(0, 1fr))` }}>
-            {metrics.p_cover_by_horizon.map((p, i) => (
-              <div key={i} className="text-center">
-                <div className="text-[10px] text-[#8A9CC0]">{horizonDisplayLabel(horizonLabels[i])}</div>
-                <div className={`text-xs font-semibold ${PCoverColor(p)}`}>
-                  {i === 0 ? '—' : `${(p * 100).toFixed(0)}%`}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Fill Rate + CPO */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="text-xs text-[#8A9CC0] mb-0.5">Fill Rate</div>
-          <div className="text-base font-bold text-white">
-            {(fillRate * 100).toFixed(1)}%
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-[#8A9CC0] mb-0.5">CPO</div>
-          <div className="text-base font-bold text-white">
-            {cpo.toFixed(0)} ₽/ед.
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -112,6 +51,7 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   // Dispatch fetch on warehouse open (LS-backed) ────────────────────────
   const [dispatchResult, setDispatchResult] = useState<ApiDispatchResponse | null>(null)
   const [dispatchLoading, setDispatchLoading] = useState(false)
+  const [metricDetail, setMetricDetail] = useState<'p_cover' | 'fill_rate' | 'cpo' | 'fleet_utilization' | 'capacity_shortfall' | null>(null)
 
   function deriveWarehouseStatus(result: ApiDispatchResponse): 'ok' | 'warning' | 'critical' {
     let hasCritical = false, hasWarning = false
@@ -356,6 +296,94 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
             )}
           </section>
 
+          {/* ── Бизнес-метрики ───────────────────────────────────────────── */}
+          {(dispatchResult?.metrics || dispatchLoading) && (() => {
+            if (dispatchLoading && !dispatchResult?.metrics) {
+              return (
+                <section>
+                  <div className="section-label mb-2">Бизнес-метрики</div>
+                  <div className="bg-elevated rounded-lg px-4 py-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 animate-pulse">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="flex flex-col gap-1.5">
+                          <div className="h-3 bg-surface rounded w-3/4" />
+                          <div className="h-6 bg-surface rounded w-1/2" />
+                          <div className="h-2.5 bg-surface rounded w-2/3" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              )
+            }
+            const m = dispatchResult!.metrics!
+            const horizonLabels = m.horizon_labels ?? ['A: сейчас', 'B: +2ч', 'C: +4ч', 'D: +6ч']
+            const pColor = m.p_cover >= 0.9 ? 'text-status-green' : m.p_cover >= 0.7 ? 'text-status-yellow' : 'text-status-red'
+            const utilRatio = m.fleet_utilization_ratio
+            const utilColor = utilRatio == null ? 'text-[#8A9CC0]'
+              : utilRatio <= 0.8 ? 'text-status-green'
+              : utilRatio <= 1.0 ? 'text-status-yellow'
+              : 'text-status-red'
+            const shortfall = m.fleet_capacity_shortfall
+            const shortColor = shortfall == null ? 'text-[#8A9CC0]'
+              : shortfall <= 0 ? 'text-status-green'
+              : shortfall <= 50 ? 'text-status-yellow'
+              : 'text-status-red'
+            return (
+              <section>
+                <div className="section-label mb-2">Бизнес-метрики <span className="text-[10px] text-[#8A9CC0] font-normal ml-1">(клик → детали)</span></div>
+                <div className={`rounded-lg bg-[#1A2040] border border-[#2A3560] px-4 py-3 transition-opacity ${dispatchLoading ? 'opacity-50' : ''}`}>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('p_cover')}>
+                      <span className="text-[11px] text-[#8A9CC0] leading-tight">Вероятность покрытия</span>
+                      <span className={`text-lg font-bold font-mono ${pColor}`}>{(m.p_cover * 100).toFixed(1)}%</span>
+                      <div className="flex flex-wrap gap-x-2 gap-y-0">
+                        {m.p_cover_by_horizon.map((p, i) => i === 0 ? null : (
+                          <span key={i} className="text-[10px] text-[#8A9CC0]">
+                            {horizonDisplayLabel(horizonLabels[i])}&nbsp;<span className={p >= 0.9 ? 'text-status-green' : p >= 0.7 ? 'text-status-yellow' : 'text-status-red'}>{(p*100).toFixed(0)}%</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('fill_rate')}>
+                      <span className="text-[11px] text-[#8A9CC0] leading-tight">Загрузка ТС</span>
+                      <span className={`text-lg font-bold font-mono ${m.fill_rate >= 0.8 ? 'text-status-green' : m.fill_rate >= 0.5 ? 'text-status-yellow' : 'text-status-red'}`}>
+                        {(m.fill_rate * 100).toFixed(1)}%
+                      </span>
+                      <span className="text-[10px] text-[#8A9CC0]">Отправлено / вместимость</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('cpo')}>
+                      <span className="text-[11px] text-[#8A9CC0] leading-tight">Стоимость доставки</span>
+                      <span className="text-lg font-bold font-mono text-white">{m.cpo.toFixed(0)} ₽</span>
+                      <span className="text-[10px] text-[#8A9CC0]">За единицу отправлено</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('fleet_utilization')}>
+                      <span className="text-[11px] text-[#8A9CC0] leading-tight">Утилизация флота</span>
+                      <span className={`text-lg font-bold font-mono ${utilColor}`}>
+                        {utilRatio != null ? utilRatio.toFixed(2) : '—'}
+                      </span>
+                      <span className="text-[10px] text-[#8A9CC0]">
+                        {m.required_capacity_units != null && m.available_capacity_units != null
+                          ? `${Math.round(m.required_capacity_units)} / ${Math.round(m.available_capacity_units)} ед.`
+                          : 'Треб. / доступно'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 cursor-pointer hover:bg-white/5 rounded-lg p-1.5 -m-1.5 transition-colors" onClick={() => setMetricDetail('capacity_shortfall')}>
+                      <span className="text-[11px] text-[#8A9CC0] leading-tight">Нехватка вместимости</span>
+                      <span className={`text-lg font-bold font-mono ${shortColor}`}>
+                        {shortfall != null
+                          ? (shortfall > 0 ? `+${Math.round(shortfall)}` : Math.round(shortfall).toString())
+                          : '—'} ед.
+                      </span>
+                      <span className="text-[10px] text-[#8A9CC0]">Треб. − доступно</span>
+                    </div>
+                  </div>
+                </div>
+                <MetricDetailModal metricKey={metricDetail} metrics={m} onClose={() => setMetricDetail(null)} />
+              </section>
+            )
+          })()}
+
           {/* ── Детализация button ───────────────────────────────────────────── */}
           <div className="flex justify-end">
             <Button
@@ -391,13 +419,6 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
                 }
               </select>
 
-              {/* ── Metrics under selector ───────────────────────── */}
-              {dispatchResult?.metrics && (
-                <DispatchMetricsBar
-                  metrics={dispatchResult.metrics}
-                  selectedRouteId={selectedRouteId || null}
-                />
-              )}
             </div>
             <div className="section-label mb-2 flex items-center gap-2">
               Прогноз отгрузок — ближайшие 6 часов
