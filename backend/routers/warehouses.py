@@ -24,7 +24,7 @@ def _warehouse_ready_to_ship(warehouse: dict, state: AppState) -> int:
 
 
 @router.get("/warehouses", response_model=List[WarehouseInfo])
-def list_warehouses(state: AppState = Depends(get_state)):
+async def list_warehouses(state: AppState = Depends(get_state)):
     """Return all warehouses with their current ready-to-ship totals."""
     items = []
     for warehouse in state.warehouses:
@@ -34,7 +34,7 @@ def list_warehouses(state: AppState = Depends(get_state)):
 
 
 @router.get("/warehouses/{warehouse_id}", response_model=WarehouseInfo)
-def get_warehouse(warehouse_id: str, state: AppState = Depends(get_state)):
+async def get_warehouse(warehouse_id: str, state: AppState = Depends(get_state)):
     """Return a single warehouse by ID with its ready-to-ship total.
 
     Raises:

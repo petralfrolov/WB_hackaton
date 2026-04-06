@@ -284,7 +284,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       max_wait_minutes: settings.maxWaitMinutes,
       confidence_level: settings.confidenceLevel,
       granularity: settings.granularity,
-    }).catch(() => {})
+    }).catch((err: unknown) => { console.error('[patchSettings]', err) })
   }
 
   const value = useMemo(

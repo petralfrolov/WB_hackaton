@@ -14,7 +14,7 @@ router = APIRouter(tags=["call"])
 
 
 @router.post("/call", response_model=CallResponse)
-def call_transport(req: CallRequest, state: AppState = Depends(get_state)):
+async def call_transport(req: CallRequest, state: AppState = Depends(get_state)):
     """Формирует JSON вызова транспорта, используя уже готовый план из DispatchResponse.
 
     Ожидается, что фронт передаёт маршрут, который присутствует в последнем dispatch для склада.

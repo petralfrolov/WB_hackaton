@@ -374,8 +374,9 @@ def solve_irp_milp(
         integrality=integrality,
         bounds=Bounds(lb=lb, ub=ub),
         constraints=LinearConstraint(A_sp, lb=lb_c_arr, ub=ub_c_arr),
+        options={"time_limit": 30.0, "disp": False},
     )
-    if not result.success:
+    if not result.success and result.x is None:
         raise RuntimeError(f"MILP solver failed: {result.message}")
 
     X, Y, S, U = _extract_milp_solution(result.x, nR, nV, nT)

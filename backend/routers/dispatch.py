@@ -643,6 +643,7 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
 
     Raises:
         HTTPException 404: Warehouse not found.
+        HTTPException 409: Another dispatch is already running for this warehouse.
         HTTPException 422: No routes from this warehouse found in train data.
         HTTPException 500: MILP optimizer returned an empty plan.
     """
@@ -650,6 +651,20 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
     warehouse = next((w for w in state.warehouses if w["id"] == req.warehouse_id), None)
     if warehouse is None:
         raise HTTPException(status_code=404, detail="warehouse not found")
+
+    wh_lock = state.get_warehouse_lock(req.warehouse_id)
+    if not wh_lock.acquire(blocking=False):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Dispatch already in progress for warehouse {req.warehouse_id}. Please wait.",
+        )
+    try:
+        return _run_dispatch(req, state, warehouse)
+    finally:
+        wh_lock.release()
+
+
+def _run_dispatch(req: DispatchRequest, state: AppState, warehouse: dict) -> DispatchResponse:
 
     route_ids: List[str] = warehouse["route_ids"]
     office_from_id: str = warehouse["office_from_id"]
@@ -775,7 +790,9 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
     )
 
     # cache last dispatch in state for /call reuse (timestamp + plan)
-    state.last_dispatch = resp.model_dump()
-    state.last_dispatch["timestamp"] = ts_str
-    state.last_dispatch_by_warehouse[req.warehouse_id] = state.last_dispatch
+    dispatch_snapshot = resp.model_dump()
+    dispatch_snapshot["timestamp"] = ts_str
+    with state._dispatch_write_lock:
+        state.last_dispatch = dispatch_snapshot
+        state.last_dispatch_by_warehouse[req.warehouse_id] = dispatch_snapshot
     return resp

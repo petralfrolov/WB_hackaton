@@ -406,16 +406,30 @@ def prepare_feature_matrix_for_route(
     # Predicate pushdown: prune row-groups by route_id when dtype is compatible.
     # Some parquet builds store route_id as int64; passing string filters then crashes
     # inside pyarrow (e.g. ArrowNotImplementedError: string vs int64 compare).
-    try:
-        df = pd.read_parquet(
-            train_path,
-            filters=[
-                ("route_id", "in", routes_to_load),
-            ],
-        )
-    except Exception:
-        # Fallback path: read then normalize/filter in pandas (robust to mixed dtypes).
-        df = pd.read_parquet(train_path)
+    # Try int filter first (covers int64-stored parquet), then string, then full read.
+    int_routes = []
+    for r in routes_to_load:
+        try:
+            int_routes.append(int(r))
+        except (ValueError, TypeError):
+            pass
+
+    df = None
+    if int_routes:
+        try:
+            df = pd.read_parquet(train_path, filters=[("route_id", "in", int_routes)])
+            # Verify the filter actually returned rows (empty means wrong dtype)
+            if df.empty:
+                df = None
+        except Exception:
+            df = None
+
+    if df is None:
+        try:
+            df = pd.read_parquet(train_path, filters=[("route_id", "in", routes_to_load)])
+        except Exception:
+            # Last-resort fallback: full read. Slower but dtype-agnostic.
+            df = pd.read_parquet(train_path)
 
     # Normalize key columns before filtering.
     df["route_id"] = df["route_id"].astype(str)

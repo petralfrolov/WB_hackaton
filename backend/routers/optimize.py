@@ -8,8 +8,8 @@ import json
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
-from core.conformal import get_margin
 from ml.prediction import predict_lazy
+from routers.dispatch import _deconvolve_predictions, _get_conformal_margin_for_slot
 from optimizer.horizons import build_plan
 from schemas.optimize import OptimizeRequest, OptimizeResponse, PlanRow
 from core.state import AppState, get_state
@@ -60,18 +60,26 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
     route_meta = next((route for route in state.route_distances if str(route["id"]) == route_id), {})
     init_stock = float(route_meta.get("ready_to_ship", 0))
     route_distance = float(route_meta.get("distance_km", 15.0))
-    demands = {route_id: [round(init_stock), preds["pred_0_2h"], preds["pred_2_4h"], preds["pred_4_6h"]]}
+
+    # Use active granularity so demand vector matches what build_plan/MILP expects
+    granularity = state.granularity
+    deconv = _deconvolve_predictions(preds, granularity)
+    demands = {route_id: [init_stock] + deconv}
 
     alpha = req.confidence_level if req.confidence_level is not None else state.confidence_level
     normalized = state.ncs_normalized
+    n_future = len(deconv)
     conformal_margins = {
-        route_id: [
-            0.0,  # t0: init_stock is deterministic, no uncertainty
-            get_margin(state.ncs_scores, route_id, "0-2h", alpha, pred=preds["pred_0_2h"], normalized=normalized),
-            get_margin(state.ncs_scores, route_id, "2-4h", alpha, pred=preds["pred_2_4h"], normalized=normalized),
-            get_margin(state.ncs_scores, route_id, "4-6h", alpha, pred=preds["pred_4_6h"], normalized=normalized),
+        route_id: [0.0] + [
+            _get_conformal_margin_for_slot(
+                state.ncs_allsteps, state.ncs_scores,
+                route_id, slot_idx, granularity, alpha,
+                pred=float(deconv[slot_idx]), normalized=normalized,
+            )
+            for slot_idx in range(n_future)
         ]
     }
+
     plan_df = build_plan(
         timestamp=ts_str,
         demands=demands,
@@ -80,6 +88,7 @@ def optimize(req: OptimizeRequest, state: AppState = Depends(get_state)):
         route_distances={route_id: route_distance},
         incoming_vehicles=state.incoming_cfg,
         conformal_margins=conformal_margins,
+        granularity=granularity,
     )
     plan_df["timestamp"] = pd.to_datetime(plan_df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
 

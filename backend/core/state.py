@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -47,6 +50,9 @@ class AppState:
     warehouses: List[Dict] = field(default_factory=list)        # warehouse_metadata.json
     route_distances: List[Dict] = field(default_factory=list)   # route_distances.json
     last_dispatch_by_warehouse: Dict[str, Dict] = field(default_factory=dict)  # warehouse_id → last dispatch
+    last_dispatch: Optional[Dict] = None  # most-recent dispatch result (global, for /call)
+    _dispatch_write_lock: threading.Lock = field(default_factory=threading.Lock)  # guards last_dispatch writes
+    _warehouse_locks: Dict[str, threading.Lock] = field(default_factory=dict)  # per-warehouse dispatch locks
     confidence_level: float = 0.9       # conformal coverage level (0-1)
     route_correlation: float = 0.3        # assumed inter-route demand correlation ρ ∈ [0,1]
     ncs_scores: Any = field(default_factory=lambda: load_ncs()[0])  # non-conformity scores
@@ -54,8 +60,39 @@ class AppState:
     ncs_allsteps: Any = field(default_factory=dict)  # per-step NCS from allsteps CSV
     granularity: float = 2.0             # forecast granularity in hours: 0.5, 1.0, or 2.0
 
+    def get_warehouse_lock(self, warehouse_id: str) -> threading.Lock:
+        """Return (creating if needed) the per-warehouse dispatch lock."""
+        if warehouse_id not in self._warehouse_locks:
+            with self._dispatch_write_lock:
+                if warehouse_id not in self._warehouse_locks:
+                    self._warehouse_locks[warehouse_id] = threading.Lock()
+        return self._warehouse_locks[warehouse_id]
+
 
 _state: Optional[AppState] = None
+
+
+def atomic_write_json(path: Path, data: object) -> None:
+    """Write JSON atomically: write to a temp file then rename over the target.
+
+    Prevents partial/corrupt writes if the process is killed mid-write.
+    Args:
+        path: Destination file path.
+        data: JSON-serialisable object.
+    """
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    dir_ = path.parent
+    fd, tmp_path = tempfile.mkstemp(dir=dir_, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def get_state() -> AppState:
@@ -158,5 +195,4 @@ def load_state(
         ncs_allsteps=ncs_allsteps,
         granularity=float(vehicles_cfg.get("granularity", 2.0)),
     )
-    _state.last_dispatch = None
     return _state

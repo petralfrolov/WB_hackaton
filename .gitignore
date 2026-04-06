@@ -4,5 +4,8 @@ backend/__pycache__/
 backend/tests/__pycache__/
 backend/schemas/__pycache__/
 backend/routers/__pycache__/
+backend/core/__pycache__/
+backend/ml/__pycache__/
+backend/optimizer/__pycache__/
 backend/.venv/
 backend/models/
