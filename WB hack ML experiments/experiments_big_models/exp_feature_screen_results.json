@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-03-27T21:42:04",
+  "step": "target_step_1",
+  "results": [
+    {
+      "test": "fourier",
+      "n_features": 161,
+      "wape": 0.133485,
+      "delta": -8.8e-05,
+      "best_iter": 1499,
+      "time_s": 146.5
+    },
+    {
+      "test": "rolling_cv",
+      "n_features": 150,
+      "wape": 0.133489,
+      "delta": -8.4e-05,
+      "best_iter": 1496,
+      "time_s": 120.5
+    },
+    {
+      "test": "lag_ratios",
+      "n_features": 151,
+      "wape": 0.133546,
+      "delta": -2.7e-05,
+      "best_iter": 1500,
+      "time_s": 138.3
+    },
+    {
+      "test": "route_rank",
+      "n_features": 148,
+      "wape": 0.133569,
+      "delta": -4e-06,
+      "best_iter": 1500,
+      "time_s": 147.5
+    },
+    {
+      "test": "baseline",
+      "n_features": 147,
+      "wape": 0.133573,
+      "delta": 0.0,
+      "best_iter": 1500,
+      "time_s": 135.4
+    },
+    {
+      "test": "peak_indicator",
+      "n_features": 151,
+      "wape": 0.133577,
+      "delta": 3e-06,
+      "best_iter": 1500,
+      "time_s": 137.9
+    },
+    {
+      "test": "time_interact",
+      "n_features": 149,
+      "wape": 0.133605,
+      "delta": 3.2e-05,
+      "best_iter": 1500,
+      "time_s": 142.2
+    },
+    {
+      "test": "zero_share",
+      "n_features": 149,
+      "wape": 0.133633,
+      "delta": 6e-05,
+      "best_iter": 1500,
+      "time_s": 154.5
+    },
+    {
+      "test": "range_ratio",
+      "n_features": 149,
+      "wape": 0.133662,
+      "delta": 8.9e-05,
+      "best_iter": 1493,
+      "time_s": 136.1
+    },
+    {
+      "test": "weekly_diff",
+      "n_features": 149,
+      "wape": 0.13368,
+      "delta": 0.000107,
+      "best_iter": 1500,
+      "time_s": 136.6
+    },
+    {
+      "test": "recent_max_ratio",
+      "n_features": 149,
+      "wape": 0.133684,
+      "delta": 0.000111,
+      "best_iter": 1500,
+      "time_s": 135.7
+    },
+    {
+      "test": "office_route_ratio",
+      "n_features": 149,
+      "wape": 0.133706,
+      "delta": 0.000132,
+      "best_iter": 1500,
+      "time_s": 135.2
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-03-27T22:03:07",
+  "results": [
+    {
+      "test": "cv+lr",
+      "n_features": 154,
+      "wape": 0.133398,
+      "delta": -0.000175,
+      "time_s": 140.7
+    },
+    {
+      "test": "fourier+cv",
+      "n_features": 164,
+      "wape": 0.133478,
+      "delta": -9.5e-05,
+      "time_s": 147.8
+    },
+    {
+      "test": "fourier",
+      "n_features": 161,
+      "wape": 0.133485,
+      "delta": -8.8e-05,
+      "time_s": 145.7
+    },
+    {
+      "test": "rolling_cv",
+      "n_features": 150,
+      "wape": 0.133489,
+      "delta": -8.4e-05,
+      "time_s": 138.7
+    },
+    {
+      "test": "fourier+lr",
+      "n_features": 165,
+      "wape": 0.133524,
+      "delta": -4.9e-05,
+      "time_s": 148.7
+    },
+    {
+      "test": "lag_ratios",
+      "n_features": 151,
+      "wape": 0.133546,
+      "delta": -2.7e-05,
+      "time_s": 137.2
+    },
+    {
+      "test": "fourier+cv+lr",
+      "n_features": 168,
+      "wape": 0.133553,
+      "delta": -2e-05,
+      "time_s": 152.6
+    },
+    {
+      "test": "baseline",
+      "n_features": 147,
+      "wape": 0.133573,
+      "delta": 0.0,
+      "time_s": 133.0
+    }
+  ]
+}

@@ -1,0 +1,1510 @@
+[
+  {
+    "timestamp": "2026-03-29T09:08:20",
+    "name": "exp33_lgb_xgb_best_features",
+    "params": {
+      "lgb_seeds": [
+        42,
+        123,
+        456
+      ],
+      "xgb_seeds": [
+        42,
+        123
+      ],
+      "alphas": [
+        0.52,
+        0.55
+      ],
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step",
+      "models": "6LGB+4XGB"
+    },
+    "wape": 0.239877,
+    "rbias": 0.0,
+    "total": 0.239877,
+    "note": "LGB+XGB hybrid, 154 feats. Raw: WAPE=0.2374 RBias=0.0282 Total=0.2657; Calibrated: WAPE=0.2399 RBias=0.0000 Total=0.2399"
+  },
+  {
+    "timestamp": "2026-03-29T15:11:05",
+    "name": "exp34_lgb_xgb_extended",
+    "params": {
+      "lgb_seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "xgb_seeds": [
+        42,
+        123,
+        456
+      ],
+      "alphas": [
+        0.52,
+        0.55
+      ],
+      "n_models": 16,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step",
+      "models": "10LGB+6XGB"
+    },
+    "wape": 0.239799,
+    "rbias": 0.0,
+    "total": 0.239799,
+    "note": "LGB+XGB extended, 154 feats. Raw: WAPE=0.2373 RBias=0.0284 Total=0.2657; Calibrated: WAPE=0.2398 RBias=0.0000 Total=0.2398"
+  },
+  {
+    "timestamp": "2026-03-29T17:40:27",
+    "name": "exp35_lgb_more_leaves",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 255,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240516,
+    "rbias": 0.0,
+    "total": 0.240516,
+    "note": "LGB num_leaves=255, 10 seeds alpha=0.55. Raw=0.2583 -> Cal=0.2405"
+  },
+  {
+    "timestamp": "2026-03-29T20:03:13",
+    "name": "exp36_alpha_tuning",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "alphas": [
+        0.52,
+        0.53
+      ],
+      "num_leaves": 127,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240575,
+    "rbias": 0.0,
+    "total": 0.240575,
+    "note": "5x LGB a=0.52 + 5x LGB a=0.53. Raw=0.2748 (WAPE=0.2376 RBias=0.0371) -> Cal=0.2406. Cal factors: [1.0281, 1.032, 1.036, 1.038, 1.0398, 1.0415, 1.0423, 1.0425, 1.0428, 1.0432]"
+  },
+  {
+    "timestamp": "2026-03-29T23:22:43",
+    "name": "exp37_optimal_alpha",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.543,
+      "num_leaves": 127,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240549,
+    "rbias": 0.0,
+    "total": 0.240549,
+    "note": "Zero-RBias alpha=0.543. Raw: WAPE=0.2384 RBias=0.0243 Total=0.2628. Cal: WAPE=0.2405 RBias=0.0000 Total=0.2405. Factors: [1.0218, 1.0225, 1.0239, 1.0238, 1.0245, 1.0256, 1.0261, 1.0266, 1.0275, 1.0273]"
+  },
+  {
+    "timestamp": "2026-03-30T03:41:01",
+    "name": "exp38b_lgb_histgb",
+    "params": {
+      "lgb_seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7
+      ],
+      "hgb_seeds": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.543,
+      "num_leaves": 127,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240137,
+    "rbias": 0.0,
+    "total": 0.240137,
+    "note": "7 LGB (loaded from exp38) + 3 HistGB ordinal, alpha=0.543. Raw: WAPE=0.2383 RBias=0.0210. Cal: total=0.2401"
+  },
+  {
+    "timestamp": "2026-03-30T06:16:57",
+    "name": "exp39_leaves255_mixed_alpha",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "alphas": [
+        0.52,
+        0.55
+      ],
+      "num_leaves": 255,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240437,
+    "rbias": 0.0,
+    "total": 0.240437,
+    "note": "leaves=255, 5x a=0.52 + 5x a=0.55. Raw: WAPE=0.2380 RBias=0.0299. Cal: total=0.2404. Factors: [1.0238, 1.0268, 1.0293, 1.0295, 1.0313, 1.0323, 1.0337, 1.0339, 1.0338, 1.0341]"
+  },
+  {
+    "timestamp": "2026-03-30T08:56:44",
+    "name": "exp40_leaves511",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240607,
+    "rbias": 0.0,
+    "total": 0.240607,
+    "note": "LGB leaves=511 min_child=10, 10 seeds alpha=0.55. Raw: WAPE=0.2389 RBias=0.0203. Cal: total=0.2406. Factors: [1.018, 1.0188, 1.0193, 1.0193, 1.0204, 1.0217, 1.0223, 1.0223, 1.0225, 1.0229]"
+  },
+  {
+    "timestamp": "2026-03-30T17:57:34",
+    "name": "exp41_leaves1023",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 1023,
+      "min_child_samples": 5,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240852,
+    "rbias": 0.0,
+    "total": 0.240852,
+    "note": "LGB leaves=1023 min_child=5, 10 seeds alpha=0.55. Raw: WAPE=0.2392 RBias=0.0213. Cal: total=0.2409. Factors: [1.0162, 1.0175, 1.0193, 1.0212, 1.0226, 1.0233, 1.0241, 1.0244, 1.0244, 1.0248]"
+  },
+  {
+    "timestamp": "2026-03-31T04:22:38",
+    "name": "exp42_leaves511_slowlr",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "learning_rate": 0.03,
+      "n_estimators": 8000,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240567,
+    "rbias": 0.0,
+    "total": 0.240567,
+    "note": "LGB leaves=511 min_child=10 slowlr, 10 seeds alpha=0.55. Raw: WAPE=0.2389 RBias=0.0201. Cal: total=0.2406. Factors: [1.0171, 1.0186, 1.0186, 1.0191, 1.0206, 1.0216, 1.0221, 1.0219, 1.0223, 1.023]"
+  },
+  {
+    "timestamp": "2026-03-31T06:30:35",
+    "name": "exp43_leaves511_mixed_alpha",
+    "params": {
+      "seeds_052": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "seeds_055": [
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240515,
+    "rbias": 0.0,
+    "total": 0.240515,
+    "note": "LGB leaves=511 mixed alpha 0.52+0.55. Raw: WAPE=0.2381 RBias=0.0307. Cal: total=0.2405. Factors: [1.0233, 1.0264, 1.0292, 1.0305, 1.0325, 1.0337, 1.0351, 1.0353, 1.0349, 1.0355]"
+  },
+  {
+    "timestamp": "2026-03-31T10:37:44",
+    "name": "exp44_window35_leaves511",
+    "params": {
+      "train_days": 35,
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.245282,
+    "rbias": 0.0,
+    "total": 0.245282,
+    "note": "TRAIN_DAYS=35 (vs 21), LGB leaves=511 min_child=10 alpha=0.55. Raw: WAPE=0.2428 RBias=0.0259. Cal: total=0.2453. Factors: [1.0216, 1.0252, 1.027, 1.0273, 1.0277, 1.0275, 1.0273, 1.0272, 1.0275, 1.0279]"
+  },
+  {
+    "timestamp": "2026-03-31T13:06:41",
+    "name": "exp45_mixed_window",
+    "params": {
+      "seeds_21d": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "seeds_35d": [
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step from 21d val"
+    },
+    "wape": 0.240707,
+    "rbias": 0.0,
+    "total": 0.240708,
+    "note": "Mixed window: 5x21d + 5x35d, leaves=511 alpha=0.55. 21d val 5-model raw WAPE=0.2390 RBias=0.0201. Cal partial: 0.2407. Factors from 21d: [1.0179, 1.0188, 1.0191, 1.0193, 1.0202, 1.0218, 1.0219, 1.0215, 1.0224, 1.0222]"
+  },
+  {
+    "timestamp": "2026-03-31T16:39:29",
+    "name": "exp46_leaves511_minchild20",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 20,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240577,
+    "rbias": 0.0,
+    "total": 0.240577,
+    "note": "LGB leaves=511 min_child=20 alpha=0.55, 10 seeds. Raw: WAPE=0.2388 RBias=0.0203. Cal: total=0.2406. Cal factors: [1.0179, 1.019, 1.0193, 1.0194, 1.0206, 1.0216, 1.0222, 1.0224, 1.0224, 1.0227]"
+  },
+  {
+    "timestamp": "2026-04-01T02:44:20",
+    "name": "exp47_triple_window",
+    "params": {
+      "seeds_21d": [
+        42,
+        123,
+        456,
+        789
+      ],
+      "seeds_35d": [
+        1234,
+        2024,
+        7
+      ],
+      "seeds_49d": [
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step from 21d val"
+    },
+    "wape": 0.240852,
+    "rbias": 0.0,
+    "total": 0.240853,
+    "note": "Triple window 4x21d + 3x35d + 3x49d, leaves=511 alpha=0.55. 21d val raw: WAPE=0.2391 RBias=0.0201. 21d val cal: total=0.2409. Factors: [1.0178, 1.019, 1.0191, 1.0192, 1.0201, 1.022, 1.0216, 1.0218, 1.022, 1.0223]"
+  },
+  {
+    "timestamp": "2026-04-01T05:14:30",
+    "name": "exp48_mixed_window_alpha",
+    "params": {
+      "seeds_21d_a55": [
+        42,
+        123,
+        456,
+        789
+      ],
+      "seeds_35d_a55": [
+        1234,
+        2024,
+        7
+      ],
+      "seeds_21d_a52": [
+        314,
+        99,
+        888
+      ],
+      "alpha_groups": [
+        0.55,
+        0.55,
+        0.52
+      ],
+      "windows": [
+        21,
+        35,
+        21
+      ],
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step from 21d/a55 val"
+    },
+    "wape": 0.240852,
+    "rbias": 0.0,
+    "total": 0.240852,
+    "note": "Mixed window+alpha: 4x21d/a55 + 3x35d/a55 + 3x21d/a52, leaves=511. 21d/a55 4-model raw val: 0.2592. Cal total: 0.2409. Factors: [1.0178, 1.019, 1.0191, 1.0192, 1.0201, 1.022, 1.0216, 1.0218, 1.022, 1.0223]"
+  },
+  {
+    "timestamp": "2026-04-01T09:04:46",
+    "name": "exp49_proper_multiwindow",
+    "params": {
+      "seeds_21d": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "seeds_42d": [
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "windows": [
+        21,
+        42
+      ],
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step from 21d val",
+      "note_fix": "uses split_data(train_days=N) - TRUE window diversity"
+    },
+    "wape": 0.240707,
+    "rbias": 0.0,
+    "total": 0.240707,
+    "note": "PROPER multi-window: 5x21d + 5x42d, leaves=511 alpha=0.55. 21d 5-model raw: 0.2591. Cal total: 0.2407. Factors: [1.0179, 1.0188, 1.0191, 1.0193, 1.0202, 1.0218, 1.0219, 1.0215, 1.0224, 1.0222]"
+  },
+  {
+    "timestamp": "2026-04-01T17:44:44",
+    "name": "exp50_skewed_window",
+    "params": {
+      "seeds_21d": [
+        42,
+        123,
+        456
+      ],
+      "seeds_42d": [
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step from 21d val"
+    },
+    "wape": 0.24098,
+    "rbias": 0.0,
+    "total": 0.24098,
+    "note": "Skewed multi-window: 3x21d + 7x42d, leaves=511 alpha=0.55. 21d 3-model raw: 0.2592. Cal: 0.2410. Factors: [1.018, 1.019, 1.0189, 1.0191, 1.0203, 1.0216, 1.0213, 1.0211, 1.022, 1.0224]"
+  },
+  {
+    "timestamp": "2026-04-01T21:21:27",
+    "name": "exp51_hyperparam_diversity",
+    "params": {
+      "groups": [
+        [
+          "A_cs08",
+          [
+            42,
+            123,
+            456,
+            789
+          ],
+          0.8,
+          0.8
+        ],
+        [
+          "B_cs05",
+          [
+            1234,
+            2024,
+            7
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs07",
+          [
+            314,
+            99,
+            888
+          ],
+          0.7,
+          0.9
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240207,
+    "rbias": 0.0,
+    "total": 0.240207,
+    "note": "Structural diversity: GroupA(cs=0.8,ss=0.8), GroupB(cs=0.5,ss=0.7), GroupC(cs=0.7,ss=0.9). All 21d leaves=511 alpha=0.55. Raw: 0.2582. Cal: 0.2402. Factors: [1.0176, 1.0184, 1.0185, 1.0185, 1.0199, 1.0214, 1.0212, 1.0217, 1.0218, 1.0218]"
+  },
+  {
+    "timestamp": "2026-04-01T23:06:10",
+    "name": "exp52_feature_reg_diversity",
+    "params": {
+      "groups": [
+        [
+          "A_std",
+          [
+            42,
+            123,
+            456,
+            789
+          ],
+          0.8,
+          0.8,
+          1.0
+        ],
+        [
+          "B_cs04",
+          [
+            1234,
+            2024,
+            7
+          ],
+          0.4,
+          0.8,
+          1.0
+        ],
+        [
+          "C_l2_5",
+          [
+            314,
+            99,
+            888
+          ],
+          0.8,
+          0.8,
+          5.0
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "min_child_samples": 10,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240134,
+    "rbias": 0.0,
+    "total": 0.240134,
+    "note": "Feature+reg diversity: A(cs=0.8,l2=1), B(cs=0.4,l2=1), C(cs=0.8,l2=5). All 21d leaves=511 alpha=0.55. Raw: 0.2582. Cal: 0.2401."
+  },
+  {
+    "timestamp": "2026-04-02T02:15:43",
+    "name": "exp53_pure_groupb",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "154",
+      "calibration": "per_step"
+    },
+    "wape": 0.239683,
+    "rbias": 0.0,
+    "total": 0.239683,
+    "note": "Pure GroupB cs=0.5 ss=0.7 10 seeds. Raw:0.2567 Cal:0.2397"
+  },
+  {
+    "timestamp": "2026-04-02T03:42:05",
+    "name": "exp54_skewed_groupb",
+    "params": {
+      "groups": [
+        [
+          "A_std",
+          [
+            42,
+            123
+          ],
+          0.8,
+          0.8
+        ],
+        [
+          "B_best",
+          [
+            456,
+            789,
+            1234,
+            2024,
+            7,
+            314
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs07",
+          [
+            99,
+            888
+          ],
+          0.7,
+          0.9
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "n_models": 10,
+      "train_days": 21,
+      "calibration": "per_step"
+    },
+    "wape": 0.239948,
+    "rbias": 0.0,
+    "total": 0.239948,
+    "note": "2xcs=0.8 + 6xcs=0.5/ss=0.7 + 2xcs=0.7/ss=0.9. Raw:0.2575 Cal:0.2399"
+  },
+  {
+    "timestamp": "2026-04-02T05:08:45",
+    "name": "exp55_graduated_cs",
+    "params": {
+      "groups": [
+        [
+          "A_cs08",
+          [
+            42,
+            123,
+            456
+          ],
+          0.8,
+          0.8
+        ],
+        [
+          "B_cs05",
+          [
+            789,
+            1234,
+            2024
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs035",
+          [
+            7,
+            314
+          ],
+          0.35,
+          0.65
+        ],
+        [
+          "D_cs065",
+          [
+            99,
+            888
+          ],
+          0.65,
+          0.85
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "n_models": 10,
+      "train_days": 21,
+      "calibration": "per_step"
+    },
+    "wape": 0.23992,
+    "rbias": 0.0,
+    "total": 0.23992,
+    "note": "4 graduated groups cs=0.8/0.5/0.35/0.65. Raw:0.2574 Cal:0.2399"
+  },
+  {
+    "timestamp": "2026-04-02T06:25:48",
+    "name": "exp56_no_anchor",
+    "params": {
+      "groups": [
+        [
+          "B_cs05",
+          [
+            42,
+            123,
+            456,
+            789
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs07",
+          [
+            1234,
+            2024,
+            7
+          ],
+          0.7,
+          0.9
+        ],
+        [
+          "D_cs035",
+          [
+            314,
+            99,
+            888
+          ],
+          0.35,
+          0.65
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "n_models": 10,
+      "train_days": 21,
+      "calibration": "per_step"
+    },
+    "wape": 0.239683,
+    "rbias": 0.0,
+    "total": 0.239683,
+    "note": "No anchor: B(cs=0.5)+C(cs=0.7)+D(cs=0.35). Raw:0.2567 Cal:0.2397"
+  },
+  {
+    "timestamp": "2026-04-02T11:39:16",
+    "name": "exp57_capacity_diversity",
+    "params": {
+      "groups": [
+        [
+          "L511_cs05",
+          [
+            42,
+            123,
+            456,
+            789,
+            1234
+          ],
+          511,
+          0.5,
+          0.7
+        ],
+        [
+          "L255_cs05",
+          [
+            2024,
+            7,
+            314,
+            99,
+            888
+          ],
+          255,
+          0.5,
+          0.7
+        ]
+      ],
+      "alpha": 0.55,
+      "n_models": 10,
+      "train_days": 21,
+      "calibration": "per_step"
+    },
+    "wape": 0.239609,
+    "rbias": 0.0,
+    "total": 0.239609,
+    "note": "5x(leaves=511)+5x(leaves=255), cs=0.5,ss=0.7. Raw:0.2562 Cal:0.2396"
+  },
+  {
+    "timestamp": "2026-04-03T23:02:26",
+    "name": "exp60_per_warehouse",
+    "params": {
+      "n_warehouses": 53,
+      "seeds_per_warehouse": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.55,
+      "num_leaves": 63,
+      "min_child_samples": 30,
+      "colsample_bytree": 0.7,
+      "subsample": 0.8,
+      "reg_lambda": 2.0,
+      "n_models_total": 159,
+      "features": "extended+rolling_cv+lag_ratios (154)",
+      "train_days": 21,
+      "calibration": "per_step"
+    },
+    "wape": 0.243098,
+    "rbias": 0.0,
+    "total": 0.243098,
+    "note": "Per-warehouse: 53 warehouses × 3 seeds, leaves=63 min_child=30 cs=0.7 ss=0.8 l2=2.0. Raw: WAPE=0.2416 RBias=0.0190 Total=0.2606. Cal: total=0.2431. Cal factors: [1.0096, 1.0131, 1.0147, 1.0185, 1.0211, 1.0226, 1.0232, 1.0237, 1.0229, 1.0244]"
+  },
+  {
+    "timestamp": "2026-04-04T03:37:18",
+    "name": "exp61_roll_ratio_features",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "154 + 4 roll-ratio (158 total)",
+      "new_features": [
+        "roll_ratio_8_96",
+        "roll_ratio_16_96",
+        "roll_ratio_48_336",
+        "ema_ratio_8_96"
+      ],
+      "calibration": "per_step"
+    },
+    "wape": 0.239999,
+    "rbias": 0.0,
+    "total": 0.239999,
+    "note": "GroupB cs=0.5+ss=0.7, 4 new roll-ratio features. Raw: WAPE=0.2384 RBias=0.0182 Total=0.2566. Cal: total=0.2400. Cal factors: [1.0163, 1.0169, 1.0175, 1.0174, 1.0176, 1.019, 1.0199, 1.0195, 1.0204, 1.0203]"
+  },
+  {
+    "timestamp": "2026-04-04T05:52:48",
+    "name": "exp62_bynode_diversity",
+    "params": {
+      "groups": [
+        [
+          "A_cs05_bynode07",
+          [
+            42,
+            123,
+            456,
+            789,
+            1234
+          ],
+          0.5,
+          0.7,
+          0.7
+        ],
+        [
+          "B_cs10_bynode05",
+          [
+            2024,
+            7,
+            314,
+            99,
+            888
+          ],
+          1.0,
+          0.8,
+          0.5
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "158 (154 + 4 roll-ratio)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240182,
+    "rbias": 0.0,
+    "total": 0.240182,
+    "note": "GroupA(cs=0.5,bynode=0.7) + GroupB(cs=1.0,bynode=0.5). Raw: WAPE=0.2386 RBias=0.0187 Total=0.2572. Cal: total=0.2402. Cal factors: [1.0166, 1.0174, 1.0182, 1.0183, 1.019, 1.0195, 1.02, 1.0198, 1.0202, 1.021]"
+  },
+  {
+    "timestamp": "2026-04-04T07:21:17",
+    "name": "exp63_perstep_alpha",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "step_alphas": {
+        "target_step_1": 0.5,
+        "target_step_2": 0.5,
+        "target_step_3": 0.5,
+        "target_step_4": 0.55,
+        "target_step_5": 0.55,
+        "target_step_6": 0.55,
+        "target_step_7": 0.55,
+        "target_step_8": 0.6,
+        "target_step_9": 0.6,
+        "target_step_10": 0.6
+      },
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "158 (154+4 roll-ratio)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240504,
+    "rbias": 0.0,
+    "total": 0.240504,
+    "note": "Per-step alpha: steps1-3=0.50, steps4-7=0.55, steps8-10=0.60. cs=0.5 ss=0.7 leaves=511 10 seeds. Raw: WAPE=0.2395 RBias=0.0132 Total=0.2527. Cal: total=0.2405. Factors: [1.033, 1.043, 1.0511, 1.0174, 1.0176, 1.019, 1.0199, 0.9795, 0.9797, 0.98]"
+  },
+  {
+    "timestamp": "2026-04-04T08:45:42",
+    "name": "exp64_halfhour_of_week",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "158+3=161 (added halfhour_of_week, how_sin, how_cos)",
+      "new_features": [
+        "halfhour_of_week",
+        "how_sin",
+        "how_cos"
+      ],
+      "calibration": "per_step"
+    },
+    "wape": 0.240277,
+    "rbias": 0.0,
+    "total": 0.240277,
+    "note": "3 new weekly-period features: halfhour_of_week(0-335)+cyclic. cs=0.5 ss=0.7 leaves=511 10 seeds. Raw: WAPE=0.2388 RBias=0.0168 Total=0.2555. Cal: total=0.2403. Factors: [1.0161, 1.0163, 1.0161, 1.0157, 1.0163, 1.0172, 1.0177, 1.0179, 1.0186, 1.0185]"
+  },
+  {
+    "timestamp": "2026-04-04T08:45:43",
+    "name": "exp65_super_blend",
+    "params": {
+      "blended": [
+        "submission_team_exp57_capacity_diversity",
+        "submission_team_exp53_pure_groupb",
+        "submission_team_exp56_no_anchor",
+        "submission_team_exp52_feature_reg_diversity",
+        "submission_team_exp51_hyperparam_diversity",
+        "submission_team_exp61_roll_ratio_features",
+        "submission_team_exp62_bynode_diversity",
+        "submission_team_exp63_perstep_alpha",
+        "submission_team_exp64_halfhour_of_week"
+      ],
+      "weights": [
+        0.111307,
+        0.111272,
+        0.111272,
+        0.111063,
+        0.111029,
+        0.111126,
+        0.111041,
+        0.110892,
+        0.110997
+      ],
+      "n_subs": 9,
+      "method": "inverse_loss_weighted + equal_weight"
+    },
+    "wape": null,
+    "rbias": null,
+    "total": null,
+    "note": "Super-blend of 9 submissions: ['submission_team_exp57_capacity_diversity', 'submission_team_exp53_pure_groupb', 'submission_team_exp56_no_anchor', 'submission_team_exp52_feature_reg_diversity', 'submission_team_exp51_hyperparam_diversity', 'submission_team_exp61_roll_ratio_features', 'submission_team_exp62_bynode_diversity', 'submission_team_exp63_perstep_alpha', 'submission_team_exp64_halfhour_of_week']. Inv-loss weights: [0.1113, 0.1113, 0.1113, 0.1111, 0.111, 0.1111, 0.111, 0.1109, 0.111]. Saved both inv-weighted and equal-weight variants. No local val (post-hoc blend — submit both to see public LB)."
+  },
+  {
+    "timestamp": "2026-04-05T14:38:57",
+    "name": "exp_best_features_full_step11",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234
+      ],
+      "alphas": [
+        0.52,
+        0.55
+      ],
+      "step": 11
+    },
+    "step11_wape_ens": 0.265543,
+    "step11_rbias_ens": -0.032532
+  },
+  {
+    "timestamp": "2026-04-05T16:46:46",
+    "name": "exp66_roll_ratio_struct_diversity",
+    "params": {
+      "groups": [
+        [
+          "A_cs08",
+          [
+            42,
+            123,
+            456,
+            789
+          ],
+          0.8,
+          0.8
+        ],
+        [
+          "B_cs05",
+          [
+            1234,
+            2024,
+            7
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs07",
+          [
+            314,
+            99,
+            888
+          ],
+          0.7,
+          0.9
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "158 (154+4 roll-ratio)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240485,
+    "rbias": 0.0,
+    "total": 0.240485,
+    "note": "exp51-config + roll-ratio feats. GroupA(cs=0.8)+GroupB(cs=0.5)+GroupC(cs=0.7). Raw:0.2582 Cal:0.2405. Factors:[1.017, 1.018, 1.019, 1.019, 1.0195, 1.0204, 1.0205, 1.0207, 1.0219, 1.0215]"
+  },
+  {
+    "timestamp": "2026-04-05T18:01:40",
+    "name": "exp67_roll_ratio_cap_diversity",
+    "params": {
+      "groups": [
+        [
+          "L511_cs05",
+          [
+            42,
+            123,
+            456,
+            789,
+            1234
+          ],
+          511,
+          0.5,
+          0.7
+        ],
+        [
+          "L255_cs05",
+          [
+            2024,
+            7,
+            314,
+            99,
+            888
+          ],
+          255,
+          0.5,
+          0.7
+        ]
+      ],
+      "alpha": 0.55,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "158 (154+4 roll-ratio)",
+      "calibration": "per_step"
+    },
+    "wape": 0.239947,
+    "rbias": 0.0,
+    "total": 0.239947,
+    "note": "exp57-config(leaves=511+255,cs=0.5) + roll-ratio feats. Raw:0.2562 Cal:0.2399. Factors:[1.0172, 1.017, 1.0176, 1.0169, 1.0173, 1.0185, 1.0187, 1.019, 1.0199, 1.0197]"
+  },
+  {
+    "timestamp": "2026-04-05T18:01:41",
+    "name": "exp68_super_blend",
+    "params": {
+      "blended": [
+        "submission_team_exp57_capacity_diversity",
+        "submission_team_exp53_pure_groupb",
+        "submission_team_exp56_no_anchor",
+        "submission_team_exp61_roll_ratio_features",
+        "submission_team_exp52_feature_reg_diversity",
+        "submission_team_exp51_hyperparam_diversity",
+        "submission_team_exp66_roll_ratio_struct_diversity",
+        "submission_team_exp67_roll_ratio_cap_diversity"
+      ],
+      "weights": [
+        0.125187,
+        0.125149,
+        0.125149,
+        0.124983,
+        0.124914,
+        0.124876,
+        0.124731,
+        0.125011
+      ],
+      "n_subs": 8,
+      "method": "inv_loss + equal"
+    },
+    "wape": null,
+    "rbias": null,
+    "total": null,
+    "note": "Super-blend of 8 subs. Inv-loss weights: [0.1252, 0.1251, 0.1251, 0.125, 0.1249, 0.1249, 0.1247, 0.125]. Saved inv-weighted=submission_team_exp68_super_blend_invloss.csv and equal=submission_team_exp68_super_blend_equal.csv."
+  },
+  {
+    "timestamp": "2026-04-05T19:23:22",
+    "name": "exp69_trajectory_features",
+    "params": {
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1234,
+        2024,
+        7,
+        314,
+        99,
+        888
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "158+6=164 (added ['lag_accel_48', 'lag_accel_336', 'roll_slope_48', 'roll_slope_96', 'ema_slope', 'recent_vs_seasonal'])",
+      "calibration": "per_step"
+    },
+    "wape": 0.240167,
+    "rbias": 0.0,
+    "total": 0.240167,
+    "note": "6 new trajectory feats: ['lag_accel_48', 'lag_accel_336', 'roll_slope_48', 'roll_slope_96', 'ema_slope', 'recent_vs_seasonal']. cs=0.5 ss=0.7 leaves=511 10 seeds. Raw:0.2571 Cal:0.2402. Factors:[1.0166, 1.0169, 1.0184, 1.0169, 1.019, 1.0196, 1.02, 1.0197, 1.0207, 1.0213]"
+  },
+  {
+    "timestamp": "2026-04-05T21:25:36",
+    "name": "exp70_full_features_struct_diversity",
+    "params": {
+      "groups": [
+        [
+          "A_cs08",
+          [
+            42,
+            123,
+            456,
+            789
+          ],
+          0.8,
+          0.8
+        ],
+        [
+          "B_cs05",
+          [
+            1234,
+            2024,
+            7
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs07",
+          [
+            314,
+            99,
+            888
+          ],
+          0.7,
+          0.9
+        ]
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "n_models": 10,
+      "train_days": 21,
+      "features": "164 (154+4 roll-ratio+6 trajectory)",
+      "calibration": "per_step"
+    },
+    "wape": 0.240572,
+    "rbias": 0.0,
+    "total": 0.240572,
+    "note": "exp51-config + ALL extra feats (roll-ratio+trajectory=164). GroupA(cs=0.8)+GroupB(cs=0.5)+GroupC(cs=0.7). Raw:0.2584 Cal:0.2406. Factors:[1.0173, 1.0172, 1.0194, 1.0188, 1.0196, 1.0209, 1.021, 1.0208, 1.0216, 1.0227]"
+  },
+  {
+    "timestamp": "2026-04-06T01:41:32",
+    "name": "exp71_volume_cluster",
+    "params": {
+      "clusters": 3,
+      "cluster_type": "volume_quantile",
+      "thresholds": {
+        "p33": 32.99,
+        "p67": 82.5
+      },
+      "seeds": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models_total": 9,
+      "train_days": 21,
+      "features": "158",
+      "calibration": "global_per_step"
+    },
+    "wape": 0.241699,
+    "rbias": 0.0,
+    "total": 0.241699,
+    "note": "3 volume clusters (low/mid/high by mean_target p33/p67), 3 seeds each. Raw:0.2568 Cal:0.2417. Factors:[1.0136, 1.0149, 1.0148, 1.0151, 1.0168, 1.0174, 1.018, 1.019, 1.0189, 1.0188]"
+  },
+  {
+    "timestamp": "2026-04-06T02:08:56",
+    "name": "exp72_volatility_cluster",
+    "params": {
+      "clusters": 3,
+      "cluster_type": "cv_quantile",
+      "cv_thresholds": {
+        "p33": 0.3177,
+        "p67": 0.6196
+      },
+      "seeds": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models_total": 9,
+      "train_days": 21,
+      "features": "158",
+      "calibration": "global_per_step"
+    },
+    "wape": 0.241301,
+    "rbias": 0.0,
+    "total": 0.241301,
+    "note": "3 volatility clusters by CV=std/mean (stable/moderate/volatile). p33_cv=0.3177 p67_cv=0.6196. Raw:0.2609 Cal:0.2413."
+  },
+  {
+    "timestamp": "2026-04-06T02:34:16",
+    "name": "exp73_kmeans_cluster",
+    "params": {
+      "clusters": 3,
+      "cluster_type": "kmeans_profile",
+      "cluster_features": [
+        "mean_t",
+        "cv",
+        "zero_frac"
+      ],
+      "cluster_centers": {
+        "cluster_0": {
+          "mean_t": 137.38,
+          "cv": 0.372,
+          "zero_frac": 0.003
+        },
+        "cluster_1": {
+          "mean_t": 5.77,
+          "cv": 1.202,
+          "zero_frac": 0.838
+        },
+        "cluster_2": {
+          "mean_t": 40.44,
+          "cv": 0.629,
+          "zero_frac": 0.036
+        }
+      },
+      "seeds": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models_total": 9,
+      "train_days": 21,
+      "features": "158",
+      "calibration": "global_per_step"
+    },
+    "wape": 0.241386,
+    "rbias": 0.0,
+    "total": 0.241386,
+    "note": "KMeans(k=3) on route profile [mean, CV, zero_frac] (MinMaxScaled). Raw:0.2574 Cal:0.2414."
+  },
+  {
+    "timestamp": "2026-04-06T03:05:53",
+    "name": "exp74_sparse_dense_cluster",
+    "params": {
+      "clusters": 2,
+      "cluster_type": "sparse_dense",
+      "zero_frac_threshold": 0.05,
+      "dense_routes": 839,
+      "dense_seeds": [
+        42,
+        123,
+        456,
+        789
+      ],
+      "sparse_routes": 161,
+      "sparse_seeds": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models_total": 7,
+      "train_days": 21,
+      "features": "158",
+      "calibration": "global_per_step"
+    },
+    "wape": 0.240696,
+    "rbias": 0.0,
+    "total": 0.240696,
+    "note": "2 clusters: dense (zero_frac<=0.05, 839 routes, 4 seeds) vs sparse (161 routes, 3 seeds). Raw:0.2578 Cal:0.2407."
+  },
+  {
+    "timestamp": "2026-04-06T03:27:40",
+    "name": "exp75_weekly_amplitude_cluster",
+    "params": {
+      "clusters": 3,
+      "cluster_type": "weekly_amplitude",
+      "amp_thresholds": {
+        "p33": 0.1481,
+        "p67": 0.2245
+      },
+      "seeds": [
+        42,
+        123,
+        456
+      ],
+      "alpha": 0.55,
+      "num_leaves": 511,
+      "colsample_bytree": 0.5,
+      "subsample": 0.7,
+      "n_models_total": 9,
+      "train_days": 21,
+      "features": "158",
+      "calibration": "global_per_step"
+    },
+    "wape": 0.241529,
+    "rbias": 0.0,
+    "total": 0.241529,
+    "note": "3 clusters by weekly amplitude=(max_dow_avg-min_dow_avg)/mean (flat/moderate/peaked). p33=0.1481 p67=0.2245. Raw:0.2615 Cal:0.2415."
+  },
+  {
+    "timestamp": "2026-04-07T23:58:03",
+    "name": "exp66_roll_ratio_struct_diversity_step11_step12",
+    "params": {
+      "groups": [
+        [
+          "A_cs08",
+          [
+            42,
+            123,
+            456,
+            789
+          ],
+          0.8,
+          0.8
+        ],
+        [
+          "B_cs05",
+          [
+            1234,
+            2024,
+            7
+          ],
+          0.5,
+          0.7
+        ],
+        [
+          "C_cs07",
+          [
+            314,
+            99,
+            888
+          ],
+          0.7,
+          0.9
+        ]
+      ],
+      "alpha": 0.55,
+      "extra_steps": [
+        11,
+        12
+      ],
+      "split_pkls_dir": "ml_exp66_prediction\\models"
+    },
+    "note": "Trained step_11 and step_12, patched ensemble pkls, exported per-step split pkls."
+  }
+]

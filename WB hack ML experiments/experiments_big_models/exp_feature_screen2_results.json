@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-03-27T22:27:07",
+  "results": [
+    {
+      "test": "enhanced_base",
+      "n_features": 154,
+      "wape": 0.133398,
+      "delta": 0.0
+    },
+    {
+      "test": "deconv_ratios",
+      "n_features": 159,
+      "wape": 0.133448,
+      "delta": 5e-05
+    },
+    {
+      "test": "status_momentum",
+      "n_features": 158,
+      "wape": 0.133476,
+      "delta": 7.8e-05
+    },
+    {
+      "test": "ema_crossover",
+      "n_features": 157,
+      "wape": 0.133491,
+      "delta": 9.3e-05
+    },
+    {
+      "test": "quantile_pos",
+      "n_features": 155,
+      "wape": 0.133516,
+      "delta": 0.000118
+    },
+    {
+      "test": "slot_deviation",
+      "n_features": 155,
+      "wape": 0.133614,
+      "delta": 0.000216
+    },
+    {
+      "test": "hours_since_zero",
+      "n_features": 156,
+      "wape": 0.13363,
+      "delta": 0.000232
+    },
+    {
+      "test": "cumulative_daily",
+      "n_features": 156,
+      "wape": 0.133654,
+      "delta": 0.000256
+    },
+    {
+      "test": "office_cumulative",
+      "n_features": 155,
+      "wape": 0.133663,
+      "delta": 0.000265
+    }
+  ]
+}
