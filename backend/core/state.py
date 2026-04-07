@@ -28,12 +28,28 @@ class AppState:
     last_dispatch: Optional[Dict] = None
     _dispatch_write_lock: threading.Lock = field(default_factory=threading.Lock)
     _warehouse_locks: Dict[str, threading.Lock] = field(default_factory=dict)
+    _dispatch_semaphore: threading.Semaphore = field(default_factory=lambda: threading.Semaphore(3))
+    _active_dispatches: int = 0
+    _active_dispatches_lock: threading.Lock = field(default_factory=threading.Lock)
     confidence_level: float = 0.9
     route_correlation: float = 0.3
     ncs_scores: Any = field(default_factory=lambda: load_ncs()[0])
     ncs_normalized: bool = False
     ncs_allsteps: Any = field(default_factory=dict)
     granularity: float = 2.0
+
+    @property
+    def dispatching(self) -> bool:
+        """True when at least one dispatch is in progress."""
+        return self._active_dispatches > 0
+
+    def inc_dispatches(self) -> None:
+        with self._active_dispatches_lock:
+            self._active_dispatches += 1
+
+    def dec_dispatches(self) -> None:
+        with self._active_dispatches_lock:
+            self._active_dispatches = max(0, self._active_dispatches - 1)
 
     def get_warehouse_lock(self, warehouse_id: str) -> threading.Lock:
         """Return (creating if needed) the per-warehouse dispatch lock."""

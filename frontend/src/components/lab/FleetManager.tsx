@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Warehouse, ApiIncomingVehicle } from '../../types'
-import { useSimulationContext } from '../../context/SimulationContext'
 import { Input } from '../ui/input'
-import { Button } from '../ui/button'
 import {
   Table,
   TableBody,
@@ -11,253 +9,156 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
-import { Trash2, Plus, Clock, Pencil, Check, X } from 'lucide-react'
-import { cn, fmt, makeHorizonLabels, horizonDisplayLabel } from '../../lib/utils'
+import { cn, makeHorizonLabels, horizonDisplayLabel } from '../../lib/utils'
 import {
   listVehicles,
-  addVehicle,
   updateVehicle,
-  deleteVehicle,
   listIncoming,
-  addIncoming,
-  updateIncoming,
-  deleteIncoming,
+  putIncomingVehicles,
+  syncVehicleAcrossWarehouses,
 } from '../../api'
+import { RefreshCw } from 'lucide-react'
 
 interface FleetManagerProps {
   warehouses: Warehouse[]
 }
 
-interface VehicleForm {
-  vehicle_type: string
-  capacity_units: string
-  cost_per_km: string
-  available: string
-  category: string
-  underload_penalty: string
-  fixed_dispatch_cost: string
-}
-
-interface IncomingForm {
-  horizon_idx: string
-  vehicle_type: string
-  count: string
-}
-
-const EMPTY_VEHICLE: VehicleForm = {
-  vehicle_type: '',
-  capacity_units: '',
-  cost_per_km: '',
-  available: '',
-  category: 'compact',
-  underload_penalty: '',
-  fixed_dispatch_cost: '',
-}
-
-const EMPTY_INCOMING: IncomingForm = {
-  horizon_idx: '1',
-  vehicle_type: '',
-  count: '1',
-}
-
 export function FleetManager({ warehouses }: FleetManagerProps) {
-  const { setIncomingVehicles, riskSettings } = useSimulationContext()
-  const horizonLabels = useMemo(() => makeHorizonLabels(riskSettings.granularity), [riskSettings.granularity])
+  // Fleet table always uses 30-min granularity
+  const horizonLabels = useMemo(() => makeHorizonLabels(0.5), [])
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string>(warehouses[0]?.id ?? '')
 
   const [vehicles, setVehicles] = useState<any[]>([])
   const [incoming, setIncoming] = useState<ApiIncomingVehicle[]>([])
 
-  const [addForm, setAddForm] = useState<VehicleForm>(EMPTY_VEHICLE)
-  const [editingType, setEditingType] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<VehicleForm>(EMPTY_VEHICLE)
-  const [showAddVehicle, setShowAddVehicle] = useState(false)
-
-  const [incomingForm, setIncomingForm] = useState<IncomingForm>(EMPTY_INCOMING)
-  const [incomingEditingIdx, setIncomingEditingIdx] = useState<number | null>(null)
-  const [showAddIncoming, setShowAddIncoming] = useState(false)
-
+  const [draftFleet, setDraftFleet] = useState<Record<string, string>>({})
+  const [savingFleet, setSavingFleet] = useState<Record<string, boolean>>({})
+  const [syncingType, setSyncingType] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // ---------- Load data ----------
+  // Load data for selected warehouse
   useEffect(() => {
+    if (!selectedId) return
     const load = async () => {
       try {
-        const [vRes, iRes] = await Promise.all([listVehicles(), listIncoming()])
+        const [vRes, iRes] = await Promise.all([
+          listVehicles(selectedId),
+          listIncoming(selectedId),
+        ])
         setVehicles(vRes)
         setIncoming(iRes.incoming ?? [])
+        setDraftFleet({})
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
     }
     load()
-  }, [])
+  }, [selectedId])
 
-  const filteredWarehouses = useMemo(() => {
-    return warehouses.filter(
+  const filteredWarehouses = useMemo(
+    () => warehouses.filter(
       w => w.name.toLowerCase().includes(search.toLowerCase()) ||
            w.city.toLowerCase().includes(search.toLowerCase()),
-    )
-  }, [warehouses, search])
+    ),
+    [warehouses, search],
+  )
 
-  const refreshVehicles = async () => {
+  const refreshAll = async () => {
     try {
-      const vRes = await listVehicles()
+      const [vRes, iRes] = await Promise.all([
+        listVehicles(selectedId),
+        listIncoming(selectedId),
+      ])
       setVehicles(vRes)
+      setIncoming(iRes.incoming ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }
 
-  const refreshIncoming = async () => {
-    try {
-      const iRes = await listIncoming()
-      const list = iRes.incoming ?? []
-      setIncoming(list)
-      setIncomingVehicles(list)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  // ---------- Vehicles CRUD ----------
-  const handleAddVehicle = async () => {
-    const capacity = parseFloat(addForm.capacity_units)
-    const cost = parseFloat(addForm.cost_per_km)
-    const avail = parseInt(addForm.available, 10)
-    if (!addForm.vehicle_type.trim() || isNaN(capacity) || isNaN(cost) || isNaN(avail)) return
-    const underloadPenalty = parseFloat(addForm.underload_penalty)
-    const fixedDispatch = parseFloat(addForm.fixed_dispatch_cost)
-    try {
-      await addVehicle({
-        vehicle_type: addForm.vehicle_type.trim(),
-        capacity_units: capacity,
-        cost_per_km: cost,
-        available: avail,
-        category: addForm.category as 'small' | 'medium' | 'large' | undefined,
-        underload_penalty: Number.isFinite(underloadPenalty) ? underloadPenalty : undefined,
-        fixed_dispatch_cost: Number.isFinite(fixedDispatch) ? fixedDispatch : undefined,
-      })
-      setAddForm(EMPTY_VEHICLE)
-      setShowAddVehicle(false)
-      await refreshVehicles()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const startEdit = (v: any) => {
-    setEditingType(v.vehicle_type)
-    setEditForm({
-      vehicle_type: v.vehicle_type,
-      capacity_units: String(v.capacity_units),
-      cost_per_km: String(v.cost_per_km),
-      available: String(v.available),
-      category: v.category ?? 'compact',
-      underload_penalty: v.underload_penalty != null ? String(v.underload_penalty) : '',
-      fixed_dispatch_cost: v.fixed_dispatch_cost != null ? String(v.fixed_dispatch_cost) : '',
+  // Compute fleet-by-horizon matrix: rows = vehicle types, cols = horizons
+  const fleetByHorizon = useMemo(() => {
+    return vehicles.map(v => {
+      const base = v.available as number
+      const additions = Array(horizonLabels.length).fill(0) as number[]
+      for (const iv of incoming) {
+        if (iv.vehicle_type === v.vehicle_type && iv.horizon_idx < horizonLabels.length) {
+          for (let h = iv.horizon_idx; h < horizonLabels.length; h++) {
+            additions[h] += iv.count
+          }
+        }
+      }
+      return {
+        type: v.vehicle_type as string,
+        base,
+        h: additions.map(a => base + a),
+      }
     })
-  }
+  }, [vehicles, incoming, horizonLabels])
 
-  const saveEdit = async () => {
-    if (!editingType) return
-    const capacity = parseFloat(editForm.capacity_units)
-    const cost = parseFloat(editForm.cost_per_km)
-    const avail = parseInt(editForm.available, 10)
-    if (isNaN(capacity) || isNaN(cost) || isNaN(avail)) return
-    const underloadPenalty = parseFloat(editForm.underload_penalty)
-    const fixedDispatch = parseFloat(editForm.fixed_dispatch_cost)
+  // Reset drafts when computed data changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setDraftFleet({}) }, [fleetByHorizon.map(r => r.h.join(',')).join('|')])
+
+  // Handle cell save — mirrors optimizer handleFleetChange logic
+  const handleCellBlur = async (vehicleType: string, horizonIdx: number, rowBase: number) => {
+    const k = `${vehicleType}__${horizonIdx}`
+    const raw = draftFleet[k]
+    if (raw === undefined) return
+
+    const row = fleetByHorizon.find(r => r.type === vehicleType)
+    if (!row) return
+
+    const currentCount = row.h[horizonIdx]
+    const parsed = parseInt(raw, 10)
+    const next = Number.isFinite(parsed) ? Math.max(0, parsed) : currentCount
+    setDraftFleet(prev => ({ ...prev, [k]: String(next) }))
+    if (next === currentCount) return
+
+    setSavingFleet(prev => ({ ...prev, [k]: true }))
     try {
-      await updateVehicle(editingType, {
-        vehicle_type: editForm.vehicle_type.trim() || editingType,
-        capacity_units: capacity,
-        cost_per_km: cost,
-        available: avail,
-        category: editForm.category as 'small' | 'medium' | 'large' | undefined,
-        underload_penalty: Number.isFinite(underloadPenalty) ? underloadPenalty : undefined,
-        fixed_dispatch_cost: Number.isFinite(fixedDispatch) ? fixedDispatch : undefined,
-      })
-      setEditingType(null)
-      setEditForm(EMPTY_VEHICLE)
-      await refreshVehicles()
+      if (horizonIdx === 0) {
+        // Edit base available for this warehouse only
+        const v = vehicles.find(vv => vv.vehicle_type === vehicleType)
+        if (!v) return
+        await updateVehicle(vehicleType, {
+          vehicle_type: vehicleType,
+          capacity_units: v.capacity_units,
+          cost_per_km: v.cost_per_km,
+          available: next,
+          warehouse_id: selectedId,
+          underload_penalty: v.underload_penalty,
+          fixed_dispatch_cost: v.fixed_dispatch_cost,
+        })
+      } else {
+        // Edit future horizon: compute new delta and upsert incoming record for this warehouse
+        const additionsBelow = incoming
+          .filter(iv => iv.vehicle_type === vehicleType && iv.horizon_idx < horizonIdx)
+          .reduce((s, iv) => s + iv.count, 0)
+        const prevTotal = rowBase + additionsBelow
+        const delta = next - prevTotal
+        const filtered = incoming.filter(
+          iv => !(iv.vehicle_type === vehicleType && iv.horizon_idx === horizonIdx),
+        )
+        const newList = delta > 0
+          ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx, count: delta }]
+          : filtered
+        await putIncomingVehicles(newList, selectedId)
+      }
+      await refreshAll()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSavingFleet(prev => ({ ...prev, [k]: false }))
     }
   }
 
-  const deleteVehicleRow = async (vehicle_type: string) => {
-    try {
-      await deleteVehicle(vehicle_type)
-      await refreshVehicles()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  // ---------- Incoming CRUD ----------
-  const handleIncomingAdd = async () => {
-    const horizon = parseInt(incomingForm.horizon_idx, 10)
-    const count = parseInt(incomingForm.count, 10)
-    if (isNaN(horizon) || horizon < 0 || horizon >= horizonLabels.length || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
-    try {
-      await addIncoming({
-        horizon_idx: horizon,
-        vehicle_type: incomingForm.vehicle_type.trim(),
-        count,
-      })
-      setIncomingForm(EMPTY_INCOMING)
-      setShowAddIncoming(false)
-      await refreshIncoming()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const handleIncomingSave = async () => {
-    if (incomingEditingIdx === null) return
-    const horizon = parseInt(incomingForm.horizon_idx, 10)
-    const count = parseInt(incomingForm.count, 10)
-    if (isNaN(horizon) || horizon < 0 || horizon >= horizonLabels.length || isNaN(count) || count < 1 || !incomingForm.vehicle_type.trim()) return
-    try {
-      await updateIncoming(incomingEditingIdx, {
-        horizon_idx: horizon,
-        vehicle_type: incomingForm.vehicle_type.trim(),
-        count,
-      })
-      setIncomingEditingIdx(null)
-      setIncomingForm(EMPTY_INCOMING)
-      await refreshIncoming()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const handleIncomingDelete = async (idx: number) => {
-    try {
-      await deleteIncoming(idx)
-      await refreshIncoming()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  const startIncomingEdit = (idx: number, item: ApiIncomingVehicle) => {
-    setIncomingEditingIdx(idx)
-    setIncomingForm({
-      horizon_idx: String(item.horizon_idx),
-      vehicle_type: item.vehicle_type,
-      count: String(item.count),
-    })
-  }
-
-  // ---------- Render ----------
-  const vehiclesForDisplay = vehicles
-  const vehicleOptions = vehiclesForDisplay.map(v => v.vehicle_type)
+  const selectedWarehouse = warehouses.find(w => w.id === selectedId)
 
   return (
     <div className="flex gap-4 h-full">
-      {/* Warehouse list (контекст/фильтр, парк глобальный) */}
+      {/* Warehouse selector */}
       <div className="w-56 shrink-0 flex flex-col gap-2">
         <Input
           placeholder="Поиск склада…"
@@ -286,359 +187,96 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
+      {/* Single editable fleet-by-horizon table */}
+      <div className="flex-1 flex flex-col gap-3 min-w-0">
         {error && (
           <div className="text-xs text-status-red bg-status-red/10 border border-status-red/40 rounded px-3 py-2">
             {error}
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="section-label">
-            {warehouses.find(w => w.id === selectedId)?.name ?? '—'} · Парк ТС (глобальный)
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => { setShowAddVehicle(true); setAddForm(EMPTY_VEHICLE) }}>
-              <Plus className="w-3 h-3" /> Добавить
-            </Button>
-          </div>
-        </div>
-
-        {/* Vehicles list */}
         <div className="bg-surface border border-border rounded-lg overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-            <span className="section-label">Ожидают на складе</span>
-          </div>
-          <div className="max-h-96 overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Тип ТС</TableHead>
-                  <TableHead className="text-right">Штраф ₽/ед.</TableHead>
-                  <TableHead className="text-right">Фикс. ₽</TableHead>
-                  <TableHead className="text-right">Вместимость</TableHead>
-                  <TableHead className="text-right">₽/км</TableHead>
-                  <TableHead className="text-right">Доступно</TableHead>
-                  <TableHead className="text-center w-24">—</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {showAddVehicle && (
-                  <TableRow className="bg-elevated/40">
-                    <TableCell>
-                      <Input
-                        placeholder="ГАЗель"
-                        value={addForm.vehicle_type}
-                        onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="20"
-                        value={addForm.underload_penalty}
-                        onChange={e => setAddForm(f => ({ ...f, underload_penalty: e.target.value }))}
-                        className="text-right"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="500"
-                        value={addForm.fixed_dispatch_cost}
-                        onChange={e => setAddForm(f => ({ ...f, fixed_dispatch_cost: e.target.value }))}
-                        className="text-right"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="18"
-                        value={addForm.capacity_units}
-                        onChange={e => setAddForm(f => ({ ...f, capacity_units: e.target.value }))}
-                      className="text-right"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="40"
-                      value={addForm.cost_per_km}
-                      onChange={e => setAddForm(f => ({ ...f, cost_per_km: e.target.value }))}
-                      className="text-right"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="5"
-                      value={addForm.available}
-                      onChange={e => setAddForm(f => ({ ...f, available: e.target.value }))}
-                      className="text-right"
-                    />
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex gap-1 justify-center">
-                      <button onClick={handleAddVehicle} className="p-1 rounded hover:bg-status-green/15 text-muted hover:text-status-green transition-colors" aria-label="Сохранить">
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => { setShowAddVehicle(false); setAddForm(EMPTY_VEHICLE) }} className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors" aria-label="Отмена">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-
-                {vehiclesForDisplay.map(v => {
-                  const isEdit = editingType === v.vehicle_type
-                  return (
-                    <TableRow key={v.vehicle_type}>
-                      <TableCell className="font-semibold">
-                      {isEdit ? (
-                        <Input
-                          value={editForm.vehicle_type}
-                          onChange={e => setEditForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                        />
-                      ) : v.vehicle_type}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {isEdit ? (
-                        <Input
-                          value={editForm.underload_penalty}
-                          onChange={e => setEditForm(f => ({ ...f, underload_penalty: e.target.value }))}
-                          className="text-right"
-                          placeholder="—"
-                        />
-                      ) : (v.underload_penalty != null ? fmt(v.underload_penalty) : <span className="text-muted">—</span>)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {isEdit ? (
-                        <Input
-                          value={editForm.fixed_dispatch_cost}
-                          onChange={e => setEditForm(f => ({ ...f, fixed_dispatch_cost: e.target.value }))}
-                          className="text-right"
-                          placeholder="—"
-                        />
-                      ) : (v.fixed_dispatch_cost != null ? fmt(v.fixed_dispatch_cost) : <span className="text-muted">—</span>)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {isEdit ? (
-                        <Input
-                          value={editForm.capacity_units}
-                          onChange={e => setEditForm(f => ({ ...f, capacity_units: e.target.value }))}
-                          className="text-right"
-                        />
-                      ) : fmt(v.capacity_units)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {isEdit ? (
-                        <Input
-                          value={editForm.cost_per_km}
-                          onChange={e => setEditForm(f => ({ ...f, cost_per_km: e.target.value }))}
-                          className="text-right"
-                        />
-                      ) : fmt(v.cost_per_km)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-status-green font-semibold">
-                      {isEdit ? (
-                        <Input
-                          value={editForm.available}
-                          onChange={e => setEditForm(f => ({ ...f, available: e.target.value }))}
-                          className="text-right"
-                        />
-                      ) : v.available}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {isEdit ? (
-                        <div className="flex gap-1 justify-center">
-                          <button onClick={saveEdit} className="p-1 rounded hover:bg-status-green/15 text-muted hover:text-status-green transition-colors" aria-label="Сохранить">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => { setEditingType(null); setEditForm(EMPTY_VEHICLE) }} className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors" aria-label="Отмена">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-1 justify-center">
-                          <button onClick={() => startEdit(v)} className="p-1 rounded hover:bg-elevated text-muted hover:text-foreground transition-colors" aria-label="Редактировать">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => deleteVehicleRow(v.vehicle_type)} className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors" aria-label="Удалить">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-
-              {vehiclesForDisplay.length === 0 && (
-                <TableRow>
-                  <TableCell className="text-center text-muted py-6" colSpan={7}>
-                    Нет ТС. Добавьте первый тип выше.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          </div>
-        </div>
-
-        {/* Incoming vehicles */}
-        <div>
-          <div className="section-label mb-1.5 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Clock className="w-3 h-3 text-status-yellow" />
-              Прибывающие ТС (глобально)
+          <div className="px-4 py-2.5 border-b border-border">
+            <span className="section-label">
+              {selectedWarehouse?.name ?? '—'} · Доступные ТС по горизонтам
             </span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => { setShowAddIncoming(true); setIncomingForm({ ...EMPTY_INCOMING, vehicle_type: vehicleOptions[0] ?? '' }); setIncomingEditingIdx(null) }}>
-                <Plus className="w-3 h-3" /> Добавить
-              </Button>
-            </div>
           </div>
-
-          <div className="bg-surface border border-border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Тип ТС</TableHead>
-                  <TableHead>Горизонт</TableHead>
-                  <TableHead className="text-right">Кол-во</TableHead>
-                  <TableHead className="text-center w-16">—</TableHead>
+                  {horizonLabels.map(label => (
+                    <TableHead key={label} className="text-right">
+                      {horizonDisplayLabel(label)}
+                    </TableHead>
+                  ))}
+                  <TableHead className="text-center w-10">Синхр.</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {showAddIncoming && (
-                  <TableRow className="bg-elevated/40">
-                    <TableCell>
-                      <select
-                        value={incomingForm.vehicle_type}
-                        onChange={e => setIncomingForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                        className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
-                      >
-                        {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                    </TableCell>
-                    <TableCell>
-                      <select
-                        value={incomingForm.horizon_idx}
-                        onChange={e => setIncomingForm(f => ({ ...f, horizon_idx: e.target.value }))}
-                        className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
-                      >
-                        {horizonLabels.map((label, hi) => (
-                          <option key={hi} value={hi}>{horizonDisplayLabel(label)}</option>
-                        ))}
-                      </select>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={incomingForm.count}
-                        onChange={e => setIncomingForm(f => ({ ...f, count: e.target.value }))}
-                        className="text-right"
-                      />
-                    </TableCell>
+                {fleetByHorizon.map(row => (
+                  <TableRow key={row.type}>
+                    <TableCell className="font-mono text-sm">{row.type}</TableCell>
+                    {row.h.map((count, i) => {
+                      const k = `${row.type}__${i}`
+                      const draftVal = draftFleet[k] ?? String(count)
+                      const isSaving = savingFleet[k]
+                      const prev = i > 0 ? row.h[i - 1] : count
+                      const isIncrease = count > prev
+                      return (
+                        <TableCell key={i} className="text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            value={draftVal}
+                            disabled={isSaving}
+                            onChange={e =>
+                              setDraftFleet(prev => ({ ...prev, [k]: e.target.value }))
+                            }
+                            onFocus={() =>
+                              setDraftFleet(prev => ({ ...prev, [k]: String(count) }))
+                            }
+                            onBlur={() => handleCellBlur(row.type, i, row.base)}
+                            className={`w-16 h-7 rounded bg-elevated border border-border px-2 text-right text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50 ${
+                              count === 0
+                                ? 'text-status-red'
+                                : isIncrease
+                                  ? 'text-status-green font-semibold'
+                                  : 'text-foreground'
+                            }`}
+                          />
+                        </TableCell>
+                      )
+                    })}
                     <TableCell className="text-center">
-                      <div className="flex gap-1 justify-center">
-                        <button
-                          onClick={incomingEditingIdx === null ? handleIncomingAdd : handleIncomingSave}
-                          className="p-1 rounded hover:bg-status-green/15 text-muted hover:text-status-green transition-colors"
-                          aria-label="Добавить"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => { setShowAddIncoming(false); setIncomingForm(EMPTY_INCOMING); setIncomingEditingIdx(null) }}
-                          className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors"
-                          aria-label="Отмена"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        disabled={syncingType === row.type}
+                        onClick={async () => {
+                          setSyncingType(row.type)
+                          try {
+                            await syncVehicleAcrossWarehouses(row.type, selectedId)
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : String(err))
+                          } finally {
+                            setSyncingType(null)
+                          }
+                        }}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-accent/10 text-muted hover:text-accent transition-colors disabled:opacity-50"
+                        title="Синхронизировать на все склады"
+                      >
+                        <RefreshCw className={cn('w-3.5 h-3.5', syncingType === row.type && 'animate-spin')} />
+                      </button>
                     </TableCell>
                   </TableRow>
-                )}
-
-                {incoming.map((row, idx) => {
-                  const isEdit = incomingEditingIdx === idx
-                  return (
-                    <TableRow key={idx}>
-                      <TableCell>
-                        {isEdit ? (
-                          <select
-                            value={incomingForm.vehicle_type}
-                            onChange={e => setIncomingForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                            className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
-                          >
-                            {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                          </select>
-                        ) : row.vehicle_type}
-                      </TableCell>
-                      <TableCell>
-                        {isEdit ? (
-                          <select
-                            value={incomingForm.horizon_idx}
-                            onChange={e => setIncomingForm(f => ({ ...f, horizon_idx: e.target.value }))}
-                            className="w-full bg-surface border border-border rounded px-2 py-1 text-sm text-foreground"
-                          >
-                            {horizonLabels.map((label, hi) => (
-                              <option key={hi} value={hi}>{horizonDisplayLabel(label)}</option>
-                            ))}
-                          </select>
-                        ) : (() => {
-                          const label = horizonLabels[row.horizon_idx]
-                          if (label) return horizonDisplayLabel(label)
-                          // horizon_idx is out of range for current granularity — show strikethrough + mapped
-                          const mappedIdx = Math.min(row.horizon_idx, horizonLabels.length - 1)
-                          const mappedLabel = horizonLabels[mappedIdx]
-                          return (
-                            <span>
-                              <span className="line-through text-muted/60 mr-1">#{row.horizon_idx}</span>
-                              <span className="text-status-yellow">{mappedLabel ? horizonDisplayLabel(mappedLabel) : `#${mappedIdx}`}</span>
-                            </span>
-                          )
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {isEdit ? (
-                          <Input
-                            type="number"
-                            min="1"
-                            value={incomingForm.count}
-                            onChange={e => setIncomingForm(f => ({ ...f, count: e.target.value }))}
-                            className="text-right"
-                          />
-                        ) : row.count}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {isEdit ? (
-                          <div className="flex gap-1 justify-center">
-                            <button onClick={handleIncomingSave} className="p-1 rounded hover:bg-status-green/15 text-muted hover:text-status-green transition-colors" aria-label="Сохранить">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => { setIncomingEditingIdx(null); setIncomingForm(EMPTY_INCOMING) }} className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors" aria-label="Отмена">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-1 justify-center">
-                            <button onClick={() => startIncomingEdit(idx, row)} className="p-1 rounded hover:bg-elevated text-muted hover:text-foreground transition-colors" aria-label="Редактировать">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleIncomingDelete(idx)} className="p-1 rounded hover:bg-status-red/15 text-muted hover:text-status-red transition-colors" aria-label="Удалить">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-
-                {incoming.length === 0 && (
+                ))}
+                {fleetByHorizon.length === 0 && (
                   <TableRow>
-                    <TableCell className="text-center text-muted py-4" colSpan={4}>
-                      Нет прибывающих ТС.
+                    <TableCell
+                      className="text-center text-muted py-6"
+                      colSpan={2 + horizonLabels.length}
+                    >
+                      Нет типов ТС. Создайте их на вкладке «Конструктор ТС».
                     </TableCell>
                   </TableRow>
                 )}
@@ -646,6 +284,12 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
             </Table>
           </div>
         </div>
+
+        <p className="text-xs text-muted">
+          Столбец «{horizonDisplayLabel(horizonLabels[0])}» — базовое кол-во ТС на складе.
+          Остальные — с учётом прибывающих к горизонту.
+          Редактирование любого столбца автоматически обновляет данные для выбранного склада.
+        </p>
       </div>
     </div>
   )

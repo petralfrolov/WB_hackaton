@@ -649,16 +649,28 @@ def dispatch(
     if warehouse is None or warehouse.is_mock:
         raise HTTPException(status_code=404, detail="warehouse not found")
 
-    wh_lock = state.get_warehouse_lock(req.warehouse_id)
-    if not wh_lock.acquire(blocking=False):
+    # Global concurrency limit — non-blocking to prevent threadpool exhaustion
+    if not state._dispatch_semaphore.acquire(blocking=False):
         raise HTTPException(
-            status_code=409,
-            detail=f"Dispatch already in progress for warehouse {req.warehouse_id}. Please wait.",
+            status_code=503,
+            detail="Server busy — too many concurrent dispatch requests. Please retry.",
         )
+    state.inc_dispatches()
     try:
-        return _run_dispatch(req, state, warehouse, db)
+        wh_lock = state.get_warehouse_lock(req.warehouse_id)
+        acquired = wh_lock.acquire(blocking=False)
+        if not acquired:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Dispatch already in progress for warehouse {req.warehouse_id}. Please wait.",
+            )
+        try:
+            return _run_dispatch(req, state, warehouse, db)
+        finally:
+            wh_lock.release()
     finally:
-        wh_lock.release()
+        state.dec_dispatches()
+        state._dispatch_semaphore.release()
 
 
 def _run_dispatch(req: DispatchRequest, state: AppState, warehouse, db: Session) -> DispatchResponse:

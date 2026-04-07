@@ -6,13 +6,15 @@ import { RouteTable } from '../components/optimizer/RouteTable'
 import { CostBenefitCard } from '../components/optimizer/CostBenefitCard'
 import { MetricDetailModal } from '../components/optimizer/MetricDetailModal'
 import { useSimulationContext } from '../context/SimulationContext'
-import { postDispatch, putRouteDistances, updateVehicle, getVehicles, putIncomingVehicles, callRoute } from '../api'
+import { postDispatch, putRouteDistances, updateVehicle, getVehicles, getIncomingVehicles, putIncomingVehicles, callRoute, syncVehicleAcrossWarehouses } from '../api'
 import { apiVehicleToVehicleType } from '../lib/utils'
 import { RefreshCw } from 'lucide-react'
 
 export function OptimizerPage() {
   const [searchParams] = useSearchParams()
   const { warehouses, routes, setRoutes, riskSettings, analysisDateTime, setSelectedWarehouseId, incomingVehicles, vehicleTypes, setVehicleTypes, setIncomingVehicles, warehouseStatuses, setWarehouseStatus, refreshAllWarehouses, refreshingAll } = useSimulationContext()
+  const refreshingAllRef = useRef(refreshingAll)
+  refreshingAllRef.current = refreshingAll
 
   const [warehouseId, setWarehouseId] = useState<string>(searchParams.get('warehouseId') ?? '')
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
@@ -24,6 +26,15 @@ export function OptimizerPage() {
   const [costPanelWidth, setCostPanelWidth] = useState(720)
   const [readyDirty, setReadyDirty] = useState(false)
   const [metricDetail, setMetricDetail] = useState<'p_cover' | 'fill_rate' | 'cpo' | 'fleet_utilization' | 'capacity_shortfall' | null>(null)
+
+  // AbortController for cancelling in-flight dispatch requests
+  const dispatchAbortRef = useRef<AbortController | null>(null)
+  // Mutable ref tracking the current warehouseId for mass-refresh callback
+  const warehouseIdRef = useRef(warehouseId)
+  warehouseIdRef.current = warehouseId
+
+  // Effective loading: single-warehouse dispatch OR mass-refresh without data yet
+  const showLoading = dispatchLoading || (refreshingAll && !dispatchResult)
 
   // ── Forecast cache: localStorage-backed, keyed by `wid__datetime` ────────
   const LS_PREFIX = 'dispatch_cache__'
@@ -92,8 +103,14 @@ export function OptimizerPage() {
         return
       }
     }
+    // Cancel previous in-flight request
+    dispatchAbortRef.current?.abort()
+    const controller = new AbortController()
+    dispatchAbortRef.current = controller
+
     setDispatchLoading(true)
     setDispatchError(null)
+    setDispatchResult(null)
     try {
       const ts = analysisDateTime.replace('T', ' ') + ':00'
       const result = await postDispatch({
@@ -101,40 +118,86 @@ export function OptimizerPage() {
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
         granularity: riskSettings.granularity,
-      })
+      }, controller.signal)
+      if (controller.signal.aborted) return
       lsSet(key, result)
       setDispatchResult(result)
       setWarehouseStatus(wid, deriveWarehouseStatus(result))
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       setDispatchError(err instanceof Error ? err.message : String(err))
       setDispatchResult(null)
     } finally {
-      setDispatchLoading(false)
+      if (!controller.signal.aborted) setDispatchLoading(false)
     }
   }, [analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings.granularity])
 
   const runDispatchRef = useRef(runDispatch)
   useEffect(() => { runDispatchRef.current = runDispatch }, [runDispatch])
 
-  // On initial mount: if warehouseId came from URL param, run dispatch (hits LS cache or fetches)
+  // On initial mount: if warehouseId came from URL param, load per-warehouse data and run dispatch
   useEffect(() => {
-    if (warehouseId) runDispatchRef.current(warehouseId)
+    if (warehouseId) {
+      Promise.all([getVehicles(warehouseId), getIncomingVehicles(warehouseId)])
+        .then(([vList, iRes]) => {
+          setVehicleTypes(vList.map(apiVehicleToVehicleType))
+          setIncomingVehicles(iRes.incoming ?? [])
+        })
+        .catch(() => {})
+      runDispatchRef.current(warehouseId)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally mount-only
 
+  // During mass refresh, pick up results from LS cache as each warehouse completes
+  useEffect(() => {
+    if (!refreshingAll || !warehouseId) return
+    if (dispatchResult) return // already have data
+    const cached = lsGet(cacheKey(warehouseId, analysisDateTime))
+    if (cached) {
+      setDispatchResult(cached)
+    }
+  }, [refreshingAll, warehouseId, warehouseStatuses, analysisDateTime, dispatchResult])
+
   // Auto-dispatch when warehouse is selected
-  const handleSelectWarehouse = useCallback((id: string) => {
+  const handleSelectWarehouse = useCallback(async (id: string) => {
+    // If same warehouse is already loading — ignore the click to avoid aborting + 409
+    if (id === warehouseId && dispatchLoading) return
+
+    // Cancel any in-flight single dispatch for a DIFFERENT warehouse
+    if (id !== warehouseId) {
+      dispatchAbortRef.current?.abort()
+      setDispatchLoading(false)
+    }
     setWarehouseId(id)
     setSelectedWarehouseId(id)
     setSelectedRouteId(null)
-    // load from cache or fetch
-    runDispatchRef.current(id)
-  }, [setSelectedWarehouseId])
+    setDispatchError(null)
+    // Try LS cache first (may be populated by mass refresh)
+    const cached = lsGet(cacheKey(id, analysisDateTime))
+    if (cached) {
+      setDispatchResult(cached)
+      setWarehouseStatus(id, deriveWarehouseStatus(cached))
+    } else {
+      setDispatchResult(null)
+    }
+    // Reload vehicles and incoming for the selected warehouse
+    try {
+      const [vList, iRes] = await Promise.all([getVehicles(id), getIncomingVehicles(id)])
+      setVehicleTypes(vList.map(apiVehicleToVehicleType))
+      setIncomingVehicles(iRes.incoming ?? [])
+    } catch { /* ignore */ }
+    // Only dispatch if NOT in mass refresh — mass refresh will produce the result
+    if (!refreshingAllRef.current) {
+      runDispatchRef.current(id)
+    }
+  }, [warehouseId, dispatchLoading, setSelectedWarehouseId, setVehicleTypes, setIncomingVehicles, analysisDateTime, setWarehouseStatus])
 
   const handleRefresh = useCallback(() => {
     if (!warehouseId) return
-    // Invalidate localStorage cache for current key and re-fetch
+    // Invalidate localStorage cache and clear result immediately so loading shows
     lsDel(cacheKey(warehouseId, analysisDateTime))
+    setDispatchResult(null)
     runDispatchRef.current(warehouseId, true)
   }, [warehouseId, analysisDateTime])
 
@@ -194,7 +257,7 @@ export function OptimizerPage() {
     newCount: number,
   ) => {
     if (horizonIdx === 0) {
-      // Update base available count on the vehicle record
+      // Update base available count on the vehicle record for current warehouse only
       const vt = vehicleTypes.find(v => v.id === vehicleType)
       if (!vt) return
       await updateVehicle(vehicleType, {
@@ -205,8 +268,9 @@ export function OptimizerPage() {
         category: vt.category,
         underload_penalty: vt.underloadPenalty,
         fixed_dispatch_cost: vt.fixedDispatchCost,
+        warehouse_id: warehouseId || undefined,
       })
-      const reloaded = await getVehicles()
+      const reloaded = await getVehicles(warehouseId || undefined)
       const newTypes = reloaded.map(apiVehicleToVehicleType)
       setVehicleTypes(newTypes)
     } else {
@@ -225,15 +289,23 @@ export function OptimizerPage() {
       const newList = delta > 0
         ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx, count: delta }]
         : filtered
-      await putIncomingVehicles(newList)
+      await putIncomingVehicles(newList, warehouseId || undefined)
       setIncomingVehicles(newList)
     }
-    // Invalidate cache and re-run dispatch
+    // Invalidate cache and re-run dispatch; reload both vehicles + incoming
     if (warehouseId) {
       lsDel(cacheKey(warehouseId, analysisDateTime))
+      const [vList, iRes] = await Promise.all([getVehicles(warehouseId), getIncomingVehicles(warehouseId)])
+      setVehicleTypes(vList.map(apiVehicleToVehicleType))
+      setIncomingVehicles(iRes.incoming ?? [])
       await runDispatchRef.current(warehouseId, true)
     }
   }, [vehicleTypes, incomingVehicles, warehouseId, analysisDateTime, setVehicleTypes, setIncomingVehicles])
+
+  const handleSyncVehicle = useCallback(async (vehicleType: string) => {
+    if (!warehouseId) return
+    await syncVehicleAcrossWarehouses(vehicleType, warehouseId)
+  }, [warehouseId])
 
   const handleCallRoute = useCallback(async (routeId: string) => {
     const ts = analysisDateTime.replace('T', ' ') + ':00'
@@ -259,16 +331,6 @@ export function OptimizerPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
-      {/* Blur overlay while refreshing all warehouses */}
-      {refreshingAll && (
-        <div className="absolute inset-0 z-50 backdrop-blur-sm bg-background/60 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3 bg-surface border border-border rounded-xl px-8 py-6 shadow-lg">
-            <RefreshCw className="w-8 h-8 animate-spin text-accent" />
-            <p className="text-sm text-foreground font-medium">Обновление всех складов…</p>
-            <p className="text-xs text-muted">Это может занять несколько секунд</p>
-          </div>
-        </div>
-      )}
       {/* Header */}
       <div className="px-4 py-3 border-b border-border bg-surface shrink-0 flex items-center justify-between gap-4">
         <div>
@@ -293,7 +355,20 @@ export function OptimizerPage() {
           </button>
         )}
         <button
-          onClick={async () => { await refreshAllWarehouses(); if (warehouseId) runDispatchRef.current(warehouseId) }}
+          onClick={async () => {
+            // Cancel any in-flight single dispatch
+            dispatchAbortRef.current?.abort()
+            setDispatchLoading(false)
+            setDispatchResult(null)
+            setDispatchError(null)
+            // refreshAllWarehouses sets refreshingAll=true → showLoading activates
+            // When each warehouse completes, callback updates local result via mutable ref
+            await refreshAllWarehouses((wid, result) => {
+              if (wid === warehouseIdRef.current) {
+                setDispatchResult(result)
+              }
+            })
+          }}
           disabled={refreshingAll || dispatchLoading}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border transition-colors disabled:opacity-50 shrink-0',
@@ -333,7 +408,11 @@ export function OptimizerPage() {
                 )}
               >
                 <div className="flex items-center gap-2">
-                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_COLOR[warehouseStatuses[w.id] ?? 'none'])} />
+                  {refreshingAll && !warehouseStatuses[w.id] ? (
+                    <RefreshCw className="w-3 h-3 animate-spin text-accent shrink-0" />
+                  ) : (
+                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_COLOR[warehouseStatuses[w.id] ?? 'none'])} />
+                  )}
                   <span className={cn('font-medium truncate text-xs', warehouseId === w.id ? 'text-accent' : 'text-foreground')}>
                     {w.name}
                   </span>
@@ -358,8 +437,8 @@ export function OptimizerPage() {
             ) : (
               <div className="space-y-4">
                 {/* ── Бизнес-метрики ──────────────────────────────────────── */}
-                {(dispatchResult?.metrics || dispatchLoading) && (() => {
-                  if (dispatchLoading && !dispatchResult?.metrics) {
+                {(dispatchResult?.metrics || showLoading) && (() => {
+                  if (showLoading && !dispatchResult?.metrics) {
                     return (
                       <div className="bg-surface border border-border rounded-lg px-4 py-3">
                         <div className="section-label mb-3">Бизнес-метрики</div>
@@ -389,7 +468,7 @@ export function OptimizerPage() {
                     : shortfall <= 50 ? 'text-status-yellow'
                     : 'text-status-red'
                   return (
-                    <div className={`bg-surface border border-border rounded-lg px-4 py-3 transition-opacity ${dispatchLoading ? 'opacity-50' : ''}`}>
+                    <div className={`bg-surface border border-border rounded-lg px-4 py-3 transition-opacity ${showLoading ? 'opacity-50' : ''}`}>
                       <div className="section-label mb-3">Бизнес-метрики <span className="text-[10px] text-muted font-normal ml-1">(клик → детализация)</span></div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                         {/* P покрытия */}
@@ -449,7 +528,7 @@ export function OptimizerPage() {
                   warehouse={selectedWarehouse}
                   warehouseRoutes={warehouseRoutes}
                   dispatchResult={dispatchResult}
-                  loading={dispatchLoading}
+                  loading={showLoading}
                   error={dispatchError}
                   selectedRouteId={selectedRouteId}
                   onSelectRoute={setSelectedRouteId}
@@ -459,6 +538,7 @@ export function OptimizerPage() {
                   vehicleTypes={vehicleTypes}
                   incomingVehicles={incomingVehicles}
                   onFleetChange={handleFleetChange}
+                  onSyncVehicle={handleSyncVehicle}
                   onReadyDirtyChange={setReadyDirty}
                   analysisDateTime={analysisDateTime}
                   granularity={riskSettings.granularity}

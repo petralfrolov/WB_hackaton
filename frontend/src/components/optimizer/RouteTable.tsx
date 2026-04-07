@@ -1,4 +1,4 @@
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import type { Warehouse, RouteDistance, ApiDispatchResponse, VehicleType, ApiIncomingVehicle, Granularity } from '../../types'
 import {
@@ -48,6 +48,7 @@ interface RouteTableProps {
   vehicleTypes?: VehicleType[]
   incomingVehicles?: ApiIncomingVehicle[]
   onFleetChange?: (vehicleType: string, horizonIdx: number, newCount: number) => Promise<void>
+  onSyncVehicle?: (vehicleType: string) => Promise<void>
   analysisDateTime?: string
   granularity?: Granularity
 }
@@ -92,6 +93,7 @@ export function RouteTable({
   vehicleTypes = [],
   incomingVehicles = [],
   onFleetChange,
+  onSyncVehicle,
   analysisDateTime = '',
   granularity = 2,
 }: RouteTableProps) {
@@ -99,6 +101,7 @@ export function RouteTable({
   const [draftReady, setDraftReady] = useState<Record<string, string>>({})
   const [draftFleet, setDraftFleet] = useState<Record<string, string>>({})
   const [savingFleet, setSavingFleet] = useState<Record<string, boolean>>({})
+  const [syncingType, setSyncingType] = useState<Record<string, boolean>>({})
   const [called, setCalled] = useState<Record<string, boolean>>({})
   const [bulkCalled, setBulkCalled] = useState(false)
 
@@ -129,6 +132,8 @@ export function RouteTable({
     () => dispatchResult?.horizon_labels ?? makeHorizonLabels(granularity as Granularity),
     [dispatchResult, granularity],
   )
+  // Fleet table always uses 30-min granularity
+  const fleetHorizonLabels = useMemo(() => makeHorizonLabels(0.5), [])
   // Future-only labels (skip the first "A: сейчас" / "A: now" label)
   const futureLabels = useMemo(() => allHorizonLabels.slice(1), [allHorizonLabels])
 
@@ -164,7 +169,7 @@ export function RouteTable({
 
   const hasShortfall = dispatchResult !== null && dispatchResult.routes.some(r => r.coverage_min < -0.5)
 
-  const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles, allHorizonLabels.length)
+  const fleetByHorizon = computeFleetByHorizon(vehicleTypes, incomingVehicles, fleetHorizonLabels.length)
 
   const handleCall = async (routeId: string) => {
     const already = called[routeId]
@@ -451,9 +456,10 @@ export function RouteTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Тип ТС</TableHead>
-                {allHorizonLabels.map(label => (
+                {fleetHorizonLabels.map(label => (
                   <TableHead key={label} className="text-right">{horizonDisplayLabel(label)}</TableHead>
                 ))}
+                {onSyncVehicle && <TableHead className="text-center">Синхр.</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -464,6 +470,8 @@ export function RouteTable({
                     const k = `${row.type}__${i}`
                     const draftVal = draftFleet[k] ?? String(count)
                     const isSaving = savingFleet[k]
+                    const prev = i > 0 ? row.h[i - 1] : count
+                    const isIncrease = count > prev
                     return (
                       <TableCell key={i} className="text-right">
                         {onFleetChange ? (
@@ -488,17 +496,37 @@ export function RouteTable({
                               }
                             }}
                             className={`w-16 h-7 rounded bg-elevated border border-border px-2 text-right text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50 ${
-                              count === 0 ? 'text-status-red' : 'text-foreground'
+                              count === 0 ? 'text-status-red' : isIncrease ? 'text-status-green' : 'text-foreground'
                             }`}
                           />
                         ) : (
-                          <span className={`font-mono text-sm ${count === 0 ? 'text-status-red' : 'text-foreground'}`}>
+                          <span className={`font-mono text-sm ${count === 0 ? 'text-status-red' : isIncrease ? 'text-status-green' : 'text-foreground'}`}>
                             {count}
                           </span>
                         )}
                       </TableCell>
                     )
                   })}
+                  {onSyncVehicle && (
+                    <TableCell className="text-center">
+                      <button
+                        disabled={syncingType[row.type]}
+                        onClick={async () => {
+                          setSyncingType(prev => ({ ...prev, [row.type]: true }))
+                          try {
+                            await onSyncVehicle(row.type)
+                          } finally {
+                            setSyncingType(prev => ({ ...prev, [row.type]: false }))
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-border text-muted hover:text-accent hover:border-accent transition-colors disabled:opacity-50"
+                        title="Скопировать количество ТС этого типа на все склады"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${syncingType[row.type] ? 'animate-spin' : ''}`} />
+                        Синхр.
+                      </button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

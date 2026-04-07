@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { RiskSettingsPanel } from '../components/lab/RiskSettings'
 import { FleetManager } from '../components/lab/FleetManager'
+import { VehicleTypeEditor } from '../components/lab/VehicleTypeEditor'
 import { RouteManager } from '../components/lab/RouteManager'
 import { useSimulationContext } from '../context/SimulationContext'
 
-type LabTab = 'fleet' | 'routes'
+type LabTab = 'fleet' | 'vehicle-types' | 'routes'
 
 export function LabPage() {
   const [activeTab, setActiveTab] = useState<LabTab>('fleet')
@@ -32,7 +33,7 @@ export function LabPage() {
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Tab bar */}
           <div className="flex border-b border-border px-4 shrink-0 bg-surface">
-            {([['fleet', 'Парк ТС по складам'], ['routes', 'Маршруты и расстояния']] as const).map(([id, label]) => (
+            {([['fleet', 'Парк ТС по складам'], ['vehicle-types', 'Конструктор ТС'], ['routes', 'Маршруты и расстояния']] as const).map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -51,6 +52,8 @@ export function LabPage() {
           <div className="flex-1 overflow-hidden p-4">
             {activeTab === 'fleet' ? (
               <FleetManager warehouses={warehouses} />
+            ) : activeTab === 'vehicle-types' ? (
+              <VehicleTypeEditor />
             ) : (
               <RouteManager warehouses={warehouses} routes={routes} onChangeRoutes={setRoutes} />
             )}

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { ApiIncomingVehicle, ApiWarehouseMetrics, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
+import type { ApiDispatchResponse, ApiIncomingVehicle, ApiWarehouseMetrics, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
 import { getWarehouses, getRouteDistances, getConfig, getVehicles, getIncomingVehicles, patchSettings, postDispatch } from '../api'
 import {
   defaultRiskSettings,
@@ -29,7 +29,7 @@ interface SimulationContextValue {
   warehouseMetrics: Record<string, ApiWarehouseMetrics>
   setWarehouseMetrics: (id: string, metrics: ApiWarehouseMetrics) => void
   clearCache: () => void
-  refreshAllWarehouses: () => Promise<void>
+  refreshAllWarehouses: (onWarehouseComplete?: (warehouseId: string, result: ApiDispatchResponse) => void) => Promise<void>
   refreshingAll: boolean
 }
 
@@ -213,10 +213,20 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     setWarehouseStatuses({})
   }, [])
 
-  const refreshAllWarehouses = useCallback(async () => {
+  const refreshAbortRef = useRef<AbortController | null>(null)
+
+  const refreshAllWarehouses = useCallback(async (
+    onWarehouseComplete?: (warehouseId: string, result: ApiDispatchResponse) => void,
+  ) => {
     if (refreshingAllRef.current) return
     refreshingAllRef.current = true
     setRefreshingAll(true)
+
+    // Abort any previous refresh-all in progress
+    refreshAbortRef.current?.abort()
+    const controller = new AbortController()
+    refreshAbortRef.current = controller
+
     const ts = analysisDateTime.replace('T', ' ') + ':00'
     const suffix = `__${analysisDateTime}`
     // Clear dispatch cache entries for current datetime
@@ -228,41 +238,49 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     toRemove.forEach(k => localStorage.removeItem(k))
     setWarehouseStatuses({})
     setWarehouseMetricsState({})
-    // Fetch all warehouses in parallel
+
+    // Concurrency-limited dispatch: max 2 in parallel to avoid overloading backend
     const currentIncoming = incomingVehicles
-    const results = await Promise.allSettled(
-      warehouses.map(w =>
-        postDispatch({
-          warehouse_id: w.id,
-          timestamp: ts,
-          incoming_vehicles: currentIncoming.length > 0 ? currentIncoming : undefined,
-          confidence_level: riskSettings.confidenceLevel,
-          granularity: riskSettings.granularity,
-        }).then(result => ({ warehouseId: w.id, result }))
-      )
-    )
-    const newStatuses: Record<string, 'ok' | 'warning' | 'critical'> = {}
-    for (const r of results) {
-      if (r.status === 'rejected') continue
-      const { warehouseId, result } = r.value
-      try { localStorage.setItem('dispatch_cache__' + warehouseId + suffix, JSON.stringify(result)) } catch { /* quota */ }
-      let hasCritical = false, hasWarning = false
-      for (const rp of result.routes) {
-        for (const row of rp.plan) {
-          if (row.demand_new > 0 && row.vehicles_count === 0) hasCritical = true
-          else if (row.leftover_stock >= 1) hasWarning = true
+    const queue = [...warehouses]
+    const runOne = async (): Promise<void> => {
+      while (queue.length > 0) {
+        if (controller.signal.aborted) return
+        const w = queue.shift()!
+        try {
+          const result = await postDispatch({
+            warehouse_id: w.id,
+            timestamp: ts,
+            incoming_vehicles: currentIncoming.length > 0 ? currentIncoming : undefined,
+            confidence_level: riskSettings.confidenceLevel,
+            granularity: riskSettings.granularity,
+          }, controller.signal) as ApiDispatchResponse
+          if (controller.signal.aborted) return
+          // Cache to localStorage
+          try { localStorage.setItem('dispatch_cache__' + w.id + suffix, JSON.stringify(result)) } catch { /* quota */ }
+          // Derive status
+          let hasCritical = false, hasWarning = false
+          for (const rp of result.routes) {
+            for (const row of rp.plan) {
+              if (row.demand_new > 0 && row.vehicles_count === 0) hasCritical = true
+              else if (row.leftover_stock >= 1) hasWarning = true
+            }
+          }
+          const status: 'ok' | 'warning' | 'critical' = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
+          // Update state immediately for this warehouse
+          setWarehouseStatuses(prev => ({ ...prev, [w.id]: status }))
+          if (result.metrics) {
+            setWarehouseMetricsState(prev => ({ ...prev, [w.id]: result.metrics! }))
+          }
+          // Notify caller (OptimizerPage) about this warehouse's result
+          onWarehouseComplete?.(w.id, result)
+        } catch {
+          // 503 from backend = server busy, re-queue with a small delay
+          // AbortError = cancelled, skip
         }
       }
-      newStatuses[warehouseId] = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
     }
-    setWarehouseStatuses(newStatuses)
-    const newMetrics: Record<string, ApiWarehouseMetrics> = {}
-    for (const r of results) {
-      if (r.status === 'rejected') continue
-      const { warehouseId, result } = r.value
-      if (result.metrics) newMetrics[warehouseId] = result.metrics
-    }
-    setWarehouseMetricsState(newMetrics)
+    // Run 2 workers in parallel
+    await Promise.all([runOne(), runOne()])
     refreshingAllRef.current = false
     setRefreshingAll(false)
   }, [analysisDateTime, incomingVehicles, warehouses, riskSettings])

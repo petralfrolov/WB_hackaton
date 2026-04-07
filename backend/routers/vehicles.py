@@ -134,6 +134,56 @@ async def delete_vehicle(vehicle_type: str, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
+@router.post("/vehicles/{vehicle_type}/sync", status_code=200)
+async def sync_vehicle_across_warehouses(
+    vehicle_type: str,
+    warehouse_id: str = Query(..., description="Source warehouse whose availability to copy"),
+    db: Session = Depends(get_db),
+):
+    """Copy availability AND incoming vehicles of a vehicle type from source warehouse to all other real warehouses."""
+    vt = get_vehicle_type_by_name(db, vehicle_type)
+    if vt is None:
+        raise HTTPException(status_code=404, detail="vehicle_type not found")
+    source = db.query(m.WarehouseVehicle).filter(
+        m.WarehouseVehicle.warehouse_id == warehouse_id,
+        m.WarehouseVehicle.vehicle_type_id == vt.id,
+    ).first()
+    if source is None:
+        raise HTTPException(status_code=404, detail="vehicle not found for source warehouse")
+    # Get incoming records for this vehicle type from source warehouse
+    source_incoming = db.query(m.IncomingVehicle).filter(
+        m.IncomingVehicle.warehouse_id == warehouse_id,
+        m.IncomingVehicle.vehicle_type_id == vt.id,
+    ).all()
+    all_wh = get_all_warehouses(db, include_mock=False)
+    for wh in all_wh:
+        if wh.id == warehouse_id:
+            continue
+        # Sync base availability
+        wv = db.query(m.WarehouseVehicle).filter(
+            m.WarehouseVehicle.warehouse_id == wh.id,
+            m.WarehouseVehicle.vehicle_type_id == vt.id,
+        ).first()
+        if wv:
+            wv.available = source.available
+        else:
+            db.add(m.WarehouseVehicle(warehouse_id=wh.id, vehicle_type_id=vt.id, available=source.available))
+        # Sync incoming vehicles: delete existing for this type, copy from source
+        db.query(m.IncomingVehicle).filter(
+            m.IncomingVehicle.warehouse_id == wh.id,
+            m.IncomingVehicle.vehicle_type_id == vt.id,
+        ).delete()
+        for si in source_incoming:
+            db.add(m.IncomingVehicle(
+                warehouse_id=wh.id,
+                vehicle_type_id=vt.id,
+                horizon_idx=si.horizon_idx,
+                count=si.count,
+            ))
+    db.commit()
+    return {"status": "ok", "synced_available": source.available}
+
+
 # ── Incoming vehicles ────────────────────────────────────────────────────────
 
 @router.get("/incoming-vehicles", response_model=IncomingVehicleList)

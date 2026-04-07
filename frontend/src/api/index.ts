@@ -37,10 +37,11 @@ export function putRouteDistances(items: ApiRouteDistance[]): Promise<ApiRouteDi
 
 // ── Dispatch ─────────────────────────────────────────────────────────────────
 
-export function postDispatch(req: ApiDispatchRequest): Promise<ApiDispatchResponse> {
+export function postDispatch(req: ApiDispatchRequest, signal?: AbortSignal): Promise<ApiDispatchResponse> {
   return apiFetch<ApiDispatchResponse>('/dispatch', {
     method: 'POST',
     body: JSON.stringify(req),
+    signal,
   })
 }
 
@@ -61,6 +62,10 @@ export function updateVehicle(type: string, v: ApiVehicle): Promise<ApiVehicle> 
 
 export function deleteVehicle(type: string): Promise<void> {
   return apiFetch<void>(`/vehicles/${type}`, { method: 'DELETE' })
+}
+
+export function syncVehicleAcrossWarehouses(vehicleType: string, warehouseId: string): Promise<{ status: string; synced_available: number }> {
+  return apiFetch(`/vehicles/${encodeURIComponent(vehicleType)}/sync?warehouse_id=${encodeURIComponent(warehouseId)}`, { method: 'POST' })
 }
 
 export function listVehicles(warehouseId?: string): Promise<ApiVehicle[]> {
