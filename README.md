@@ -52,19 +52,19 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Frontend (React)                          │
+│                         Frontend (React)                         │
 │   MapPage  │  OptimizerPage  │  LabPage                          │
 │   Карта складов  │  Таблица рекомендаций  │  Управление парком   │
 └───────────────────────┬──────────────────────────────────────────┘
                         │ HTTP / JSON
 ┌───────────────────────▼──────────────────────────────────────────┐
-│                     FastAPI backend                               │
-│                                                                   │
+│                     FastAPI backend                              │
+│                                                                  │
 │  POST /dispatch   ── основной цикл (n маршрутов склада)          │
 │  POST /optimize   ── одиночный маршрут                           │
 │  POST /call       ── формирование заявки на вызов ТС             │
 │  GET  /health     ── статус сервиса                              │
-│  GET/POST /vehicles, /warehouses, /settings                       │
+│  GET/POST /vehicles, /warehouses, /settings                      │
 └──────────┬────────────────────────────────────────────┬──────────┘
            │                                            │
   ┌────────▼────────┐                        ┌──────────▼──────────┐
@@ -74,8 +74,8 @@
   └────────┬────────┘                        └─────────────────────┘
            │
   ┌────────▼────────────────────────┐
-  │  models/exp_best_features_full/ │
-  │  (10 step-моделей × 1 файл)    │
+  │  models/models/                 │
+  │  (12 step-моделей × 10 сидов)   │
   └─────────────────────────────────┘
 ```
 
@@ -122,7 +122,7 @@
 
 ### Модели
 
-Используется ансамбль **LightGBM step-моделей** (эксперимент `exp_best_features_full`). Каждый step — отдельная модель регрессии, обученная предсказывать `target_step_i` шаг вперёд. Модели хранятся в `backend/models/exp_best_features_full/` в формате `joblib`.
+Используется ансамбль **LightGBM step-моделей**. Каждый step — отдельная модель регрессии, обученная предсказывать `target_step_i` шаг вперёд. Модели хранятся в `backend/models/` в формате `joblib`.
 
 ### Горизонт и периодичность
 
@@ -312,7 +312,7 @@ npm run dev
 - Python 3.11+
 - Node.js 18+
 - Файл обучающей выборки: `train_team_track.parquet` (положить в `backend/`)
-- Обученные модели в `backend/models/exp_best_features_full/`
+- Обученные модели в `backend/models/`
 
 ### 1. Backend
 
@@ -373,7 +373,7 @@ WB_hackaton/
 │   ├── route_distances.json       # Расстояния по маршрутам
 │   ├── incoming_vehicles.json     # Дополнительный входящий транспорт
 │   ├── models/
-│   │   └── exp_best_features_full/  # Сохранённые LightGBM модели (joblib)
+│   │   └── models/  # Сохранённые LightGBM модели (joblib)
 │   ├── routers/
 │   │   ├── optimize.py            # POST /optimize
 │   │   ├── dispatch.py            # POST /dispatch

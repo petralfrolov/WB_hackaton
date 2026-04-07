@@ -1,7 +1,7 @@
-"""Standalone inference pipeline for exp_best_features_full.
+"""Standalone inference pipeline for exp66_roll_ratio_struct_diversity.
 
-Produces three forecasts for a selected route_id and timestamp using the saved
-ensemble of LightGBM step models.
+Produces three forecasts for a selected route_id and timestamp using split
+per-step-per-seed LightGBM models exported by exp66_step11_step12.py.
 
 Target column is target_2h — a 2-hour rolling window value.  Each step is
 30 minutes, so to predict the 2-hour window anchored exactly at a horizon
@@ -9,7 +9,13 @@ boundary we pick the step at that boundary:
   step_4  = target_2h in 4×30min = exactly +2h ahead  (0–2h window)
   step_8  = target_2h in 8×30min = exactly +4h ahead  (2–4h window)
   step_12 = target_2h in 12×30min = exactly +6h ahead (4–6h window)
-             — requires models trained beyond step 10; returns None if absent.
+             — only available if step_12 models were trained and exported.
+
+Models directory layout (one pkl per step per seed):
+  lgb_A_cs08_seed42_step01.pkl  ← just the LGBMRegressor for that step/seed
+  lgb_A_cs08_seed42_step02.pkl
+  ...
+  lgb_C_cs07_seed99_step12.pkl
 
 This file is fully independent from project modules (no local imports).
 """
@@ -23,7 +29,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import joblib
-import lightgbm as lgb  # noqa: F401 - needed for unpickling LGB models
+import lightgbm as lgb  # noqa: F401 – needed for pkl unpickling
 import numpy as np
 import pandas as pd
 
@@ -39,11 +45,12 @@ FORECAST_POINTS = 12
 FUTURE_TARGET_COLS = [f"target_step_{i}" for i in range(1, FORECAST_POINTS + 1)]
 
 DEFAULT_TRAIN_PATH = "data/train_team_track.parquet"
-DEFAULT_MODELS_DIR = "models/exp_best_features_full"
+DEFAULT_MODELS_DIR = "models/models"
 
+
+# ── Feature engineering (must exactly match exp66 training pipeline) ──────────
 
 def _add_time_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add calendar time features: hour, day-of-week, cyclic encodings, half-hour slot."""
     df["hour"] = df["timestamp"].dt.hour
     df["day_of_week"] = df["timestamp"].dt.dayofweek
     df["is_weekend"] = (df["day_of_week"] >= 5).astype(np.int8)
@@ -56,7 +63,6 @@ def _add_time_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _add_lag_rolling_features(df: pd.DataFrame, extended: bool) -> pd.DataFrame:
-    """Add target lags, rolling statistics (mean/std/min/max), EMA, and first-differences."""
     g = df.groupby("route_id", sort=False)
 
     base_lags = [1, 2, 4, 8, 16, 48]
@@ -104,10 +110,6 @@ def _add_lag_rolling_features(df: pd.DataFrame, extended: bool) -> pd.DataFrame:
 
 
 def _add_status_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add status-column lags, rolling means, ratio encodings, and summary stats.
-
-    Only executed when ``status_*`` columns are present in ``df``.
-    """
     status_cols = sorted([
         c for c in df.columns
         if c.startswith("status_")
@@ -135,11 +137,6 @@ def _add_status_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _add_deconvolution_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add deconvolution features s_t0..s_t3 by summing alternating-sign lagged targets.
-
-    Each s_ti is a clipped running difference that approximates a discrete-time
-    deconvolution of the demand signal over 12 periods.
-    """
     g = df.groupby("route_id", sort=False)
     n_deconv_pairs = 12
     extra_lag_cols: dict = {}
@@ -171,7 +168,6 @@ def _add_deconvolution_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _add_office_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add office-level aggregated target statistics (mean, sum, std) via left merge."""
     office_agg = (
         df.groupby(["office_from_id", "timestamp"])[TARGET_COL]
         .agg(office_target_mean="mean", office_target_sum="sum", office_target_std="std")
@@ -183,11 +179,6 @@ def _add_office_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _add_extended_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add route-level encoding, seasonal slot stats, office lags, and weekly lags.
-
-    Requires ``office_target_sum``, ``day_of_week``, and ``halfhour_slot`` columns
-    to already exist in ``df`` (added by earlier helpers).
-    """
     g = df.groupby("route_id", sort=False)
 
     route_stats = (
@@ -227,13 +218,7 @@ def _add_extended_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
-    """Replicate training feature engineering used in experiments.
-
-    Applies the full feature pipeline in order:
-    time features → lags/rolling → status → deconvolution → office agg → extended.
-    The ``extended`` flag enables longer lags, EMA-96, and route/seasonal encodings
-    used in the exp_best_features_full ensemble.
-    """
+    """Full base feature pipeline (identical to exp66 training)."""
     df = df.sort_values(["route_id", "timestamp"]).copy()
     df = _add_time_features(df)
     df = _add_lag_rolling_features(df, extended)
@@ -246,7 +231,7 @@ def make_features(df: pd.DataFrame, extended: bool = True) -> pd.DataFrame:
 
 
 def add_winning_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add rolling_cv and lag_ratio features used in exp_best_features_full."""
+    """Rolling-CV and lag-ratio features (identical to exp66 training)."""
     for w in [4, 8, 48]:
         std_col = f"target_roll_std_{w}"
         mean_col = f"target_roll_mean_{w}"
@@ -261,12 +246,25 @@ def add_winning_features(df: pd.DataFrame) -> pd.DataFrame:
         df["momentum_1_ema8"] = df["target_lag_1"] - df["target_ema_8"]
     if "target_lag_1" in df.columns and "target_ema_24" in df.columns:
         df["momentum_1_ema24"] = df["target_lag_1"] - df["target_ema_24"]
+    return df
 
+
+def add_roll_ratio_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Roll-ratio features specific to exp66 (absent from exp_best_features_full)."""
+    df = df.copy()
+    if "target_roll_mean_8" in df.columns and "target_roll_mean_96" in df.columns:
+        df["roll_ratio_8_96"] = df["target_roll_mean_8"] / (df["target_roll_mean_96"] + 1e-6)
+    if "target_roll_mean_16" in df.columns and "target_roll_mean_96" in df.columns:
+        df["roll_ratio_16_96"] = df["target_roll_mean_16"] / (df["target_roll_mean_96"] + 1e-6)
+    if "target_roll_mean_48" in df.columns and "target_roll_mean_336" in df.columns:
+        df["roll_ratio_48_336"] = df["target_roll_mean_48"] / (df["target_roll_mean_336"] + 1e-6)
+    if "target_ema_8" in df.columns and "target_ema_96" in df.columns:
+        df["ema_ratio_8_96"] = df["target_ema_8"] / (df["target_ema_96"] + 1e-6)
     return df
 
 
 def build_feature_cols(df: pd.DataFrame) -> List[str]:
-    """Build feature list exactly as in training (exclude targets, ts, id)."""
+    """Build feature list exactly as in exp66 training (exclude targets, ts, id)."""
     exclude = {TARGET_COL, "timestamp", "id", *FUTURE_TARGET_COLS}
     return [c for c in df.columns if c not in exclude]
 
@@ -280,41 +278,179 @@ def encode_id_categoricals(X: pd.DataFrame, feature_cols: List[str]) -> pd.DataF
     return X
 
 
+# ── Model loading ─────────────────────────────────────────────────────────────
+
 def load_models(models_dir: Path) -> List[Dict[str, object]]:
-    """Load all ensemble pickle files from a directory."""
-    model_paths = sorted(models_dir.glob("*.pkl"))
-    if not model_paths:
+    """Load per-step-per-seed pkl files and reconstruct per-seed ensemble dicts.
+
+    Expected filename convention (produced by exp66_step11_step12.py):
+        lgb_{group_label}_seed{seed}_step{NN}.pkl
+
+    Returns a list of dicts, one per unique seed:
+        [{"target_step_1": model, "target_step_2": model, ...}, ...]
+    This matches the format expected by predict_for_route_timestamp.
+
+    Also accepts the legacy all-in-one format where each pkl already IS a dict
+    (i.e. the original exp66 ensemble pkls before splitting).
+    """
+    pkl_files = sorted(models_dir.glob("*.pkl"))
+    if not pkl_files:
         raise FileNotFoundError(f"No .pkl files found in: {models_dir}")
 
-    models = []
-    for p in model_paths:
-        m = joblib.load(p)
-        if not isinstance(m, dict):
-            raise TypeError(f"Unexpected model object in {p.name}: {type(m)}")
-        # step_4 (+2h) and step_8 (+4h) are required; step_12 (+6h) is optional
-        # (needs to be trained separately — only 10 steps exist in current ensembles)
-        for required_key in ("target_step_4", "target_step_8"):
-            if required_key not in m:
-                raise KeyError(f"{p.name} missing key: {required_key}")
-        models.append(m)
+    # Peek at the first file to detect format
+    first = joblib.load(pkl_files[0])
+
+    # ── Format A: already a dict of step→model (legacy ensemble pkl) ─────────
+    if isinstance(first, dict) and any(
+        k.startswith("target_step_") for k in first
+    ):
+        models = []
+        for p in pkl_files:
+            m = joblib.load(p)
+            if not isinstance(m, dict):
+                raise TypeError(f"Unexpected object in {p.name}: {type(m)}")
+            for required in ("target_step_4", "target_step_8"):
+                if required not in m:
+                    raise KeyError(f"{p.name} missing key: {required}")
+            models.append(m)
+        return models
+
+    # ── Format B: individual model objects keyed by filename convention ───────
+    # Filename: lgb_{label}_seed{seed}_step{NN}.pkl
+    seed_dicts: Dict[str, Dict[str, object]] = {}
+    unmatched: List[str] = []
+    for p in pkl_files:
+        parts = p.stem.rsplit("_step", maxsplit=1)
+        if len(parts) != 2:
+            unmatched.append(p.name)
+            continue
+        seed_key = parts[0]          # e.g. "lgb_A_cs08_seed42"
+        step_num_str = parts[1]      # e.g. "01"
+        try:
+            step_num = int(step_num_str)
+        except ValueError:
+            unmatched.append(p.name)
+            continue
+        model = joblib.load(p)
+        seed_dicts.setdefault(seed_key, {})[f"target_step_{step_num}"] = model
+
+    if unmatched:
+        logger.warning("Unmatched (skipped) pkl files: %s", unmatched)
+    if not seed_dicts:
+        raise FileNotFoundError(
+            f"No split-format pkl files found in {models_dir}. "
+            "Expected pattern: lgb_*_seed*_step*.pkl"
+        )
+
+    models = list(seed_dicts.values())
+    for i, m in enumerate(models):
+        for required in ("target_step_4", "target_step_8"):
+            if required not in m:
+                raise KeyError(
+                    f"Seed-dict #{i} is missing required key '{required}'. "
+                    "Ensure step 4 and step 8 models are present."
+                )
     return models
 
 
+# ── Feature matrix preparation ────────────────────────────────────────────────
+
 def prepare_feature_matrix(train_path: Path) -> Tuple[pd.DataFrame, List[str]]:
-    """Load train data and build full feature matrix used for point-in-time inference."""
+    """Load full train parquet and build feature matrix for point-in-time inference."""
     df = pd.read_parquet(train_path)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
 
     df = make_features(df, extended=True)
     df = add_winning_features(df)
+    df = add_roll_ratio_features(df)  # exp66-specific
     feature_cols = build_feature_cols(df)
 
-    # route_id is already in feature_cols, so avoid duplicate column labels
     keep_cols = feature_cols + ["timestamp"]
     X_all = df[keep_cols].copy()
     return X_all, feature_cols
 
+
+# ── Lazy (windowed) feature matrix preparation ────────────────────────────────
+
+#: Max lag used in feature engineering (target_lag_672 = 672 × 30 min = 14 days)
+_MAX_LAG_STEPS = 672
+_LAG_MINUTES = _MAX_LAG_STEPS * 30   # 20 160 min ≈ 14 days
+_LOOKBACK_DAYS = _LAG_MINUTES // (60 * 24) + 2  # 16 days for headroom
+
+
+def prepare_feature_matrix_for_route(
+    train_path: Path,
+    route_id: str,
+    timestamp: str,
+    office_routes: Optional[List[str]] = None,
+) -> Tuple[pd.DataFrame, List[str]]:
+    """Load a small time window for *route_id* (and same-office peers) and build features.
+
+    Only reads rows where route_id is in the relevant set and timestamp is within
+    the lookback window — much cheaper than loading the full parquet at startup.
+    """
+    ts = pd.to_datetime(timestamp)
+    min_ts = ts - pd.Timedelta(days=_LOOKBACK_DAYS)
+
+    routes_to_load = list({str(route_id)} | {str(r) for r in (office_routes or [])})
+
+    # Predicate pushdown: try int filter first (covers int64-stored parquet),
+    # then string, then full read.
+    int_routes = []
+    for r in routes_to_load:
+        try:
+            int_routes.append(int(r))
+        except (ValueError, TypeError):
+            pass
+
+    df = None
+    if int_routes:
+        try:
+            df = pd.read_parquet(train_path, filters=[("route_id", "in", int_routes)])
+            if df.empty:
+                df = None
+        except Exception as e:
+            logger.debug(
+                "int filter failed for route_id=%s, falling back to string filter: %s",
+                route_id, e,
+            )
+            df = None
+
+    if df is None:
+        try:
+            df = pd.read_parquet(train_path, filters=[("route_id", "in", routes_to_load)])
+        except Exception as e:
+            logger.warning(
+                "Parquet predicate pushdown failed for route_id=%s (dtype mismatch?), "
+                "falling back to full parquet read — this is slow under load. Error: %s",
+                route_id, e,
+            )
+            df = pd.read_parquet(train_path)
+
+    df["route_id"] = df["route_id"].astype(str)
+    df = df[df["route_id"].isin(routes_to_load)]
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df[df["timestamp"].notna()]
+    df = df[(df["timestamp"] >= min_ts) & (df["timestamp"] <= ts)]
+    df = df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
+
+    if df.empty or str(route_id) not in df["route_id"].astype(str).values:
+        raise ValueError(
+            f"No data found for route_id={route_id} in window [{min_ts}, {ts}]. "
+            "Verify that the timestamp exists in the training parquet."
+        )
+
+    df = make_features(df, extended=True)
+    df = add_winning_features(df)
+    df = add_roll_ratio_features(df)  # exp66-specific
+    feature_cols = build_feature_cols(df)
+
+    keep = feature_cols + ["timestamp"]
+    return df[keep].copy(), feature_cols
+
+
+# ── Prediction ────────────────────────────────────────────────────────────────
 
 def predict_for_route_timestamp(
     X_all: pd.DataFrame,
@@ -380,88 +516,6 @@ def predict_for_route_timestamp(
     return out
 
 
-# ---------------------------------------------------------------------------
-# Lazy inference: load only the required parquet window per request
-# ---------------------------------------------------------------------------
-
-#: Max lag used in feature engineering (target_lag_672 = 672 × 30 min = 14 days)
-_MAX_LAG_STEPS = 672
-_LAG_MINUTES = _MAX_LAG_STEPS * 30  # 20 160 min ≈ 14 days
-_LOOKBACK_DAYS = _LAG_MINUTES // (60 * 24) + 2  # 16 days for headroom
-
-
-def prepare_feature_matrix_for_route(
-    train_path: Path,
-    route_id: str,
-    timestamp: str,
-    office_routes: Optional[List[str]] = None,
-) -> Tuple["pd.DataFrame", List[str]]:
-    """Load a small time window for *route_id* (and same-office peers) and build features.
-
-    Only reads rows where route_id is in the relevant set and timestamp is within
-    the lookback window — much cheaper than loading the full parquet at startup.
-    """
-    ts = pd.to_datetime(timestamp)
-    min_ts = ts - pd.Timedelta(days=_LOOKBACK_DAYS)
-
-    routes_to_load = list({str(route_id)} | {str(r) for r in (office_routes or [])})
-
-    # Predicate pushdown: prune row-groups by route_id when dtype is compatible.
-    # Some parquet builds store route_id as int64; passing string filters then crashes
-    # inside pyarrow (e.g. ArrowNotImplementedError: string vs int64 compare).
-    # Try int filter first (covers int64-stored parquet), then string, then full read.
-    int_routes = []
-    for r in routes_to_load:
-        try:
-            int_routes.append(int(r))
-        except (ValueError, TypeError):
-            pass
-
-    df = None
-    if int_routes:
-        try:
-            df = pd.read_parquet(train_path, filters=[("route_id", "in", int_routes)])
-            # Verify the filter actually returned rows (empty means wrong dtype)
-            if df.empty:
-                df = None
-        except Exception as e:
-            logger.debug("int filter failed for route_id=%s, falling back to string filter: %s", route_id, e)
-            df = None
-
-    if df is None:
-        try:
-            df = pd.read_parquet(train_path, filters=[("route_id", "in", routes_to_load)])
-        except Exception as e:
-            # Last-resort fallback: full read. Slower but dtype-agnostic.
-            logger.warning(
-                "Parquet predicate pushdown failed for route_id=%s (dtype mismatch?), "
-                "falling back to full parquet read — this is slow under load. Error: %s",
-                route_id, e,
-            )
-            df = pd.read_parquet(train_path)
-
-    # Normalize key columns before filtering.
-    df["route_id"] = df["route_id"].astype(str)
-    df = df[df["route_id"].isin(routes_to_load)]
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df = df[df["timestamp"].notna()]
-    df = df[(df["timestamp"] >= min_ts) & (df["timestamp"] <= ts)]
-    df = df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
-
-    if df.empty or str(route_id) not in df["route_id"].astype(str).values:
-        raise ValueError(
-            f"No data found for route_id={route_id} in window [{min_ts}, {ts}]. "
-            "Verify that the timestamp exists in the training parquet."
-        )
-
-    df = make_features(df, extended=True)
-    df = add_winning_features(df)
-    feature_cols = build_feature_cols(df)
-
-    keep = feature_cols + ["timestamp"]
-    return df[keep].copy(), feature_cols
-
-
 def predict_lazy(
     train_path: Path,
     models: List[Dict[str, object]],
@@ -471,7 +525,7 @@ def predict_lazy(
 ) -> Dict[str, float]:
     """End-to-end lazy prediction: read parquet window → build features → ensemble predict.
 
-    Uses the same ``predict_for_route_timestamp`` logic but avoids pre-loading
+    Uses the same predict_for_route_timestamp logic but avoids pre-loading
     the entire feature matrix at application startup.
     """
     X_all, feature_cols = prepare_feature_matrix_for_route(
@@ -480,9 +534,11 @@ def predict_lazy(
     return predict_for_route_timestamp(X_all, feature_cols, models, route_id, timestamp)
 
 
+# ── CLI entry-point ───────────────────────────────────────────────────────────
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Standalone prediction for exp_best_features_full ensemble"
+        description="Standalone prediction for exp66_roll_ratio_struct_diversity ensemble"
     )
     parser.add_argument("--route_id", required=True, help="Route id to predict for")
     parser.add_argument(
@@ -498,7 +554,7 @@ def main() -> None:
     parser.add_argument(
         "--models_dir",
         default=DEFAULT_MODELS_DIR,
-        help=f"Directory with ensemble .pkl files (default: {DEFAULT_MODELS_DIR})",
+        help=f"Directory with per-step-per-seed .pkl files (default: {DEFAULT_MODELS_DIR})",
     )
     parser.add_argument(
         "--json_out",
