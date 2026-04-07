@@ -186,9 +186,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           economyThreshold: typeof cfg.economy_threshold === 'number'
             ? cfg.economy_threshold
             : prev.economyThreshold,
-          maxWaitMinutes: typeof cfg.max_wait_minutes === 'number'
-            ? cfg.max_wait_minutes
-            : prev.maxWaitMinutes,
           confidenceLevel: typeof (cfg as any).confidence_level === 'number'
             ? (cfg as any).confidence_level
             : prev.confidenceLevel,
@@ -281,7 +278,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         large: settings.emptyPenaltyLarge ?? settings.emptyPenaltyPerUnit,
       },
       economy_threshold: settings.economyThreshold,
-      max_wait_minutes: settings.maxWaitMinutes,
       confidence_level: settings.confidenceLevel,
       granularity: settings.granularity,
     }).catch((err: unknown) => { console.error('[patchSettings]', err) })

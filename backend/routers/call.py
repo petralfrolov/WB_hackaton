@@ -6,19 +6,23 @@ recent cached dispatch plan for a given route and warehouse.
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from schemas.call import CallRequest, CallResponse, CallVehicle, CallPayload
 from core.state import AppState, get_state
+from db.database import get_db
+from db.queries import get_fleet_for_warehouse
 
 router = APIRouter(tags=["call"])
 
 
 @router.post("/call", response_model=CallResponse)
-async def call_transport(req: CallRequest, state: AppState = Depends(get_state)):
-    """Формирует JSON вызова транспорта, используя уже готовый план из DispatchResponse.
-
-    Ожидается, что фронт передаёт маршрут, который присутствует в последнем dispatch для склада.
-    """
+async def call_transport(
+    req: CallRequest,
+    state: AppState = Depends(get_state),
+    db: Session = Depends(get_db),
+):
+    """Формирует JSON вызова транспорта, используя уже готовый план из DispatchResponse."""
     route_id = str(req.route_id)
     ts_str = req.timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -40,8 +44,10 @@ async def call_transport(req: CallRequest, state: AppState = Depends(get_state))
     if not a_rows:
         raise HTTPException(status_code=422, detail="В горизонте A нет отправок для этого маршрута")
 
-    vehicles_cfg = state.vehicles_cfg.get("vehicles", [])
-    v_lookup = {v["vehicle_type"]: v for v in vehicles_cfg}
+    # Get vehicle config from DB for the warehouse
+    wh_id = req.warehouse_id or last_dispatch.get("warehouse_id")
+    vehicles_cfg_list = get_fleet_for_warehouse(db, wh_id) if wh_id else []
+    v_lookup = {v["vehicle_type"]: v for v in vehicles_cfg_list}
 
     vehicles = []
     for row in a_rows:

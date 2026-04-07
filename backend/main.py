@@ -22,11 +22,15 @@ from routers import (
     call_router,
 )
 from core.state import load_state
+from db.database import init_db
+from db.seed import seed_if_empty
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load ML models and config once at startup."""
+    """Initialise DB, seed from JSON if empty, then load ML models."""
+    init_db()
+    seed_if_empty()
     load_state()
     yield
 

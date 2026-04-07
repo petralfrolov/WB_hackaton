@@ -8,8 +8,8 @@ from optimizer.horizons import (
 
 VEHICLES_CFG_SIMPLE = {
     "vehicles": [
-        {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 2.0, "available": 10},
-        {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 3.0, "available": 10},
+        {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 2.0, "available": 10, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
+        {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 3.0, "available": 10, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
     ],
     "route_distance_km": 10,
     "initial_stock_units": 0,
@@ -41,8 +41,8 @@ def test_milp_shared_fleet_not_exceeded():
     }
     vehicles_cfg = {
         "vehicles": [
-            {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 2.0, "available": 3},
-            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 3.0, "available": 2},
+            {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 2.0, "available": 3, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
+            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 3.0, "available": 2, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
         ],
         "route_distance_km": 10,
         "initial_stock_units": 0,
@@ -139,7 +139,7 @@ def test_build_plan_wait_penalty_applied():
     demands = {"r1": [0.0, 3.0, 0.0, 0.0]}
     cfg = {
         "vehicles": [
-            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 1.0, "available": 1},
+            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 1.0, "available": 1, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
         ],
         "route_distance_km": 10,
         "initial_stock_units": 0,
@@ -167,7 +167,7 @@ def test_build_plan_multi_route_shared_fleet():
     """Two routes together must not exceed fleet limit at any horizon."""
     cfg = {
         "vehicles": [
-            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 2},
+            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 2, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
         ],
         "route_distance_km": 10,
         "initial_stock_units": 0,
@@ -189,8 +189,8 @@ def test_build_plan_multi_route_shared_fleet():
 # ---------------------------------------------------------------------------
 
 VEHICLES_TWO = [
-    {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 1.0, "available": 3},
-    {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 2.0, "available": 2},
+    {"vehicle_type": "van",   "capacity_units": 5,  "cost_per_km": 1.0, "available": 3, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
+    {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 2.0, "available": 2, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
 ]
 nT = len(HORIZONS)
 
@@ -239,7 +239,7 @@ def test_build_fleet_limits_unknown_type_raises():
 
 
 def test_build_fleet_limits_bad_horizon_raises():
-    incoming = [{"horizon_idx": 99, "vehicle_type": "van", "count": 1}]
+    incoming = [{"horizon_idx": -1, "vehicle_type": "van", "count": 1}]
     with pytest.raises(ValueError, match="horizon_idx"):
         _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
 
@@ -252,7 +252,7 @@ def test_milp_incoming_expands_fleet():
     """With tight base fleet + incoming, solver can dispatch more at later horizons."""
     cfg_tight = {
         "vehicles": [
-            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 1},
+            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 1, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
         ],
         "route_distance_km": 10,
         "initial_stock_units": 0,
@@ -279,7 +279,7 @@ def test_milp_incoming_does_not_affect_earlier_horizons():
     """Incoming at t=2 must NOT allow extra vehicles at t=0 or t=1."""
     cfg = {
         "vehicles": [
-            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 1},
+            {"vehicle_type": "van", "capacity_units": 5, "cost_per_km": 1.0, "available": 1, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
         ],
         "route_distance_km": 10,
         "initial_stock_units": 0,
@@ -302,8 +302,8 @@ def test_build_plan_incoming_vehicles_column_values():
     """Vehicles dispatched per horizon must not exceed (base + incoming) at that horizon."""
     cfg = {
         "vehicles": [
-            {"vehicle_type": "van",   "capacity_units": 5, "cost_per_km": 1.0, "available": 1},
-            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 2.0, "available": 1},
+            {"vehicle_type": "van",   "capacity_units": 5, "cost_per_km": 1.0, "available": 1, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
+            {"vehicle_type": "truck", "capacity_units": 10, "cost_per_km": 2.0, "available": 1, "underload_penalty": 0.0, "fixed_dispatch_cost": 0.0},
         ],
         "route_distance_km": 10,
         "initial_stock_units": 0,

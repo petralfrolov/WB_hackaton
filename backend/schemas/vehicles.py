@@ -12,6 +12,7 @@ class Vehicle(BaseModel):
     available: int
     underload_penalty: Optional[float] = None
     fixed_dispatch_cost: Optional[float] = None
+    warehouse_id: Optional[str] = None  # when present, scoped to a specific warehouse
 
 
 class VehicleUpdate(BaseModel):
@@ -21,12 +22,14 @@ class VehicleUpdate(BaseModel):
     available: Optional[int] = None
     underload_penalty: Optional[float] = None
     fixed_dispatch_cost: Optional[float] = None
+    warehouse_id: Optional[str] = None
 
 
 class IncomingVehicle(BaseModel):
-    horizon_idx: int = Field(..., ge=0, le=3)
+    horizon_idx: int = Field(..., ge=0)
     vehicle_type: str
     count: int = Field(..., ge=1)
+    warehouse_id: Optional[str] = None
 
 
 class IncomingVehicleList(BaseModel):

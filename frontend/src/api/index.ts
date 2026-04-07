@@ -46,8 +46,9 @@ export function postDispatch(req: ApiDispatchRequest): Promise<ApiDispatchRespon
 
 // ── Vehicles ─────────────────────────────────────────────────────────────────
 
-export function getVehicles(): Promise<ApiVehicle[]> {
-  return apiFetch<ApiVehicle[]>('/vehicles')
+export function getVehicles(warehouseId?: string): Promise<ApiVehicle[]> {
+  const params = warehouseId ? `?warehouse_id=${encodeURIComponent(warehouseId)}` : ''
+  return apiFetch<ApiVehicle[]>(`/vehicles${params}`)
 }
 
 export function addVehicle(v: ApiVehicle): Promise<ApiVehicle> {
@@ -62,46 +63,48 @@ export function deleteVehicle(type: string): Promise<void> {
   return apiFetch<void>(`/vehicles/${type}`, { method: 'DELETE' })
 }
 
-export function listVehicles(): Promise<ApiVehicle[]> {
-  return getVehicles()
+export function listVehicles(warehouseId?: string): Promise<ApiVehicle[]> {
+  return getVehicles(warehouseId)
 }
 
 // ── Incoming vehicles ─────────────────────────────────────────────────────────
 
-export function getIncomingVehicles(): Promise<ApiIncomingVehicleList> {
-  return apiFetch<ApiIncomingVehicleList>('/incoming-vehicles')
+export function getIncomingVehicles(warehouseId?: string): Promise<ApiIncomingVehicleList> {
+  const params = warehouseId ? `?warehouse_id=${encodeURIComponent(warehouseId)}` : ''
+  return apiFetch<ApiIncomingVehicleList>(`/incoming-vehicles${params}`)
 }
 
-export function listIncoming(): Promise<ApiIncomingVehicleList> {
-  return getIncomingVehicles()
+export function listIncoming(warehouseId?: string): Promise<ApiIncomingVehicleList> {
+  return getIncomingVehicles(warehouseId)
 }
 
-export function putIncomingVehicles(list: ApiIncomingVehicle[]): Promise<ApiIncomingVehicleList> {
-  return apiFetch<ApiIncomingVehicleList>('/incoming-vehicles', {
+export function putIncomingVehicles(list: ApiIncomingVehicle[], warehouseId?: string): Promise<ApiIncomingVehicleList> {
+  const params = warehouseId ? `?warehouse_id=${encodeURIComponent(warehouseId)}` : ''
+  return apiFetch<ApiIncomingVehicleList>(`/incoming-vehicles${params}`, {
     method: 'PUT',
     body: JSON.stringify({ incoming: list }),
   })
 }
 
-export async function addIncoming(item: ApiIncomingVehicle): Promise<ApiIncomingVehicleList> {
-  const current = await getIncomingVehicles()
+export async function addIncoming(item: ApiIncomingVehicle, warehouseId?: string): Promise<ApiIncomingVehicleList> {
+  const current = await getIncomingVehicles(warehouseId)
   const newList = [...(current.incoming || []), item]
-  return putIncomingVehicles(newList)
+  return putIncomingVehicles(newList, warehouseId)
 }
 
-export async function updateIncoming(idx: number, item: ApiIncomingVehicle): Promise<ApiIncomingVehicleList> {
-  const current = await getIncomingVehicles()
+export async function updateIncoming(idx: number, item: ApiIncomingVehicle, warehouseId?: string): Promise<ApiIncomingVehicleList> {
+  const current = await getIncomingVehicles(warehouseId)
   const newList = [...(current.incoming || [])]
   if (idx >= 0 && idx < newList.length) {
     newList[idx] = item
   }
-  return putIncomingVehicles(newList)
+  return putIncomingVehicles(newList, warehouseId)
 }
 
-export async function deleteIncoming(idx: number): Promise<ApiIncomingVehicleList> {
-  const current = await getIncomingVehicles()
+export async function deleteIncoming(idx: number, warehouseId?: string): Promise<ApiIncomingVehicleList> {
+  const current = await getIncomingVehicles(warehouseId)
   const newList = (current.incoming || []).filter((_, i) => i !== idx)
-  return putIncomingVehicles(newList)
+  return putIncomingVehicles(newList, warehouseId)
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────

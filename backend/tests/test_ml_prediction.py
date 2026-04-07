@@ -67,14 +67,14 @@ def test_predict_for_route_timestamp_averages_models():
 
     models = [
         {
-            "target_step_1": DummyModel(1.0),
-            "target_step_5": DummyModel(2.0),
-            "target_step_9": DummyModel(3.0),
+            "target_step_4": DummyModel(1.0),
+            "target_step_8": DummyModel(2.0),
+            "target_step_12": DummyModel(3.0),
         },
         {
-            "target_step_1": DummyModel(3.0),
-            "target_step_5": DummyModel(4.0),
-            "target_step_9": DummyModel(5.0),
+            "target_step_4": DummyModel(3.0),
+            "target_step_8": DummyModel(4.0),
+            "target_step_12": DummyModel(5.0),
         },
     ]
 

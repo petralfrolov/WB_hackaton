@@ -216,9 +216,9 @@ export function apiWarehouseToWarehouse(w: ApiWarehouseInfo): Warehouse {
     id: w.id,
     name: w.name,
     city: w.city,
-    lat: w.lat,
-    lng: w.lng,
-    status: w.status,
+    lat: w.lat ?? 0,
+    lng: w.lng ?? 0,
+    status: 'ok',  // status is now derived from dispatch results, not from API
     readyToShip: w.ready_to_ship,
     forecast: [],
     sankeyData: makeSankey(w.ready_to_ship * 4),

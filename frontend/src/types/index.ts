@@ -119,11 +119,10 @@ export interface ApiWarehouseInfo {
   id: string
   name: string
   city: string
-  lat: number
-  lng: number
-  office_from_id: string
+  lat: number | null
+  lng: number | null
+  office_from_id: string | null
   route_ids: string[]
-  status: 'ok' | 'warning' | 'critical'
   ready_to_ship: number
 }
 
@@ -152,6 +151,7 @@ export interface ApiVehicle {
   category?: 'small' | 'medium' | 'large'
   underload_penalty?: number
   fixed_dispatch_cost?: number
+  warehouse_id?: string
 }
 
 export interface ApiIncomingVehicle {
@@ -171,7 +171,6 @@ export interface ApiSettings {
   initial_stock_units: number
   route_distance_km: number
   economy_threshold?: number
-  max_wait_minutes?: number
   confidence_level?: number
   granularity?: number
   underload_penalty_per_unit_by_cat?: {

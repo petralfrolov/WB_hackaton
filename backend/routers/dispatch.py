@@ -7,14 +7,17 @@ IRP MILP, and returns per-route plans with aggregate coverage metrics.
 Supports granularity 0.5h / 1h / 2h via deconvolution of 2h-window ML predictions.
 """
 import copy
+import json
 import math
 from collections import defaultdict  # noqa: F401
+from datetime import datetime, timezone
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from scipy.stats import norm as scipy_norm
+from sqlalchemy.orm import Session
 
 from core.conformal import get_margin
 from ml.prediction import predict_lazy
@@ -22,6 +25,15 @@ from optimizer.horizons import build_plan, make_horizons
 from schemas.dispatch import DispatchRequest, DispatchResponse, RouteMetrics, RoutePlan, WarehouseMetrics
 from schemas.optimize import PlanRow
 from core.state import AppState, get_state
+from db.database import get_db
+from db.queries import (
+    get_warehouse_by_id,
+    get_route_ids_for_warehouse,
+    get_routes_for_warehouse,
+    get_vehicles_cfg_for_warehouse,
+    get_incoming_for_warehouse,
+)
+from db import models as dbm
 
 router = APIRouter(tags=["dispatch"])
 
@@ -626,30 +638,15 @@ def _compute_warehouse_metrics(
 
 
 @router.post("/dispatch", response_model=DispatchResponse)
-def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
-    """Plan joint transport dispatch for all routes of a warehouse.
-
-    Runs the full pipeline: ML demand forecast → conformal margins →
-    portfolio scaling → joint MILP → coverage metrics.
-
-    Args:
-        req: Dispatch request containing warehouse_id, timestamp, and optional
-            overrides for vehicles, confidence level, and incoming vehicles.
-        state: Application state injected by FastAPI.
-
-    Returns:
-        ``DispatchResponse`` with per-route plans, total cost, and aggregate
-        warehouse metrics (p_cover, fill_rate, CPO).
-
-    Raises:
-        HTTPException 404: Warehouse not found.
-        HTTPException 409: Another dispatch is already running for this warehouse.
-        HTTPException 422: No routes from this warehouse found in train data.
-        HTTPException 500: MILP optimizer returned an empty plan.
-    """
+def dispatch(
+    req: DispatchRequest,
+    state: AppState = Depends(get_state),
+    db: Session = Depends(get_db),
+):
+    """Plan joint transport dispatch for all routes of a warehouse."""
     # ── 1. Resolve warehouse ─────────────────────────────────────────────────
-    warehouse = next((w for w in state.warehouses if w["id"] == req.warehouse_id), None)
-    if warehouse is None:
+    warehouse = get_warehouse_by_id(db, req.warehouse_id)
+    if warehouse is None or warehouse.is_mock:
         raise HTTPException(status_code=404, detail="warehouse not found")
 
     wh_lock = state.get_warehouse_lock(req.warehouse_id)
@@ -659,20 +656,33 @@ def dispatch(req: DispatchRequest, state: AppState = Depends(get_state)):
             detail=f"Dispatch already in progress for warehouse {req.warehouse_id}. Please wait.",
         )
     try:
-        return _run_dispatch(req, state, warehouse)
+        return _run_dispatch(req, state, warehouse, db)
     finally:
         wh_lock.release()
 
 
-def _run_dispatch(req: DispatchRequest, state: AppState, warehouse: dict) -> DispatchResponse:
+def _run_dispatch(req: DispatchRequest, state: AppState, warehouse, db: Session) -> DispatchResponse:
 
-    route_ids: List[str] = warehouse["route_ids"]
-    office_from_id: str = warehouse["office_from_id"]
+    route_ids: List[str] = get_route_ids_for_warehouse(db, warehouse.id)
+    office_from_id: str = warehouse.office_from_id
     ts_str = req.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    route_meta = {str(route["id"]): route for route in state.route_distances}
 
-    # ── 2. Build config, apply request-level overrides ───────────────────────
-    cfg = copy.deepcopy(state.vehicles_cfg)
+    # Build route metadata from DB
+    db_routes = get_routes_for_warehouse(db, warehouse.id)
+    route_meta = {}
+    for r in db_routes:
+        to_wh = get_warehouse_by_id(db, r.to_warehouse_id)
+        route_meta[r.id] = {
+            "id": r.id,
+            "from_id": r.from_warehouse_id,
+            "to_id": r.to_warehouse_id,
+            "distance_km": r.distance_km,
+            "ready_to_ship": r.ready_to_ship,
+            "to_city": to_wh.city if to_wh else "",
+        }
+
+    # ── 2. Build config from DB, apply request-level overrides ───────────
+    cfg = get_vehicles_cfg_for_warehouse(db, warehouse.id)
 
     if req.vehicles_override:
         cfg["vehicles"] = [v.model_dump() for v in req.vehicles_override]
@@ -682,7 +692,7 @@ def _run_dispatch(req: DispatchRequest, state: AppState, warehouse: dict) -> Dis
     incoming = (
         [iv.model_dump() for iv in req.incoming_vehicles]
         if req.incoming_vehicles is not None
-        else state.incoming_cfg
+        else get_incoming_for_warehouse(db, warehouse.id)
     )
 
     # ── 3. ML forecasts for all routes ───────────────────────────────────────
@@ -795,4 +805,44 @@ def _run_dispatch(req: DispatchRequest, state: AppState, warehouse: dict) -> Dis
     with state._dispatch_write_lock:
         state.last_dispatch = dispatch_snapshot
         state.last_dispatch_by_warehouse[req.warehouse_id] = dispatch_snapshot
+
+    # ── 7. Persist dispatch result to DB ─────────────────────────────────
+    _persist_dispatch_result(db, req.warehouse_id, req.timestamp, granularity, dispatch_snapshot)
+
     return resp
+
+
+def _persist_dispatch_result(
+    db: Session,
+    warehouse_id: str,
+    timestamp: datetime,
+    granularity: float,
+    snapshot: dict,
+) -> None:
+    """Upsert dispatch result into the dispatch_results table."""
+    # Determine which column to update
+    col_map = {0.5: "granularity_05", 1.0: "granularity_1", 2.0: "granularity_2"}
+    col_name = col_map.get(granularity, "granularity_2")
+
+    # Make timestamp naive for SQLite storage
+    ts = timestamp if not hasattr(timestamp, 'tzinfo') or timestamp.tzinfo is None else timestamp.replace(tzinfo=None)
+
+    existing = db.query(dbm.DispatchResult).filter(
+        dbm.DispatchResult.warehouse_id == warehouse_id,
+        dbm.DispatchResult.timestamp == ts,
+    ).first()
+
+    serialized = json.dumps(snapshot, ensure_ascii=False, default=str)
+
+    if existing:
+        setattr(existing, col_name, serialized)
+        existing.updated_at = datetime.now(timezone.utc)
+    else:
+        row = dbm.DispatchResult(
+            warehouse_id=warehouse_id,
+            timestamp=ts,
+        )
+        setattr(row, col_name, serialized)
+        db.add(row)
+
+    db.commit()
