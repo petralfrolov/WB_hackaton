@@ -6,6 +6,7 @@ IRP MILP, and returns per-route plans with aggregate coverage metrics.
 
 Supports granularity 0.5h / 1h / 2h via deconvolution of 2h-window ML predictions.
 """
+import asyncio
 import copy
 import json
 import math
@@ -638,12 +639,16 @@ def _compute_warehouse_metrics(
 
 
 @router.post("/dispatch", response_model=DispatchResponse)
-def dispatch(
+async def dispatch(
     req: DispatchRequest,
     state: AppState = Depends(get_state),
     db: Session = Depends(get_db),
 ):
-    """Plan joint transport dispatch for all routes of a warehouse."""
+    """Plan joint transport dispatch for all routes of a warehouse.
+
+    The heavy computation (ML forecasting + MILP solving) runs in a worker
+    thread via ``asyncio.to_thread`` so the event loop is never blocked.
+    """
     # ── 1. Resolve warehouse ─────────────────────────────────────────────────
     warehouse = get_warehouse_by_id(db, req.warehouse_id)
     if warehouse is None or warehouse.is_mock:
@@ -658,16 +663,21 @@ def dispatch(
     state.inc_dispatches()
     try:
         wh_lock = state.get_warehouse_lock(req.warehouse_id)
-        acquired = wh_lock.acquire(blocking=False)
-        if not acquired:
+        if not wh_lock.acquire(blocking=False):
             raise HTTPException(
                 status_code=409,
                 detail=f"Dispatch already in progress for warehouse {req.warehouse_id}. Please wait.",
             )
         try:
-            return _run_dispatch(req, state, warehouse, db)
+            # Run blocking ML + MILP computation in a thread pool worker so the
+            # asyncio event loop remains responsive for other requests.
+            # SQLite is configured check_same_thread=False, so cross-thread session
+            # usage is safe here (single consumer thread, no concurrent access).
+            return await asyncio.to_thread(_run_dispatch, req, state, warehouse, db)
         finally:
             wh_lock.release()
+    except HTTPException:
+        raise
     finally:
         state.dec_dispatches()
         state._dispatch_semaphore.release()
@@ -837,7 +847,7 @@ def _persist_dispatch_result(
     col_name = col_map.get(granularity, "granularity_2")
 
     # Make timestamp naive for SQLite storage
-    ts = timestamp if not hasattr(timestamp, 'tzinfo') or timestamp.tzinfo is None else timestamp.replace(tzinfo=None)
+    ts = timestamp if timestamp.tzinfo is None else timestamp.replace(tzinfo=None)
 
     existing = db.query(dbm.DispatchResult).filter(
         dbm.DispatchResult.warehouse_id == warehouse_id,

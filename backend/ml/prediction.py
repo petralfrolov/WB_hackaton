@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -25,6 +26,8 @@ import joblib
 import lightgbm as lgb  # noqa: F401 - needed for unpickling LGB models
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 # -----------------------------
@@ -421,14 +424,20 @@ def prepare_feature_matrix_for_route(
             # Verify the filter actually returned rows (empty means wrong dtype)
             if df.empty:
                 df = None
-        except Exception:
+        except Exception as e:
+            logger.debug("int filter failed for route_id=%s, falling back to string filter: %s", route_id, e)
             df = None
 
     if df is None:
         try:
             df = pd.read_parquet(train_path, filters=[("route_id", "in", routes_to_load)])
-        except Exception:
+        except Exception as e:
             # Last-resort fallback: full read. Slower but dtype-agnostic.
+            logger.warning(
+                "Parquet predicate pushdown failed for route_id=%s (dtype mismatch?), "
+                "falling back to full parquet read — this is slow under load. Error: %s",
+                route_id, e,
+            )
             df = pd.read_parquet(train_path)
 
     # Normalize key columns before filtering.

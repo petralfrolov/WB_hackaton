@@ -273,9 +273,13 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           }
           // Notify caller (OptimizerPage) about this warehouse's result
           onWarehouseComplete?.(w.id, result)
-        } catch {
-          // 503 from backend = server busy, re-queue with a small delay
-          // AbortError = cancelled, skip
+        } catch (err) {
+          // AbortError = user cancelled refresh; stop quietly.
+          // Any other error (503 busy, network failure, etc.) = log and skip
+          // this warehouse for the current refresh cycle.
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.warn(`[refreshAllWarehouses] warehouse ${w.id} failed:`, err.message)
+          }
         }
       }
     }

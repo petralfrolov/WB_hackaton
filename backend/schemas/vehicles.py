@@ -9,7 +9,7 @@ class Vehicle(BaseModel):
     vehicle_type: str
     capacity_units: float
     cost_per_km: float
-    available: int
+    available: int = Field(..., ge=0)
     underload_penalty: Optional[float] = None
     fixed_dispatch_cost: Optional[float] = None
     warehouse_id: Optional[str] = None  # when present, scoped to a specific warehouse

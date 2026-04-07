@@ -124,7 +124,7 @@ async def update_settings(
 
     if "granularity" in payload:
         g = float(payload["granularity"])
-        if g in (0.5, 1.0, 2.0):
+        if round(g, 6) in (0.5, 1.0, 2.0):
             state.granularity = g
             set_setting(db, "granularity", state.granularity)
 
