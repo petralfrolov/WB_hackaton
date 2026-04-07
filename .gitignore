@@ -10,3 +10,4 @@ backend/optimizer/__pycache__/
 backend/.venv/
 backend/models/
 backend/db/
+backend/optimizer/__pycache__/

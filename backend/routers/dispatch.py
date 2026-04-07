@@ -473,13 +473,17 @@ def _compute_warehouse_metrics(
         veh_cap[vt] = float(v.get("capacity_units", 0))
         veh_avail[vt] = int(v.get("available", 0))
 
-    # Fleet at last horizon (+6h): base + all incoming that arrive within the window
-    last_horizon_idx = len(horizon_labels) - 1 if horizon_labels else 3
+    # Fleet at last horizon (+6h): base + all incoming that arrive within the window.
+    # DB stores horizon_idx in 30-min steps (FleetManager granularity = 0.5h).
+    # The planning window is always 6h = 360 min, so include any entry with
+    # horizon_idx * 30 <= 360 (i.e. horizon_idx <= 12).
+    _DB_PERIOD_MIN = 30
+    _WINDOW_MIN = 360
     veh_avail_at_last: Dict[str, int] = dict(veh_avail)  # copy base counts
     for iv in (incoming_vehicles or []):
         iv_vt = str(iv.get("vehicle_type", ""))
         iv_h = int(iv.get("horizon_idx", 0))
-        if iv_vt in veh_avail_at_last and iv_h <= last_horizon_idx:
+        if iv_vt in veh_avail_at_last and 0 <= iv_h * _DB_PERIOD_MIN <= _WINDOW_MIN:
             veh_avail_at_last[iv_vt] = veh_avail_at_last.get(iv_vt, 0) + int(iv.get("count", 0))
 
     # Available fleet capacity = fleet at last horizon × capacity per type

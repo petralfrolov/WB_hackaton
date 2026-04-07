@@ -91,33 +91,42 @@ def load_route_office_map(train_path: Path) -> Dict[str, str]:
     return {str(r): str(o) for r, o in zip(df["route_id"], df["office_from_id"])}
 
 
+# FleetManager always stores incoming-vehicle indices in 0.5h (30-min) steps.
+_DB_PERIOD_MINUTES = 30
+
+
 def _build_fleet_limits(
     vehicles: List[Dict],
     incoming: Optional[List[Dict]],
     nT: int,
+    period_minutes: int = 120,
 ) -> np.ndarray:
     """Вернуть матрицу max_fleet[v, t] — сколько ТС типа v доступно начиная с горизонта t.
 
     incoming — список записей {horizon_idx: int, vehicle_type: str, count: int}.
-    Каждая запись увеличивает доступный парк начиная с horizon_idx и далее.
+    horizon_idx хранится в единицах 0.5h (30 мин) — как в FleetManager.
+    Конвертируется в индекс горизонта оптимизатора по period_minutes.
+    Каждая запись увеличивает доступный парк начиная с этого горизонта и далее.
     """
     v_names = [v["vehicle_type"] for v in vehicles]
     base = np.array([float(v.get("available", 1000)) for v in vehicles])  # (nV,)
     fleet = np.tile(base[:, None], (1, nT))  # (nV, nT)
 
     for entry in (incoming or []):
-        h = int(entry["horizon_idx"])
+        h_stored = int(entry["horizon_idx"])
         vtype = entry["vehicle_type"]
         cnt = int(entry["count"])
         if vtype not in v_names:
             raise ValueError(f"incoming_vehicles: unknown vehicle_type '{vtype}'")
+        if h_stored < 0:
+            raise ValueError(f"incoming_vehicles: horizon_idx {h_stored} must be >= 0")
         vi = v_names.index(vtype)
-        # Map original 4-horizon indices to current nT horizons
+        # Convert DB 30-min-based index to optimizer horizon index
+        minute_offset = h_stored * _DB_PERIOD_MINUTES
+        h = round(minute_offset / period_minutes)
         if not (0 <= h < nT):
-            # Skip entries beyond current horizon count
-            if h >= nT:
-                continue
-            raise ValueError(f"incoming_vehicles: horizon_idx {h} out of range [0, {nT-1}]")
+            # Entry falls outside the current planning window — skip silently
+            continue
         fleet[vi, h:] += cnt
 
     return fleet  # shape (nV, nT)
@@ -347,7 +356,7 @@ def solve_irp_milp(
     caps = np.array([v["capacity_units"] for v in vehicles], dtype=float)
     horizons_list, period_minutes = make_horizons(granularity)
     nT = len(horizons_list)
-    max_fleet = _build_fleet_limits(vehicles, incoming_vehicles, nT)
+    max_fleet = _build_fleet_limits(vehicles, incoming_vehicles, nT, period_minutes)
 
     penalty_by_v = [float(v["underload_penalty"]) for v in vehicles]
     P_wait = float(vehicles_cfg.get("wait_penalty_per_minute", 0)) * period_minutes

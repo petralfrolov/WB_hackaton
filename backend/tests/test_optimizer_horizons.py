@@ -204,8 +204,9 @@ def test_build_fleet_limits_no_incoming():
 
 
 def test_build_fleet_limits_incoming_additive():
-    """Incoming at horizon 1 increases limits for t>=1 only."""
-    incoming = [{"horizon_idx": 1, "vehicle_type": "van", "count": 2}]
+    """Incoming at DB horizon_idx 4 (+2h at 30-min steps) maps to optimizer h1 and increases limits."""
+    # DB stores horizon_idx in 30-min steps: idx 4 = 4*30 = 120 min = optimizer h1 at 120-min period
+    incoming = [{'horizon_idx': 4, 'vehicle_type': 'van', 'count': 2}]
     fleet = _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
     assert fleet[0, 0] == 3   # t=0: no change
     assert fleet[0, 1] == 5   # t=1: +2
@@ -215,11 +216,12 @@ def test_build_fleet_limits_incoming_additive():
 
 
 def test_build_fleet_limits_multiple_incoming():
-    """Multiple entries accumulate correctly."""
+    """Multiple entries accumulate correctly (DB 30-min-based indices)."""
+    # idx 4 = 120 min = optimizer h1; idx 8 = 240 min = optimizer h2
     incoming = [
-        {"horizon_idx": 1, "vehicle_type": "van",   "count": 1},
-        {"horizon_idx": 2, "vehicle_type": "van",   "count": 2},
-        {"horizon_idx": 1, "vehicle_type": "truck", "count": 1},
+        {'horizon_idx': 4, 'vehicle_type': 'van',   'count': 1},
+        {'horizon_idx': 8, 'vehicle_type': 'van',   'count': 2},
+        {'horizon_idx': 4, 'vehicle_type': 'truck', 'count': 1},
     ]
     fleet = _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
     assert fleet[0, 0] == 3
@@ -239,6 +241,7 @@ def test_build_fleet_limits_unknown_type_raises():
 
 
 def test_build_fleet_limits_bad_horizon_raises():
+    """Negative stored horizon_idx must raise ValueError."""
     incoming = [{"horizon_idx": -1, "vehicle_type": "van", "count": 1}]
     with pytest.raises(ValueError, match="horizon_idx"):
         _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
@@ -265,8 +268,8 @@ def test_milp_incoming_expands_fleet():
     # Without incoming: solver should defer or partially cover
     res_no_inc = solve_irp_milp(demands, cfg_tight)
 
-    # With incoming: 1 extra van arrives at t=2
-    incoming = [{"horizon_idx": 2, "vehicle_type": "van", "count": 1}]
+    # With incoming: 1 extra van arrives at optimizer t=2 (+4h). DB idx 8 = 8*30 = 240 min.
+    incoming = [{"horizon_idx": 8, "vehicle_type": "van", "count": 1}]
     res_with_inc = solve_irp_milp(demands, cfg_tight, incoming_vehicles=incoming)
 
     # With incoming, can dispatch at least 2 vans at t=2 (limit goes 1→2)
@@ -286,7 +289,8 @@ def test_milp_incoming_does_not_affect_earlier_horizons():
         "wait_penalty_per_minute": 0.0,
         "empty_capacity_penalty": 0.0,
     }
-    incoming = [{"horizon_idx": 2, "vehicle_type": "van", "count": 10}]
+    # DB idx 8 = 8*30 = 240 min = optimizer h2 (+4h at 120-min granularity)
+    incoming = [{"horizon_idx": 8, "vehicle_type": "van", "count": 10}]
     demands = {"r1": [20.0, 20.0, 0.0, 0.0]}
     res = solve_irp_milp(demands, cfg, incoming_vehicles=incoming)
     # At t=0 and t=1, base limit is still 1
@@ -310,9 +314,10 @@ def test_build_plan_incoming_vehicles_column_values():
         "wait_penalty_per_minute": 0.0,
         "empty_capacity_penalty": 0.0,
     }
+    # DB 30-min-based indices: idx 4 = +2h (optimizer h1), idx 8 = +4h (optimizer h2)
     incoming = [
-        {"horizon_idx": 1, "vehicle_type": "van",   "count": 2},
-        {"horizon_idx": 2, "vehicle_type": "truck", "count": 1},
+        {'horizon_idx': 4, 'vehicle_type': 'van',   'count': 2},
+        {'horizon_idx': 8, 'vehicle_type': 'truck', 'count': 1},
     ]
     demands = {"r1": [5.0, 15.0, 20.0, 5.0]}
     plan = build_plan(

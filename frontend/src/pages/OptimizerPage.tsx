@@ -78,16 +78,18 @@ export function OptimizerPage() {
 
   // ── Dispatch logic ───────────────────────────────────────────────────────
   function deriveWarehouseStatus(result: ApiDispatchResponse): 'ok' | 'warning' | 'critical' {
-    let hasCritical = false
-    let hasWarning = false
+    const shortfall = result.metrics?.fleet_capacity_shortfall ?? 0
+    const hasShortfall = shortfall > 0
+    let hasFullyMissed = false
+    let hasPartiallyMissed = false
     for (const rp of result.routes) {
       for (const row of rp.plan) {
-        if (row.demand_new > 0 && row.vehicles_count === 0) { hasCritical = true }
-        else if (row.leftover_stock >= 1) { hasWarning = true }
+        if (row.demand_new > 0 && row.vehicles_count === 0) { hasFullyMissed = true }
+        else if (row.leftover_stock >= 1) { hasPartiallyMissed = true }
       }
     }
-    if (hasCritical) return 'critical'
-    if (hasWarning) return 'warning'
+    if (hasShortfall && hasFullyMissed) return 'critical'
+    if (hasShortfall && hasPartiallyMissed) return 'warning'
     return 'ok'
   }
 
