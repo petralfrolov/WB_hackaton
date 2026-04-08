@@ -117,8 +117,8 @@ export function ForecastVsActualChart({ data }: Props) {
         <Area
           dataKey="ci_upper"
           stroke="none"
-          fill="#58A6FF"
-          fillOpacity={0.12}
+          fill="#FFFFFF"
+          fillOpacity={0.14}
           isAnimationActive={false}
         />
         <Area

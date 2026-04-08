@@ -10,3 +10,4 @@ backend/optimizer/__pycache__/
 backend/.venv/
 backend/optimizer/__pycache__/
 backend/db/__pycache__/
+frontend/dist/
