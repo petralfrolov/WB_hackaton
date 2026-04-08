@@ -8,5 +8,5 @@ backend/core/__pycache__/
 backend/ml/__pycache__/
 backend/optimizer/__pycache__/
 backend/.venv/
-backend/db/
 backend/optimizer/__pycache__/
+backend/db/__pycache__/
