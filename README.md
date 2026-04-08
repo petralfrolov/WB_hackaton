@@ -174,6 +174,8 @@ py experiments_big_models\exp66_roll_ratio_struct_diversity.py # Указать 
 ```
 Код для обучения финальной модели содержится в файлах `ml_exp66_prediction\exp66_roll_ratio_struct_diversity.py` и `ml_exp66_prediction\exp66_step11_step12.py`
 
+pkl-файлы находятся в `WB_hackaton\backend\models\models`
+
 ---
 
 ## Методика расчёта ДИ
