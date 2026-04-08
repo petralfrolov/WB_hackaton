@@ -94,6 +94,7 @@
 Отображает детализацию расчетов по маршрутам, а также прогноз по основным бизнес-метрикам.
 
 <img width="1280" height="686" alt="image" src="https://github.com/user-attachments/assets/c38d2210-1944-4224-ab63-c24e8b482371" />
+<img width="1048" height="1280" alt="image" src="https://github.com/user-attachments/assets/5426821b-80a0-47cc-89c9-da6f056b4a0b" />
 
 **Бизнес-правила**
 
@@ -106,6 +107,8 @@
 Позволяет отслеживать метрики точности предсказания и бизнес-метрики в ретроспективе.
 
 <img width="1280" height="685" alt="image" src="https://github.com/user-attachments/assets/3b314e6f-2c8f-4ccd-a2e6-9d8014fcab96" />
+
+Остальные скриншоты и видеодемонстрация работы приложения доступны по ссылке **https://disk.yandex.ru/d/k0P_xgQBEWdqHw**
 
 ---
 ### Технологический стек
