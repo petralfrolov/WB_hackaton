@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, ArrowRight, Loader2 } from 'lucide-react'
-import type { Warehouse, RouteDistance, ForecastPoint, ApiDispatchResponse } from '../../types'
+import type { Warehouse, RouteDistance, ForecastPoint, ApiDispatchResponse, SankeyData } from '../../types'
 import { Badge } from '../ui/badge'
 import type { BadgeVariant } from '../ui/badge'
 import { ForecastChart } from './ForecastChart'
 import { SankeyChart } from './SankeyChart'
-import { fmt, makeSankey, horizonDisplayLabel, getFutureHorizonKeys } from '../../lib/utils'
+import { fmt, horizonDisplayLabel, getFutureHorizonKeys } from '../../lib/utils'
 import { Button } from '../ui/button'
 import { useSimulationContext } from '../../context/SimulationContext'
-import { postDispatch } from '../../api'
+import { postDispatch, getWarehouseSankey } from '../../api'
 import { MetricDetailModal } from '../optimizer/MetricDetailModal'
 
 // ── LS cache helpers (same key scheme as OptimizerPage) ──────────────────────
@@ -121,17 +121,15 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
 
   const selectedRoute = warehouseRoutes.find(r => r.id === selectedRouteId) ?? null
 
-  // Sankey: aggregate for warehouse or per-route
-  const sankeyData = useMemo(() => {
-    if (!warehouse) return makeSankey(0)
-    if (!selectedRouteId || !selectedRoute) {
-      // Aggregate: use the warehouse-level sankey (sum across routes)
-      return warehouse.sankeyData
-    }
-    // Per-route: scale down proportionally from warehouse total
-    const perRouteValue = Math.round(warehouse.readyToShip * 4 / Math.max(warehouseRoutes.length, 1))
-    return makeSankey(perRouteValue)
-  }, [selectedRouteId, selectedRoute, warehouse, warehouseRoutes.length])
+  // Sankey: fetch real status data from backend
+  const [sankeyData, setSankeyData] = useState<SankeyData>({ nodes: [], links: [] })
+  useEffect(() => {
+    if (!warehouse) { setSankeyData({ nodes: [], links: [] }); return }
+    const rid = selectedRouteId && selectedRoute ? selectedRouteId : undefined
+    getWarehouseSankey(warehouse.id, analysisDateTime.replace('T', ' ') + ':00', rid)
+      .then(setSankeyData)
+      .catch(() => setSankeyData({ nodes: [], links: [] }))
+  }, [warehouse?.id, analysisDateTime, selectedRouteId, selectedRoute])
 
   // Build chart data from dispatch results (same numbers as table above)
   const futureHorizonKeys = useMemo(() => getFutureHorizonKeys(dispatchResult, granularity), [dispatchResult, granularity])

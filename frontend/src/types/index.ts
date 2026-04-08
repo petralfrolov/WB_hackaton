@@ -8,6 +8,7 @@ export interface ForecastPoint {
 export interface SankeyNodeDatum {
   id: string
   label: string
+  value?: number
 }
 
 export interface SankeyLinkDatum {
@@ -48,7 +49,6 @@ export interface Warehouse {
   status: 'ok' | 'warning' | 'critical'
   readyToShip: number
   forecast: ForecastPoint[]
-  sankeyData: SankeyData
   vehicles: VehicleType[]
 }
 
@@ -168,7 +168,6 @@ export interface ApiSettings {
   confidence_level?: number
   route_correlation?: number
   granularity?: number
-  underload_penalty_per_unit?: number
 }
 
 export interface ApiPlanRow {
@@ -204,7 +203,6 @@ export interface ApiDispatchRequest {
   vehicles_override?: ApiVehicle[]
   incoming_vehicles?: ApiIncomingVehicle[]
   wait_penalty_per_minute?: number
-  underload_penalty_per_unit?: number
   global_fleet?: boolean
   confidence_level?: number
   granularity?: number

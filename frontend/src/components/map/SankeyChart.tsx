@@ -34,7 +34,11 @@ interface ProcessedGraph {
 }
 
 export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProps) {
+  const isEmpty = data.nodes.length === 0 || data.links.length === 0
+
   const graph = useMemo<ProcessedGraph>(() => {
+    if (isEmpty) return { nodes: [], links: [] } as unknown as ProcessedGraph
+
     const gen = d3Sankey<SankeyNodeDatum, SankeyLinkDatum>()
       .nodeId(d => d.id)
       .nodeWidth(12)
@@ -49,7 +53,7 @@ export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProp
       nodes: data.nodes.map(n => ({ ...n })),
       links: data.links.map(l => ({ ...l })),
     }) as unknown as ProcessedGraph
-  }, [data, width, height])
+  }, [data, width, height, isEmpty])
 
   const pathGen = sankeyLinkHorizontal()
 
@@ -57,6 +61,16 @@ export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProp
     if (idx === 0) return false
     const prev = graph.links[idx - 1]
     return prev.value > 0 && link.value / prev.value < 0.7
+  }
+
+  if (isEmpty) {
+    return (
+      <svg width={width} height={height}>
+        <text x={width / 2} y={height / 2} textAnchor="middle" fill="#888" fontSize={14}>
+          Нет данных
+        </text>
+      </svg>
+    )
   }
 
   return (
@@ -126,7 +140,7 @@ export function SankeyChart({ data, width = 620, height = 260 }: SankeyChartProp
               fontSize={10}
               fontFamily="JetBrains Mono, monospace"
             >
-              {fmt(node.value)}
+              {fmt((data.nodes.find(n => n.id === node.id)?.value) ?? node.value)}
             </text>
           </g>
         )

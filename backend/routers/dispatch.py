@@ -583,7 +583,11 @@ def _compute_warehouse_metrics(
     fill_rate_detail: List[Dict] = []
     for rm in route_metrics_list:
         sub = plan_df[plan_df["route_id"] == rm.route_id]
-        r_shipped = float(sub["actually_shipped"].sum()) if not sub.empty else 0.0
+        # actually_shipped is the same for all vehicle-type rows within a route×horizon,
+        # so deduplicate before summing across horizons.
+        r_shipped = float(
+            sub.drop_duplicates(subset=["route_id", "horizon"])["actually_shipped"].sum()
+        ) if not sub.empty else 0.0
         r_cap = r_shipped + float(sub["empty_capacity_units"].sum()) if not sub.empty else 0.0
         fill_rate_detail.append({
             "route_id": rm.route_id,
@@ -597,7 +601,9 @@ def _compute_warehouse_metrics(
     for rm in route_metrics_list:
         sub = plan_df[plan_df["route_id"] == rm.route_id]
         r_cost = float(sub["cost_total"].sum()) if not sub.empty else 0.0
-        r_shipped = float(sub["actually_shipped"].sum()) if not sub.empty else 0.0
+        r_shipped = float(
+            sub.drop_duplicates(subset=["route_id", "horizon"])["actually_shipped"].sum()
+        ) if not sub.empty else 0.0
         cpo_detail.append({
             "route_id": rm.route_id,
             "cost": round(r_cost, 2),

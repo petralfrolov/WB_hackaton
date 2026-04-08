@@ -7,7 +7,6 @@ import {
   apiWarehouseToWarehouse,
   apiRouteDistanceToRouteDistance,
   apiVehicleToVehicleType,
-  makeSankey,
 } from '../lib/utils'
 
 interface SimulationContextValue {
@@ -44,7 +43,6 @@ function applyRouteTotalsToWarehouses(warehouses: Warehouse[], routes: RouteDist
     return {
       ...warehouse,
       readyToShip: totalReady,
-      sankeyData: makeSankey(totalReady * 4),
     }
   })
 }
@@ -174,9 +172,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           idleCostPerMinute: typeof cfg.wait_penalty_per_minute === 'number'
             ? cfg.wait_penalty_per_minute
             : prev.idleCostPerMinute,
-          emptyPenaltyPerUnit: typeof cfg.underload_penalty_per_unit === 'number'
-            ? cfg.underload_penalty_per_unit
-            : prev.emptyPenaltyPerUnit,
           economyThreshold: typeof cfg.economy_threshold === 'number'
             ? cfg.economy_threshold
             : prev.economyThreshold,
@@ -292,7 +287,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     setRiskSettingsState(settings)
     patchSettings({
       wait_penalty_per_minute: settings.idleCostPerMinute,
-      underload_penalty_per_unit: settings.emptyPenaltyPerUnit,
       economy_threshold: settings.economyThreshold,
       confidence_level: settings.confidenceLevel,
       route_correlation: settings.routeCorrelation,

@@ -6,7 +6,6 @@ import type {
   CostScenario,
   Granularity,
   RiskSettings,
-  SankeyData,
   ApiWarehouseInfo,
   ApiVehicle,
   ApiDispatchResponse,
@@ -164,49 +163,6 @@ export function getCostScenarios(
   })
 }
 
-// ─── Sankey helper ────────────────────────────────────────────────────────────
-
-export function makeSankey(
-  accepted: number,
-  bottleneckAt?: 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting' | 'ready',
-): SankeyData {
-  const nodes: SankeyData['nodes'] = [
-    { id: 'accepted',  label: 'Принят' },
-    { id: 'sorting',   label: 'Сортировка' },
-    { id: 'packing',   label: 'Упаковка' },
-    { id: 'quality',   label: 'Контроль' },
-    { id: 'shelf',     label: 'Стеллаж' },
-    { id: 'shipping',  label: 'Перемешение' },
-    { id: 'waiting',   label: 'Ожидание' },
-    { id: 'ready',     label: 'Группировка' },
-  ]
-
-  type SrcId = 'accepted' | 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting'
-  type TgtId = 'sorting' | 'packing' | 'quality' | 'shelf' | 'shipping' | 'waiting' | 'ready'
-
-  const seq: Array<[SrcId, TgtId]> = [
-    ['accepted', 'sorting'],
-    ['sorting',  'packing'],
-    ['packing',  'quality'],
-    ['quality',  'shelf'],
-    ['shelf',    'shipping'],
-    ['shipping', 'waiting'],
-    ['waiting',  'ready'],
-  ]
-
-  let cur = accepted
-  const links = seq.map(([src, tgt]) => {
-    const isBottleneck = src === bottleneckAt
-    const ratio = isBottleneck ? 0.62 : 0.97 - Math.random() * 0.04
-    const next = Math.round(cur * ratio)
-    const link = { source: src, target: tgt, value: next }
-    cur = next
-    return link
-  })
-
-  return { nodes, links }
-}
-
 // ─── API → UI converters ──────────────────────────────────────────────────────
 
 export function apiWarehouseToWarehouse(w: ApiWarehouseInfo): Warehouse {
@@ -219,7 +175,6 @@ export function apiWarehouseToWarehouse(w: ApiWarehouseInfo): Warehouse {
     status: 'ok',  // status is now derived from dispatch results, not from API
     readyToShip: w.ready_to_ship,
     forecast: [],
-    sankeyData: makeSankey(w.ready_to_ship * 4),
     vehicles: [],
   }
 }

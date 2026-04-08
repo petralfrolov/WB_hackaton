@@ -88,13 +88,14 @@ def _aggregate_by_route_horizon(
                 "demand_new": pr.get("demand_new", 0.0),
                 "demand_lower": pr.get("demand_lower", 0.0),
                 "demand_upper": pr.get("demand_upper", 0.0),
-                "actually_shipped": 0.0,
+                "actually_shipped": pr.get("actually_shipped", 0.0),
                 "cost_total": 0.0,
                 "empty_capacity": 0.0,
             }
-        # demand_new / lower / upper are the same across vehicle types for one
-        # route×horizon, but shipped / cost are per vehicle type → sum them.
-        agg[rid]["actually_shipped"] += pr.get("actually_shipped", 0.0)
+        # actually_shipped is the same for all vehicle-type rows within a
+        # route×horizon (it's the route-level total), so we take the first
+        # value rather than summing.  cost and empty_capacity are genuinely
+        # per-vehicle-type → sum them.
         agg[rid]["cost_total"] += pr.get("cost_total", 0.0)
         agg[rid]["empty_capacity"] += pr.get("empty_capacity_units", 0.0)
     return agg

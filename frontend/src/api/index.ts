@@ -13,6 +13,7 @@ import type {
   ApiMetricsRequest,
   ApiMetricsResponse,
   ApiAvailableDates,
+  SankeyData,
 } from '../types'
 
 // ── Warehouses ───────────────────────────────────────────────────────────────
@@ -23,6 +24,18 @@ export function getWarehouses(): Promise<ApiWarehouseInfo[]> {
 
 export function getWarehouse(id: string): Promise<ApiWarehouseInfo> {
   return apiFetch<ApiWarehouseInfo>(`/warehouses/${id}`)
+}
+
+export function getWarehouseSankey(
+  warehouseId: string,
+  timestamp?: string,
+  routeId?: string,
+): Promise<SankeyData> {
+  const params = new URLSearchParams()
+  if (timestamp) params.set('timestamp', timestamp)
+  if (routeId) params.set('route_id', routeId)
+  const qs = params.toString()
+  return apiFetch<SankeyData>(`/warehouses/${encodeURIComponent(warehouseId)}/sankey${qs ? `?${qs}` : ''}`)
 }
 
 // ── Route distances ───────────────────────────────────────────────────────────
