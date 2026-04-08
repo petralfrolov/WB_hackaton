@@ -172,6 +172,7 @@ python -m venv .venv
 pip install -r requirements.txt
 py experiments_big_models\exp66_roll_ratio_struct_diversity.py # Указать нужный эксперимент
 ```
+Код для обучения финальной модели содержится в файлах `ml_exp66_prediction\exp66_roll_ratio_struct_diversity.py` и `ml_exp66_prediction\exp66_step11_step12.py`
 
 ---
 
