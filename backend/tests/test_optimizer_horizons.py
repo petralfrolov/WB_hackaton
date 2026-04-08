@@ -234,6 +234,17 @@ def test_build_fleet_limits_multiple_incoming():
     assert fleet[1, 3] == 3
 
 
+def test_build_fleet_limits_mid_horizon_arrival_uses_next_slot():
+    """Arrival at +5h must become available no earlier than optimizer horizon +6h."""
+    # DB idx 10 = 10*30 = 300 min = +5h, which should map to optimizer h3 (+6h), not h2 (+4h)
+    incoming = [{'horizon_idx': 10, 'vehicle_type': 'van', 'count': 2}]
+    fleet = _build_fleet_limits(VEHICLES_TWO, incoming=incoming, nT=nT)
+    assert fleet[0, 0] == 3
+    assert fleet[0, 1] == 3
+    assert fleet[0, 2] == 3
+    assert fleet[0, 3] == 5
+
+
 def test_build_fleet_limits_unknown_type_raises():
     incoming = [{"horizon_idx": 1, "vehicle_type": "helicopter", "count": 1}]
     with pytest.raises(ValueError, match="unknown vehicle_type"):

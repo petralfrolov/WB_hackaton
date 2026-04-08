@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -122,7 +123,7 @@ def _build_fleet_limits(
         vi = v_names.index(vtype)
         # Convert DB 30-min-based index to optimizer horizon index
         minute_offset = h_stored * DB_PERIOD_MINUTES
-        h = round(minute_offset / period_minutes)
+        h = math.ceil(minute_offset / period_minutes)
         if not (0 <= h < nT):
             # Entry falls outside the current planning window — skip silently
             continue
