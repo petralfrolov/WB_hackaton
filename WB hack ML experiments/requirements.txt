@@ -1,0 +1,9 @@
+lightgbm
+numpy
+pandas
+joblib
+pyarrow
+fastparquet
+scikit-learn
+pyarrow
+scipy

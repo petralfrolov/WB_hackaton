@@ -111,7 +111,7 @@
 
 ### Feature Engineering
 
-Файл `backend/ml_prediction.py` реализует более **100 признаков**:
+Более **100 признаков**:
 
 - **Временны́е**: час, день недели, `hour_sin/cos`, `dow_sin/cos`, `halfhour_slot`
 - **Лаги таргета**: 1, 2, 4, 8, 16, 48, 96, 192, 336 шагов назад
@@ -130,6 +130,16 @@
 - **Шаг прогноза**: **пересекающиеся окна** -1,5ч -- 0.5ч, -1ч -- 1ч, и т.д. до 4ч -- 6ч
 - **Периодичность обновления**: каждые **30 минут** (один временной слот)
 - При каждом запросе система автоматически подтягивает последние доступные данные
+
+### Запуск
+
+```bash
+cd "WB hack ML experiments"
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+py experiments_big_models\exp66_roll_ratio_struct_diversity.py # Указать нужный эксперимент
+```
 
 ---
 
