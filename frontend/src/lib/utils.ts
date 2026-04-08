@@ -85,9 +85,7 @@ export const defaultRiskSettings: RiskSettings = {
   idleCostPerMinute: 8,
   emptyPenaltyPerUnit: 12,
   confidenceLevel: 0.9, // 90% по умолчанию
-  emptyPenaltyCompact: 12,
-  emptyPenaltyMid: 12,
-  emptyPenaltyLarge: 12,
+  routeCorrelation: 0.3,
   granularity: 2,
 }
 
@@ -271,7 +269,6 @@ export function apiVehicleToVehicleType(v: ApiVehicle): VehicleType {
     capacity: v.capacity_units,
     costPerKm: v.cost_per_km,
     available: v.available,
-    category: v.category,
     underloadPenalty: v.underload_penalty,
     fixedDispatchCost: v.fixed_dispatch_cost,
   }

@@ -47,6 +47,7 @@ async def get_config(
         "wait_penalty_per_minute": settings.get("wait_penalty_per_minute", DEFAULT_WAIT_PENALTY_PER_MINUTE),
         "economy_threshold": settings.get("economy_threshold", DEFAULT_ECONOMY_THRESHOLD),
         "confidence_level": state.confidence_level,
+        "route_correlation": state.route_correlation,
         "granularity": state.granularity,
     }
 
@@ -122,6 +123,7 @@ async def update_settings(
     if "route_correlation" in payload:
         rho = float(payload["route_correlation"])
         state.route_correlation = max(0.0, min(1.0, rho))
+        set_setting(db, "route_correlation", state.route_correlation)
 
     if "granularity" in payload:
         g = float(payload["granularity"])

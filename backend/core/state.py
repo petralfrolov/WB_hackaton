@@ -114,6 +114,7 @@ def load_state(
         office_map=office_map,
         office_routes_map=office_routes_map,
         confidence_level=float(settings.get("confidence_level", DEFAULT_CONFIDENCE_LEVEL)),
+        route_correlation=float(settings.get("route_correlation", DEFAULT_ROUTE_CORRELATION)),
         ncs_scores=ncs_scores,
         ncs_normalized=ncs_normalized,
         ncs_allsteps=ncs_allsteps,

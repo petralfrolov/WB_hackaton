@@ -169,7 +169,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
     getConfig()
       .then(cfg => {
-        const catPen = (cfg as any).underload_penalty_per_unit_by_cat ?? {}
         setRiskSettingsState(prev => ({
           ...prev,
           idleCostPerMinute: typeof cfg.wait_penalty_per_minute === 'number'
@@ -178,21 +177,15 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           emptyPenaltyPerUnit: typeof cfg.underload_penalty_per_unit === 'number'
             ? cfg.underload_penalty_per_unit
             : prev.emptyPenaltyPerUnit,
-          emptyPenaltyCompact: typeof catPen.compact === 'number'
-            ? catPen.compact
-            : (prev.emptyPenaltyCompact ?? prev.emptyPenaltyPerUnit),
-          emptyPenaltyMid: typeof catPen.mid === 'number'
-            ? catPen.mid
-            : (prev.emptyPenaltyMid ?? prev.emptyPenaltyPerUnit),
-          emptyPenaltyLarge: typeof catPen.large === 'number'
-            ? catPen.large
-            : (prev.emptyPenaltyLarge ?? prev.emptyPenaltyPerUnit),
           economyThreshold: typeof cfg.economy_threshold === 'number'
             ? cfg.economy_threshold
             : prev.economyThreshold,
           confidenceLevel: typeof (cfg as any).confidence_level === 'number'
             ? (cfg as any).confidence_level
             : prev.confidenceLevel,
+          routeCorrelation: typeof (cfg as any).route_correlation === 'number'
+            ? (cfg as any).route_correlation
+            : prev.routeCorrelation,
           granularity: typeof (cfg as any).granularity === 'number'
             ? (cfg as any).granularity
             : prev.granularity,
@@ -244,7 +237,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     setWarehouseMetricsState({})
 
     // Concurrency-limited dispatch: max 2 in parallel to avoid overloading backend
-    const currentIncoming = incomingVehicles
     const queue = [...warehouses]
     const runOne = async (): Promise<void> => {
       while (queue.length > 0) {
@@ -254,7 +246,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           const result = await postDispatch({
             warehouse_id: w.id,
             timestamp: ts,
-            incoming_vehicles: currentIncoming.length > 0 ? currentIncoming : undefined,
             confidence_level: riskSettings.confidenceLevel,
             granularity: riskSettings.granularity,
           }, controller.signal) as ApiDispatchResponse
@@ -295,20 +286,16 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     await Promise.all([runOne(), runOne()])
     refreshingAllRef.current = false
     setRefreshingAll(false)
-  }, [analysisDateTime, incomingVehicles, warehouses, riskSettings])
+  }, [analysisDateTime, warehouses, riskSettings])
 
   const setRiskSettings = (settings: RiskSettings) => {
     setRiskSettingsState(settings)
     patchSettings({
       wait_penalty_per_minute: settings.idleCostPerMinute,
       underload_penalty_per_unit: settings.emptyPenaltyPerUnit,
-      underload_penalty_per_unit_by_cat: {
-        compact: settings.emptyPenaltyCompact ?? settings.emptyPenaltyPerUnit,
-        mid: settings.emptyPenaltyMid ?? settings.emptyPenaltyPerUnit,
-        large: settings.emptyPenaltyLarge ?? settings.emptyPenaltyPerUnit,
-      },
       economy_threshold: settings.economyThreshold,
       confidence_level: settings.confidenceLevel,
+      route_correlation: settings.routeCorrelation,
       granularity: settings.granularity,
     }).catch((err: unknown) => { console.error('[patchSettings]', err) })
   }

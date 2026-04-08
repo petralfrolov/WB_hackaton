@@ -35,6 +35,14 @@ async def call_transport(
     if not last_dispatch:
         raise HTTPException(status_code=409, detail="Нет готового плана. Сначала нажмите «Обновить прогноз».")
 
+    # Validate that the cached plan matches the requested timestamp
+    cached_ts = last_dispatch.get("timestamp", "")
+    if cached_ts and cached_ts != ts_str:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Кэшированный план от {cached_ts} не соответствует запрошенному времени {ts_str}. Обновите прогноз.",
+        )
+
     routes = {r["route_id"]: r for r in last_dispatch.get("routes", [])}
     if route_id not in routes:
         raise HTTPException(status_code=404, detail="Маршрут не найден в последнем плане")
@@ -55,7 +63,6 @@ async def call_transport(
         vehicles.append(CallVehicle(
             vehicle_type=row["vehicle_type"],
             vehicles_count=int(row["vehicles_count"]),
-            category=row.get("vehicle_category") or v_cfg.get("category"),
             capacity_units=float(v_cfg.get("capacity_units", row.get("capacity_units", 0))),
             cost_per_km=float(v_cfg.get("cost_per_km", row.get("cost_per_km", 0))),
             empty_capacity_units=row["empty_capacity_units"],

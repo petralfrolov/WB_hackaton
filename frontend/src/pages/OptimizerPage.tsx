@@ -267,7 +267,6 @@ export function OptimizerPage() {
         capacity_units: vt.capacity,
         cost_per_km: vt.costPerKm,
         available: newCount,
-        category: vt.category,
         underload_penalty: vt.underloadPenalty,
         fixed_dispatch_cost: vt.fixedDispatchCost,
         warehouse_id: warehouseId || undefined,

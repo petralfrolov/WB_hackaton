@@ -35,7 +35,6 @@ export interface VehicleType {
   costPerKm: number
   available: number
   incoming?: IncomingVehicle[]
-  category?: 'small' | 'medium' | 'large'
   underloadPenalty?: number
   fixedDispatchCost?: number
 }
@@ -107,9 +106,7 @@ export interface RiskSettings {
   idleCostPerMinute: number
   emptyPenaltyPerUnit: number
   confidenceLevel: number // 0.9 = 90% доверительная вероятность
-  emptyPenaltyCompact?: number
-  emptyPenaltyMid?: number
-  emptyPenaltyLarge?: number
+  routeCorrelation: number // 0–1, корреляция спроса между маршрутами
   granularity: Granularity
 }
 
@@ -148,7 +145,6 @@ export interface ApiVehicle {
   capacity_units: number
   cost_per_km: number
   available: number
-  category?: 'small' | 'medium' | 'large'
   underload_penalty?: number
   fixed_dispatch_cost?: number
   warehouse_id?: string
@@ -172,12 +168,8 @@ export interface ApiSettings {
   route_distance_km: number
   economy_threshold?: number
   confidence_level?: number
+  route_correlation?: number
   granularity?: number
-  underload_penalty_per_unit_by_cat?: {
-    compact?: number
-    mid?: number
-    large?: number
-  }
 }
 
 export interface ApiPlanRow {
@@ -268,7 +260,6 @@ export interface ApiCallRequest {
 export interface ApiCallVehicle {
   vehicle_type: string
   vehicles_count: number
-  category?: string
   capacity_units: number
   cost_per_km: number
   empty_capacity_units: number
@@ -283,7 +274,7 @@ export interface ApiCallPayload {
   horizon: string
   vehicles: ApiCallVehicle[]
   costs: { fixed: number; underload: number; wait: number; total: number }
-  demand: { ready_to_ship: number; pred_0_2h: number; pred_2_4h: number; pred_4_6h: number }
+  demand: { ready_to_ship: number }
 }
 
 export interface ApiCallResponse {

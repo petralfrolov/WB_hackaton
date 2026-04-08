@@ -148,6 +148,32 @@ export function RiskSettingsPanel({ settings, onChange }: RiskSettingsProps) {
       {/* Granularity selector */}
       <Card>
         <CardHeader>
+          <CardTitle>Корреляция маршрутов</CardTitle>
+          <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
+            ρ = <strong>{local.routeCorrelation.toFixed(2)}</strong>
+          </span>
+        </CardHeader>
+        <CardContent>
+          <Slider
+            min={0}
+            max={1}
+            step={0.05}
+            value={local.routeCorrelation}
+            onChange={v => update('routeCorrelation', v)}
+          />
+          <div className="flex justify-between mt-2">
+            <span className="text-[10px] text-muted max-w-[44%]">0 — независимый спрос</span>
+            <span className="text-[10px] text-muted max-w-[44%] text-right">1 — полная корреляция</span>
+          </div>
+          <p className="text-xs text-muted mt-2">
+            Оценка корреляции спроса между маршрутами. Влияет на ширину конформального интервала при агрегации по складу.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Granularity selector */}
+      <Card>
+        <CardHeader>
           <CardTitle>Гранулярность прогноза</CardTitle>
           <span className="text-xs font-mono font-semibold" style={{ color: '#58A6FF' }}>
             Шаг: <strong>{local.granularity}ч</strong>
