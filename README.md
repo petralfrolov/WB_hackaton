@@ -111,7 +111,7 @@
 
 ### Feature Engineering
 
-Файл `backend/ml/prediction.py` реализует более **100 признаков**:
+Файл `backend/ml_prediction.py` реализует более **100 признаков**:
 
 - **Временны́е**: час, день недели, `hour_sin/cos`, `dow_sin/cos`, `halfhour_slot`
 - **Лаги таргета**: 1, 2, 4, 8, 16, 48, 96, 192, 336 шагов назад
@@ -190,7 +190,7 @@
 
 ### Постановка задачи (MILP)
 
-Файл `backend/optimizer/horizons.py` формулирует задачу минимизации затрат:
+Файл `backend/optimizer_horizons.py` формулирует задачу минимизации затрат:
 
 $$\min \sum_{r,v,t} \text{Cost}_{v,r} \cdot x_{r,v,t} + \sum_{r,t} P_{\text{empty}} \cdot u_{r,t} + \sum_{r,t} P_{\text{wait}} \cdot s_{r,t}$$
 
