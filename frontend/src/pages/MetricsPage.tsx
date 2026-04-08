@@ -76,8 +76,8 @@ export function MetricsPage() {
       if (resp.route_summary.length > 0 && !selectedRouteId) {
         setSelectedRouteId(resp.route_summary[0].route_id)
       }
-    } catch (e: any) {
-      setError(e?.message || 'Ошибка загрузки метрик')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Ошибка загрузки метрик')
       setData(null)
     } finally {
       setLoading(false)

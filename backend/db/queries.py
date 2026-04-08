@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 def get_all_warehouses(db: Session, include_mock: bool = False) -> List[Warehouse]:
     q = db.query(Warehouse)
     if not include_mock:
-        q = q.filter(Warehouse.is_mock == False)  # noqa: E712
+        q = q.filter(Warehouse.is_mock.is_(False))
     return q.all()
 
 

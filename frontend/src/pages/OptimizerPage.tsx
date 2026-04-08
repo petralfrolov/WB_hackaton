@@ -119,6 +119,7 @@ export function OptimizerPage() {
         warehouse_id: wid,
         timestamp: ts,
         incoming_vehicles: incomingVehicles.length > 0 ? incomingVehicles : undefined,
+        confidence_level: riskSettings.confidenceLevel,
         granularity: riskSettings.granularity,
       }, controller.signal)
       if (controller.signal.aborted) return
@@ -132,7 +133,7 @@ export function OptimizerPage() {
     } finally {
       if (!controller.signal.aborted) setDispatchLoading(false)
     }
-  }, [analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings.granularity])
+  }, [analysisDateTime, incomingVehicles, setWarehouseStatus, riskSettings.granularity, riskSettings.confidenceLevel])
 
   const runDispatchRef = useRef(runDispatch)
   useEffect(() => { runDispatchRef.current = runDispatch }, [runDispatch])
@@ -258,48 +259,52 @@ export function OptimizerPage() {
     horizonIdx: number,
     newCount: number,
   ) => {
-    if (horizonIdx === 0) {
-      // Update base available count on the vehicle record for current warehouse only
-      const vt = vehicleTypes.find(v => v.id === vehicleType)
-      if (!vt) return
-      await updateVehicle(vehicleType, {
-        vehicle_type: vehicleType,
-        capacity_units: vt.capacity,
-        cost_per_km: vt.costPerKm,
-        available: newCount,
-        underload_penalty: vt.underloadPenalty,
-        fixed_dispatch_cost: vt.fixedDispatchCost,
-        warehouse_id: warehouseId || undefined,
-      })
-      const reloaded = await getVehicles(warehouseId || undefined)
-      const newTypes = reloaded.map(apiVehicleToVehicleType)
-      setVehicleTypes(newTypes)
-    } else {
-      // Arrivals at this exact horizon = newCount − totalAvailableAtPreviousHorizon
-      const vt = vehicleTypes.find(v => v.id === vehicleType)
-      const base = vt?.available ?? 0
-      const additionsBelow = incomingVehicles
-        .filter(iv => iv.vehicle_type === vehicleType && iv.horizon_idx < horizonIdx)
-        .reduce((s, iv) => s + iv.count, 0)
-      const prevHorizTotal = base + additionsBelow
-      const delta = newCount - prevHorizTotal
-      // Replace all existing entries for this type+horizon with a single entry (or remove)
-      const filtered = incomingVehicles.filter(
-        iv => !(iv.vehicle_type === vehicleType && iv.horizon_idx === horizonIdx)
-      )
-      const newList = delta > 0
-        ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx, count: delta }]
-        : filtered
-      await putIncomingVehicles(newList, warehouseId || undefined)
-      setIncomingVehicles(newList)
-    }
-    // Invalidate cache and re-run dispatch; reload both vehicles + incoming
-    if (warehouseId) {
-      lsDel(cacheKey(warehouseId, analysisDateTime))
-      const [vList, iRes] = await Promise.all([getVehicles(warehouseId), getIncomingVehicles(warehouseId)])
-      setVehicleTypes(vList.map(apiVehicleToVehicleType))
-      setIncomingVehicles(iRes.incoming ?? [])
-      await runDispatchRef.current(warehouseId, true)
+    try {
+      if (horizonIdx === 0) {
+        // Update base available count on the vehicle record for current warehouse only
+        const vt = vehicleTypes.find(v => v.id === vehicleType)
+        if (!vt) return
+        await updateVehicle(vehicleType, {
+          vehicle_type: vehicleType,
+          capacity_units: vt.capacity,
+          cost_per_km: vt.costPerKm,
+          available: newCount,
+          underload_penalty: vt.underloadPenalty,
+          fixed_dispatch_cost: vt.fixedDispatchCost,
+          warehouse_id: warehouseId || undefined,
+        })
+        const reloaded = await getVehicles(warehouseId || undefined)
+        const newTypes = reloaded.map(apiVehicleToVehicleType)
+        setVehicleTypes(newTypes)
+      } else {
+        // Arrivals at this exact horizon = newCount − totalAvailableAtPreviousHorizon
+        const vt = vehicleTypes.find(v => v.id === vehicleType)
+        const base = vt?.available ?? 0
+        const additionsBelow = incomingVehicles
+          .filter(iv => iv.vehicle_type === vehicleType && iv.horizon_idx < horizonIdx)
+          .reduce((s, iv) => s + iv.count, 0)
+        const prevHorizTotal = base + additionsBelow
+        const delta = newCount - prevHorizTotal
+        // Replace all existing entries for this type+horizon with a single entry (or remove)
+        const filtered = incomingVehicles.filter(
+          iv => !(iv.vehicle_type === vehicleType && iv.horizon_idx === horizonIdx)
+        )
+        const newList = delta > 0
+          ? [...filtered, { vehicle_type: vehicleType, horizon_idx: horizonIdx, count: delta }]
+          : filtered
+        await putIncomingVehicles(newList, warehouseId || undefined)
+        setIncomingVehicles(newList)
+      }
+      // Invalidate cache and re-run dispatch; reload both vehicles + incoming
+      if (warehouseId) {
+        lsDel(cacheKey(warehouseId, analysisDateTime))
+        const [vList, iRes] = await Promise.all([getVehicles(warehouseId), getIncomingVehicles(warehouseId)])
+        setVehicleTypes(vList.map(apiVehicleToVehicleType))
+        setIncomingVehicles(iRes.incoming ?? [])
+        await runDispatchRef.current(warehouseId, true)
+      }
+    } catch (err) {
+      setDispatchError(err instanceof Error ? err.message : String(err))
     }
   }, [vehicleTypes, incomingVehicles, warehouseId, analysisDateTime, setVehicleTypes, setIncomingVehicles])
 

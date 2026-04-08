@@ -199,7 +199,7 @@ async def get_incoming(
         q = q.filter(m.IncomingVehicle.warehouse_id == warehouse_id)
     else:
         # Return first warehouse's incoming as representative (backward compat)
-        first_wh = db.query(m.Warehouse).filter(m.Warehouse.is_mock == False).first()  # noqa: E712
+        first_wh = db.query(m.Warehouse).filter(m.Warehouse.is_mock.is_(False)).first()
         if first_wh:
             q = q.filter(m.IncomingVehicle.warehouse_id == first_wh.id)
     rows = q.all()
@@ -283,7 +283,7 @@ async def update_incoming(
     if warehouse_id:
         q = q.filter(m.IncomingVehicle.warehouse_id == warehouse_id)
     else:
-        first_wh = db.query(m.Warehouse).filter(m.Warehouse.is_mock == False).first()  # noqa: E712
+        first_wh = db.query(m.Warehouse).filter(m.Warehouse.is_mock.is_(False)).first()
         if first_wh:
             q = q.filter(m.IncomingVehicle.warehouse_id == first_wh.id)
     records = q.all()
@@ -311,7 +311,7 @@ async def delete_incoming(
     if warehouse_id:
         q = q.filter(m.IncomingVehicle.warehouse_id == warehouse_id)
     else:
-        first_wh = db.query(m.Warehouse).filter(m.Warehouse.is_mock == False).first()  # noqa: E712
+        first_wh = db.query(m.Warehouse).filter(m.Warehouse.is_mock.is_(False)).first()
         if first_wh:
             q = q.filter(m.IncomingVehicle.warehouse_id == first_wh.id)
     records = q.all()

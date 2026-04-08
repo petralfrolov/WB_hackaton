@@ -155,6 +155,7 @@ export interface ApiIncomingVehicle {
   vehicle_type: string
   count: number
   original_horizon_idx?: number  // original index before granularity remap
+  warehouse_id?: string
 }
 
 export interface ApiIncomingVehicleList {
@@ -162,14 +163,12 @@ export interface ApiIncomingVehicleList {
 }
 
 export interface ApiSettings {
-  underload_penalty_per_unit: number
-  wait_penalty_per_minute: number
-  initial_stock_units: number
-  route_distance_km: number
+  wait_penalty_per_minute?: number
   economy_threshold?: number
   confidence_level?: number
   route_correlation?: number
   granularity?: number
+  underload_penalty_per_unit?: number
 }
 
 export interface ApiPlanRow {

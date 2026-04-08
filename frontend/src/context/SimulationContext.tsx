@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { ApiDispatchResponse, ApiIncomingVehicle, ApiWarehouseMetrics, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
+import type { ApiDispatchResponse, ApiIncomingVehicle, ApiWarehouseMetrics, Granularity, RouteDistance, RiskSettings, VehicleType, Warehouse } from '../types'
 import { getWarehouses, getRouteDistances, getConfig, getVehicles, getIncomingVehicles, patchSettings, postDispatch } from '../api'
 import {
   defaultRiskSettings,
@@ -180,14 +180,14 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           economyThreshold: typeof cfg.economy_threshold === 'number'
             ? cfg.economy_threshold
             : prev.economyThreshold,
-          confidenceLevel: typeof (cfg as any).confidence_level === 'number'
-            ? (cfg as any).confidence_level
+          confidenceLevel: typeof cfg.confidence_level === 'number'
+            ? cfg.confidence_level
             : prev.confidenceLevel,
-          routeCorrelation: typeof (cfg as any).route_correlation === 'number'
-            ? (cfg as any).route_correlation
+          routeCorrelation: typeof cfg.route_correlation === 'number'
+            ? cfg.route_correlation
             : prev.routeCorrelation,
-          granularity: typeof (cfg as any).granularity === 'number'
-            ? (cfg as any).granularity
+          granularity: typeof cfg.granularity === 'number'
+            ? cfg.granularity as Granularity
             : prev.granularity,
         }))
       })

@@ -10,7 +10,6 @@ import asyncio
 import copy
 import json
 import math
-from collections import defaultdict  # noqa: F401
 from datetime import datetime, timezone
 from typing import Dict, List
 
