@@ -2,22 +2,18 @@
 
 Implements split conformal prediction with per-route, per-horizon calibration:
 
-  Two CSV formats are supported:
-
-  Absolute scores (data/non_conformity_scores.csv):
-      route_id, horizon, score
-      where ``score`` = |y_actual - y_hat|
-
-  Normalised scores (data/non_conformity_scores_norm.csv):
-      route_id, horizon, score
+  All calibration data comes from a single normalised allsteps CSV
+  (data/non_conformity_scores_norm_allsteps.csv):
+      route_id, horizon, step, score
       where ``score`` = |y_actual - y_hat| / (y_hat + 1)
 
-  The file is chosen automatically at startup: if non_conformity_scores_norm.csv
-  exists it is preferred.  load_ncs() returns (NcsData, is_normalized).
-  When is_normalized=True, get_margin() denormalises the quantile:
+  load_ncs() extracts the three canonical 2-hour horizons (0-2h, 2-4h, 4-6h)
+  from this file.  load_ncs_allsteps() returns the full 12-step data.
+
+  get_margin() denormalises the quantile:
       margin_abs = q_relative * (pred + 1)
 
-  For inference the margin q_alpha is looked up via a three-level fallback:
+  The margin q_alpha is looked up via a three-level chain:
     1. (route_id, horizon)        — route-specific, horizon-specific
     2. ('__global__', horizon)    — cross-route aggregate for this horizon
     3. ('__global__', '__all__')  — full global pool
@@ -34,115 +30,59 @@ Reference: https://arxiv.org/abs/2107.07511
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 
-from config import (
-    ALLSTEP_HORIZON_LABELS,
-    CONFORMAL_HORIZONS,
-    NCS_ALLSTEPS_PATH,
-    NCS_DEFAULT_PATH,
-    NCS_NORM_PATH,
-)
+from config import NCS_ALLSTEPS_PATH, CONFORMAL_HORIZONS, ALLSTEP_HORIZON_LABELS
 
 HORIZONS = CONFORMAL_HORIZONS
-ALLSTEP_HORIZONS = tuple(ALLSTEP_HORIZON_LABELS)
 
-# Fallback calibration scores when a file is absent or a key is missing.
-# Medians intentionally grow with forecast horizon (realistically ~×1.7 each step).
-_FALLBACK_BY_HORIZON: Dict[str, np.ndarray] = {
-    "0-2h": np.array([1.2, 1.5, 1.8, 2.1, 2.4, 1.3, 1.7, 2.0, 2.3, 1.6,
-                      1.9, 2.2, 1.4, 1.8, 2.0, 2.5, 1.5, 1.7, 2.1, 1.9], dtype=float),
-    "2-4h": np.array([2.5, 3.0, 3.5, 2.8, 4.0, 2.6, 3.3, 4.2, 2.9, 3.7,
-                      3.1, 4.5, 2.7, 3.4, 3.9, 2.8, 3.6, 4.1, 3.0, 3.8], dtype=float),
-    "4-6h": np.array([4.0, 5.0, 5.8, 4.5, 6.5, 4.2, 5.3, 6.8, 4.7, 6.0,
-                      5.1, 7.0, 4.4, 5.5, 6.3, 4.6, 5.8, 6.6, 4.9, 6.2], dtype=float),
-}
-# Normalised fallback: relative errors |y-ŷ|/(ŷ+1), same horizon ordering.
-_FALLBACK_BY_HORIZON_NORM: Dict[str, np.ndarray] = {
-    "0-2h": np.array([0.08, 0.12, 0.15, 0.10, 0.18, 0.09, 0.13, 0.16, 0.11, 0.14,
-                      0.17, 0.12, 0.10, 0.15, 0.13, 0.19, 0.11, 0.14, 0.16, 0.12], dtype=float),
-    "2-4h": np.array([0.15, 0.20, 0.25, 0.18, 0.28, 0.16, 0.22, 0.29, 0.19, 0.24,
-                      0.21, 0.30, 0.17, 0.23, 0.27, 0.18, 0.25, 0.28, 0.20, 0.26], dtype=float),
-    "4-6h": np.array([0.25, 0.35, 0.42, 0.30, 0.48, 0.27, 0.38, 0.50, 0.32, 0.43,
-                      0.36, 0.52, 0.29, 0.40, 0.46, 0.31, 0.42, 0.49, 0.34, 0.45], dtype=float),
-}
-_FALLBACK_GLOBAL = np.concatenate(list(_FALLBACK_BY_HORIZON.values()))
-_FALLBACK_GLOBAL_NORM = np.concatenate(list(_FALLBACK_BY_HORIZON_NORM.values()))
+# All 12 step horizons (step i covers [(i-4)*0.5, (i-4)*0.5+2] hours)
+ALLSTEP_HORIZONS = tuple(ALLSTEP_HORIZON_LABELS)
 
 # Type alias: maps (route_id | '__global__', horizon | '__all__') → calibration scores
 NcsData = Dict[Tuple[str, str], np.ndarray]
 
 
-def load_ncs(path: Path = NCS_DEFAULT_PATH) -> Tuple[NcsData, bool]:
-    """Load non-conformity scores and index them by (route_id, horizon).
+def load_ncs(path: Path = NCS_ALLSTEPS_PATH) -> Tuple[NcsData, bool]:
+    """Load 3-horizon non-conformity scores extracted from the allsteps CSV.
 
-    Automatically selects the normalised file (NCS_NORM_PATH) if it exists
-    and no explicit path was given.  Returns ``(ncs_data, is_normalized)``.
+    Filters the allsteps data to the three canonical horizons (0-2h, 2-4h, 4-6h).
+    Always normalised.  Returns ``(ncs_data, True)``.
 
     ncs_data contains:
     - ``(route_id, horizon)``       — per-route, per-horizon scores
     - ``('__global__', horizon)``   — aggregated across all routes per horizon
-    - ``('__global__', '__all__')`` — full global pool (ultimate fallback)
+    - ``('__global__', '__all__')`` — full global pool
     """
-    # Auto-select: prefer normalised file when caller didn't override the path
-    if path == NCS_DEFAULT_PATH and NCS_NORM_PATH.exists():
-        path = NCS_NORM_PATH
-    is_normalized = (path == NCS_NORM_PATH or "_norm" in path.name)
-    fallback_by_horizon = _FALLBACK_BY_HORIZON_NORM if is_normalized else _FALLBACK_BY_HORIZON
-    fallback_global = _FALLBACK_GLOBAL_NORM if is_normalized else _FALLBACK_GLOBAL
+    is_normalized = True
 
-    try:
-        df = pd.read_csv(path, comment="#")
-        if "score" not in df.columns:
-            return _build_fallback(is_normalized=is_normalized)
+    df = pd.read_csv(path, comment="#")
+    df = df.dropna(subset=["score"]).copy()
+    df["route_id"] = df["route_id"].astype(str)
+    df["horizon"] = df["horizon"].astype(str)
+    df["score"] = df["score"].astype(float)
 
-        has_horizon = "horizon" in df.columns and "route_id" in df.columns
-        if not has_horizon:
-            return _build_fallback(
-                global_scores=df["score"].dropna().to_numpy(dtype=float),
-                is_normalized=is_normalized,
-            )
+    # Keep only the three canonical 2h horizons
+    df = df[df["horizon"].isin(HORIZONS)]
 
-        df = df.dropna(subset=["score"]).copy()
-        df["route_id"] = df["route_id"].astype(str)
-        df["horizon"] = df["horizon"].astype(str)
-        df["score"] = df["score"].astype(float)
-
-        ncs: NcsData = {}
-
-        # Per-route, per-horizon
-        for (rid, hor), grp in df.groupby(["route_id", "horizon"], sort=False):
-            ncs[(rid, hor)] = grp["score"].to_numpy(dtype=float)
-
-        # Global per-horizon aggregate (cross-route)
-        for hor in HORIZONS:
-            sub = df[df["horizon"] == hor]["score"].to_numpy(dtype=float)
-            ncs[("__global__", hor)] = sub if len(sub) > 0 else fallback_by_horizon[hor]
-
-        # Ultimate global fallback
-        ncs[("__global__", "__all__")] = df["score"].to_numpy(dtype=float)
-
-        return ncs, is_normalized
-
-    except Exception:
-        return _build_fallback(is_normalized=is_normalized)
-
-
-def _build_fallback(
-    global_scores: Optional[np.ndarray] = None,
-    is_normalized: bool = False,
-) -> Tuple[NcsData, bool]:
-    fallback_by_horizon = _FALLBACK_BY_HORIZON_NORM if is_normalized else _FALLBACK_BY_HORIZON
-    fallback_global = _FALLBACK_GLOBAL_NORM if is_normalized else _FALLBACK_GLOBAL
     ncs: NcsData = {}
-    for hor, scores in fallback_by_horizon.items():
-        ncs[("__global__", hor)] = scores.copy()
-    ncs[("__global__", "__all__")] = (
-        global_scores if global_scores is not None else fallback_global.copy()
-    )
+
+    # Per-route, per-horizon
+    for (rid, hor), grp in df.groupby(["route_id", "horizon"], sort=False):
+        ncs[(rid, hor)] = grp["score"].to_numpy(dtype=float)
+
+    # Global per-horizon aggregate (cross-route)
+    for hor in HORIZONS:
+        sub = df[df["horizon"] == hor]["score"].to_numpy(dtype=float)
+        if len(sub) > 0:
+            ncs[("__global__", hor)] = sub
+
+    # Ultimate global fallback
+    ncs[("__global__", "__all__")] = df["score"].to_numpy(dtype=float)
+
     return ncs, is_normalized
 
 
@@ -234,31 +174,22 @@ def load_ncs_allsteps(path: Path = NCS_ALLSTEPS_PATH) -> Tuple[NcsData, bool]:
     Always normalised.
     """
     is_normalized = True
-    if not path.exists():
-        return {}, is_normalized
 
-    try:
-        df = pd.read_csv(path, comment="#")
-        if "score" not in df.columns or "horizon" not in df.columns:
-            return {}, is_normalized
+    df = pd.read_csv(path, comment="#")
+    df = df.dropna(subset=["score"]).copy()
+    df["route_id"] = df["route_id"].astype(str)
+    df["horizon"] = df["horizon"].astype(str)
+    df["score"] = df["score"].astype(float)
 
-        df = df.dropna(subset=["score"]).copy()
-        df["route_id"] = df["route_id"].astype(str)
-        df["horizon"] = df["horizon"].astype(str)
-        df["score"] = df["score"].astype(float)
+    ncs: NcsData = {}
 
-        ncs: NcsData = {}
+    for (rid, hor), grp in df.groupby(["route_id", "horizon"], sort=False):
+        ncs[(rid, hor)] = grp["score"].to_numpy(dtype=float)
 
-        for (rid, hor), grp in df.groupby(["route_id", "horizon"], sort=False):
-            ncs[(rid, hor)] = grp["score"].to_numpy(dtype=float)
+    for hor in ALLSTEP_HORIZONS:
+        sub = df[df["horizon"] == hor]["score"].to_numpy(dtype=float)
+        if len(sub) > 0:
+            ncs[("__global__", hor)] = sub
 
-        for hor in ALLSTEP_HORIZONS:
-            sub = df[df["horizon"] == hor]["score"].to_numpy(dtype=float)
-            if len(sub) > 0:
-                ncs[("__global__", hor)] = sub
-
-        ncs[("__global__", "__all__")] = df["score"].to_numpy(dtype=float)
-        return ncs, is_normalized
-
-    except Exception:
-        return {}, is_normalized
+    ncs[("__global__", "__all__")] = df["score"].to_numpy(dtype=float)
+    return ncs, is_normalized

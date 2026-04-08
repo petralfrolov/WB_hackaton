@@ -10,6 +10,9 @@ import type {
   ApiRouteDistance,
   ApiCallRequest,
   ApiCallResponse,
+  ApiMetricsRequest,
+  ApiMetricsResponse,
+  ApiAvailableDates,
 } from '../types'
 
 // ── Warehouses ───────────────────────────────────────────────────────────────
@@ -126,6 +129,19 @@ export function patchSettings(s: Partial<ApiSettings>): Promise<void> {
 
 export function callRoute(req: ApiCallRequest): Promise<ApiCallResponse> {
   return apiFetch<ApiCallResponse>('/call', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  })
+}
+
+// ── Retrospective Metrics ────────────────────────────────────────────────────
+
+export function getAvailableDates(warehouseId: string): Promise<ApiAvailableDates> {
+  return apiFetch<ApiAvailableDates>(`/metrics/available-dates/${encodeURIComponent(warehouseId)}`)
+}
+
+export function postRetrospectiveMetrics(req: ApiMetricsRequest): Promise<ApiMetricsResponse> {
+  return apiFetch<ApiMetricsResponse>('/metrics/retrospective', {
     method: 'POST',
     body: JSON.stringify(req),
   })

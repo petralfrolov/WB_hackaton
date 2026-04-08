@@ -3,6 +3,7 @@ import { Sidebar } from './components/layout/Sidebar'
 import { MapPage } from './pages/MapPage'
 import { OptimizerPage } from './pages/OptimizerPage'
 import { LabPage } from './pages/LabPage'
+import { MetricsPage } from './pages/MetricsPage'
 import { SimulationProvider } from './context/SimulationContext'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
               <Route path="/map" element={<MapPage />} />
               <Route path="/optimizer" element={<OptimizerPage />} />
               <Route path="/lab" element={<LabPage />} />
+              <Route path="/metrics" element={<MetricsPage />} />
             </Routes>
           </main>
         </div>

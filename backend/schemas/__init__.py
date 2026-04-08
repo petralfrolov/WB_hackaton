@@ -3,6 +3,7 @@ from .settings import Settings
 from .optimize import OptimizeRequest, OptimizeResponse, PlanRow
 from .dispatch import DispatchRequest, DispatchResponse, RoutePlan
 from .warehouses import WarehouseInfo, ForecastPoint, RouteDistance
+from .metrics import MetricsRequest, MetricsResponse, AvailableDates
 
 __all__ = [
     "Vehicle",
@@ -18,4 +19,7 @@ __all__ = [
     "WarehouseInfo",
     "ForecastPoint",
     "RouteDistance",
+    "MetricsRequest",
+    "MetricsResponse",
+    "AvailableDates",
 ]

@@ -289,3 +289,60 @@ export interface ApiCallPayload {
 export interface ApiCallResponse {
   request: ApiCallPayload
 }
+
+// ── Retrospective Metrics API types ──────────────────────────────────────────
+
+export interface ApiMetricsRequest {
+  warehouse_id: string
+  date_from: string
+  date_to: string
+  horizon: string  // "B: +2h" | "C: +4h" | "D: +6h"
+}
+
+export interface ApiForecastVsActual {
+  route_id: string
+  timestamp: string
+  horizon: string
+  predicted: number
+  actual: number
+  ci_lower: number
+  ci_upper: number
+}
+
+export interface ApiAggregateMetrics {
+  avg_cpo: number
+  avg_fill_rate: number
+  wape: number
+  bias: number
+  realized_coverage: number
+}
+
+export interface ApiTimeSeriesMetric {
+  timestamp: string
+  cpo: number
+  fill_rate: number
+  wape: number
+}
+
+export interface ApiRouteSummary {
+  route_id: string
+  avg_predicted: number
+  avg_actual: number
+  wape: number
+  bias: number
+  fill_rate: number
+  cpo: number
+}
+
+export interface ApiAvailableDates {
+  min_date: string | null
+  max_date: string | null
+  count: number
+}
+
+export interface ApiMetricsResponse {
+  forecast_vs_actual: ApiForecastVsActual[]
+  aggregate: ApiAggregateMetrics
+  time_series: ApiTimeSeriesMetric[]
+  route_summary: ApiRouteSummary[]
+}

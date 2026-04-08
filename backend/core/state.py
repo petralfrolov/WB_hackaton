@@ -15,7 +15,7 @@ from config import (
     DEFAULT_ROUTE_CORRELATION,
     DEFAULT_TRAIN_PATH,
 )
-from core.conformal import NCS_DEFAULT_PATH, load_ncs, load_ncs_allsteps
+from core.conformal import load_ncs, load_ncs_allsteps
 from ml.prediction import (
     load_models,
 )
@@ -97,7 +97,7 @@ def load_state(
     office_map = load_route_office_map(train_path)
     office_routes_map = _build_office_routes_map(office_map)
 
-    ncs_scores, ncs_normalized = load_ncs(NCS_DEFAULT_PATH)
+    ncs_scores, ncs_normalized = load_ncs()
     ncs_allsteps, _ = load_ncs_allsteps()
 
     # Read initial settings from DB

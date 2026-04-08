@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Globe, BarChart2, FlaskConical, Trash2 } from 'lucide-react'
+import { Globe, BarChart2, FlaskConical, TrendingUp, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useSimulationContext } from '../../context/SimulationContext'
 
@@ -13,6 +13,7 @@ const navItems: NavItem[] = [
   { to: '/map', icon: Globe, label: 'Карта складов' },
   { to: '/optimizer', icon: BarChart2, label: 'Оптимизатор' },
   { to: '/lab', icon: FlaskConical, label: 'Бизнес-правила' },
+  { to: '/metrics', icon: TrendingUp, label: 'Бизнес-метрики' },
 ]
 
 export function Sidebar() {

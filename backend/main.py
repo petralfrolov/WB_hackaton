@@ -23,6 +23,7 @@ from config import (
 from routers import (
     dispatch_router,
     health_router,
+    metrics_router,
     optimize_router,
     settings_router,
     vehicles_router,
@@ -93,3 +94,4 @@ app.include_router(optimize_router)
 app.include_router(vehicles_router)
 app.include_router(settings_router)
 app.include_router(call_router)
+app.include_router(metrics_router)

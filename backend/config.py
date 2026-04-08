@@ -31,8 +31,6 @@ DEFAULT_TRAIN_PATH = DATA_DIR / "train_team_track.parquet"
 DEFAULT_MODELS_DIR = MODELS_DIR / "models"
 DEFAULT_DEPRECATED_MODELS_DIR = MODELS_DIR / "exp_best_features_full"
 
-NCS_DEFAULT_PATH = DATA_DIR / "non_conformity_scores.csv"
-NCS_NORM_PATH = DATA_DIR / "non_conformity_scores_norm.csv"
 NCS_ALLSTEPS_PATH = DATA_DIR / "non_conformity_scores_norm_allsteps.csv"
 CONFORMAL_HORIZONS = ("0-2h", "2-4h", "4-6h")
 
