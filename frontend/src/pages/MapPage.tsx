@@ -14,6 +14,9 @@ export function MapPage() {
 
   const handleSelect = useCallback((wh: Warehouse) => setSelected(wh), [])
   const handleClose = useCallback(() => setSelected(null), [])
+  const handleRefreshAll = useCallback(() => {
+    void refreshAllWarehouses()
+  }, [refreshAllWarehouses])
 
   const totalWarehouses = warehouses.length
   const attentionCount = warehouses.filter(w => {
@@ -31,7 +34,7 @@ export function MapPage() {
         <KpiCard label="Прогнозируются критические простои" value={fmt(criticalCount)} color="#F85149" />
         <div className="ml-auto shrink-0">
           <button
-            onClick={refreshAllWarehouses}
+            onClick={handleRefreshAll}
             disabled={refreshingAll}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border transition-colors disabled:opacity-50',

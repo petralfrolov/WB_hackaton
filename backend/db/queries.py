@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from config import DEFAULT_ECONOMY_THRESHOLD, DEFAULT_WAIT_PENALTY_PER_MINUTE
+from config import DEFAULT_ECONOMY_THRESHOLD, DEFAULT_TRAIN_PATH, DEFAULT_WAIT_PENALTY_PER_MINUTE
 
 from .models import (
+    DispatchResult,
     IncomingVehicle,
     Route,
     Setting,
@@ -18,6 +22,8 @@ from .models import (
     Warehouse,
     WarehouseVehicle,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ── Warehouses ────────────────────────────────────────────────────────────────
@@ -174,3 +180,100 @@ def get_route_distances_list(db: Session) -> List[Dict[str, Any]]:
     """Return all routes in the legacy API format (with from_city/to_city)."""
     routes = get_all_routes(db)
     return [route_to_api_dict(r, db) for r in routes]
+
+
+# ── Actuals from parquet ──────────────────────────────────────────────────────
+
+def get_actuals_for_routes(
+    route_ids: List[str],
+    start_ts: datetime,
+    end_ts: datetime,
+    train_path: str | None = None,
+) -> pd.DataFrame:
+    """Read actual demand (target_2h) from the training parquet for given routes and date range.
+
+    Returns DataFrame with columns: route_id, timestamp, target_2h.
+    """
+    path = train_path or str(DEFAULT_TRAIN_PATH)
+
+    int_routes: list = []
+    for r in route_ids:
+        try:
+            int_routes.append(int(r))
+        except (ValueError, TypeError):
+            pass
+
+    df = None
+    if int_routes:
+        try:
+            df = pd.read_parquet(
+                path,
+                columns=["route_id", "timestamp", "target_2h"],
+                filters=[("route_id", "in", int_routes)],
+            )
+            if df.empty:
+                df = None
+        except Exception:
+            df = None
+
+    if df is None:
+        try:
+            df = pd.read_parquet(
+                path,
+                columns=["route_id", "timestamp", "target_2h"],
+                filters=[("route_id", "in", route_ids)],
+            )
+        except Exception:
+            logger.warning("Parquet predicate pushdown failed, falling back to full read")
+            df = pd.read_parquet(path, columns=["route_id", "timestamp", "target_2h"])
+
+    df["route_id"] = df["route_id"].astype(str)
+    df = df[df["route_id"].isin(route_ids)]
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df[df["timestamp"].notna()]
+    df = df[(df["timestamp"] >= pd.Timestamp(start_ts)) & (df["timestamp"] <= pd.Timestamp(end_ts))]
+    df = df.sort_values(["route_id", "timestamp"]).reset_index(drop=True)
+    return df
+
+
+# ── Dispatch results for retrospective analysis ──────────────────────────────
+
+def get_dispatch_results_for_warehouse(
+    db: Session,
+    warehouse_id: str,
+    start_ts: datetime,
+    end_ts: datetime,
+) -> List[DispatchResult]:
+    """Return dispatch_results rows for a warehouse in a date range."""
+    return (
+        db.query(DispatchResult)
+        .filter(
+            DispatchResult.warehouse_id == warehouse_id,
+            DispatchResult.timestamp >= start_ts,
+            DispatchResult.timestamp <= end_ts,
+            DispatchResult.granularity_2.isnot(None),
+        )
+        .order_by(DispatchResult.timestamp)
+        .all()
+    )
+
+
+def get_dispatch_date_range(
+    db: Session, warehouse_id: str
+) -> Optional[Dict[str, Any]]:
+    """Return min/max timestamp and count for dispatch_results with granularity_2 data."""
+    row = (
+        db.query(
+            func.min(DispatchResult.timestamp),
+            func.max(DispatchResult.timestamp),
+            func.count(DispatchResult.id),
+        )
+        .filter(
+            DispatchResult.warehouse_id == warehouse_id,
+            DispatchResult.granularity_2.isnot(None),
+        )
+        .first()
+    )
+    if row is None or row[2] == 0:
+        return None
+    return {"min_date": row[0], "max_date": row[1], "count": row[2]}

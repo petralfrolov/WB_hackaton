@@ -45,12 +45,15 @@ export function TableRow({
 export function TableHead({
   children,
   className,
+  onClick,
 }: {
   children: React.ReactNode
   className?: string
+  onClick?: () => void
 }) {
   return (
     <th
+      onClick={onClick}
       className={cn(
         'h-9 px-3 text-left text-[11px] font-semibold uppercase tracking-widest text-muted whitespace-nowrap',
         className,
