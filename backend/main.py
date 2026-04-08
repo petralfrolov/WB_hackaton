@@ -13,6 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from config import (
+    ALLOWED_CORS_ORIGINS,
+    APP_TITLE,
+    APP_VERSION,
+    DISPATCH_PATHS,
+    READ_SAFE_METHODS,
+)
 from routers import (
     dispatch_router,
     health_router,
@@ -35,20 +42,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="WB Transport Optimizer",
-    version="1.0.0",
+    title=APP_TITLE,
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=ALLOWED_CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -65,13 +67,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 # ── Middleware: block mutating requests while dispatches are running ──────────
 # Dispatch and read endpoints are always allowed.
-_READ_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-_DISPATCH_PATHS = {"/dispatch", "/optimize", "/call"}
-
-
 class BlockWritesDuringDispatchMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.method not in _READ_SAFE_METHODS and request.url.path not in _DISPATCH_PATHS:
+        if request.method not in READ_SAFE_METHODS and request.url.path not in DISPATCH_PATHS:
             try:
                 state = get_state()
                 if state.dispatching:

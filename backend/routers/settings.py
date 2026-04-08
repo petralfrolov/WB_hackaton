@@ -8,6 +8,7 @@ from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from config import DEFAULT_ECONOMY_THRESHOLD, DEFAULT_WAIT_PENALTY_PER_MINUTE
 from schemas.settings import Settings
 from schemas.warehouses import RouteDistance
 from core.state import AppState, get_state
@@ -43,8 +44,8 @@ async def get_config(
         vehicles = get_fleet_for_warehouse(db, warehouses[0].id)
     return {
         "vehicles": vehicles,
-        "wait_penalty_per_minute": settings.get("wait_penalty_per_minute", 8.0),
-        "economy_threshold": settings.get("economy_threshold", 0.0),
+        "wait_penalty_per_minute": settings.get("wait_penalty_per_minute", DEFAULT_WAIT_PENALTY_PER_MINUTE),
+        "economy_threshold": settings.get("economy_threshold", DEFAULT_ECONOMY_THRESHOLD),
         "confidence_level": state.confidence_level,
         "granularity": state.granularity,
     }

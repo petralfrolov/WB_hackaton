@@ -20,6 +20,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from scipy.stats import norm as scipy_norm
 from sqlalchemy.orm import Session
 
+from config import (
+    ALLSTEP_HORIZON_LABELS,
+    DB_PERIOD_MINUTES,
+    DISPATCH_HORIZON_LABELS,
+    DEFAULT_ROUTE_DISTANCE_KM,
+    DISPATCH_WINDOW_MINUTES,
+)
 from core.conformal import get_margin
 from ml.prediction import predict_lazy
 from optimizer.horizons import build_plan, make_horizons
@@ -39,7 +46,7 @@ from db import models as dbm
 router = APIRouter(tags=["dispatch"])
 
 # Horizon labels in plan_df, matching build_plan output
-_HORIZON_LABELS = ["A: now", "B: +2h", "C: +4h", "D: +6h"]
+_HORIZON_LABELS = DISPATCH_HORIZON_LABELS
 
 
 # ── Deconvolution helpers ─────────────────────────────────────────────────────
@@ -178,11 +185,7 @@ def _interpolate_step(idx: int, known: Dict[int, float]) -> float:
 # allstep horizons: "-1.5-0.5h", "-1-1h", "-0.5-1.5h", "0-2h", "0.5-2.5h",
 #   "1-3h", "1.5-3.5h", "2-4h", "2.5-4.5h", "3-5h", "3.5-5.5h", "4-6h"
 # These correspond to steps 1..12 (0-indexed: 0..11).
-_ALLSTEP_HORIZON_LABELS = [
-    "-1.5-0.5h", "-1-1h", "-0.5-1.5h", "0-2h",
-    "0.5-2.5h", "1-3h", "1.5-3.5h", "2-4h",
-    "2.5-4.5h", "3-5h", "3.5-5.5h", "4-6h",
-]
+_ALLSTEP_HORIZON_LABELS = ALLSTEP_HORIZON_LABELS
 
 def _get_conformal_margin_for_slot(
     ncs_allsteps: Dict,
@@ -477,13 +480,11 @@ def _compute_warehouse_metrics(
     # DB stores horizon_idx in 30-min steps (FleetManager granularity = 0.5h).
     # The planning window is always 6h = 360 min, so include any entry with
     # horizon_idx * 30 <= 360 (i.e. horizon_idx <= 12).
-    _DB_PERIOD_MIN = 30
-    _WINDOW_MIN = 360
     veh_avail_at_last: Dict[str, int] = dict(veh_avail)  # copy base counts
     for iv in (incoming_vehicles or []):
         iv_vt = str(iv.get("vehicle_type", ""))
         iv_h = int(iv.get("horizon_idx", 0))
-        if iv_vt in veh_avail_at_last and 0 <= iv_h * _DB_PERIOD_MIN <= _WINDOW_MIN:
+        if iv_vt in veh_avail_at_last and 0 <= iv_h * DB_PERIOD_MINUTES <= DISPATCH_WINDOW_MINUTES:
             veh_avail_at_last[iv_vt] = veh_avail_at_last.get(iv_vt, 0) + int(iv.get("count", 0))
 
     # Available fleet capacity = fleet at last horizon × capacity per type
@@ -751,7 +752,7 @@ def _run_dispatch(req: DispatchRequest, state: AppState, warehouse, db: Session)
         # Deconvolve 2h predictions into finer-grained demand buckets
         deconv = _deconvolve_predictions(preds, granularity)
         demands[rid] = [ready_to_ship] + deconv
-        route_distances[rid] = float(route_cfg.get("distance_km", 15.0))
+        route_distances[rid] = float(route_cfg.get("distance_km", DEFAULT_ROUTE_DISTANCE_KM))
 
     if not demands:
         raise HTTPException(

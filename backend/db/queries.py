@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from config import DEFAULT_ECONOMY_THRESHOLD, DEFAULT_WAIT_PENALTY_PER_MINUTE
+
 from .models import (
     IncomingVehicle,
     Route,
@@ -119,8 +121,8 @@ def get_vehicles_cfg_for_warehouse(db: Session, warehouse_id: str) -> Dict[str, 
     settings = get_all_settings(db)
     return {
         "vehicles": vehicles,
-        "wait_penalty_per_minute": settings.get("wait_penalty_per_minute", 8.0),
-        "economy_threshold": settings.get("economy_threshold", 0.0),
+        "wait_penalty_per_minute": settings.get("wait_penalty_per_minute", DEFAULT_WAIT_PENALTY_PER_MINUTE),
+        "economy_threshold": settings.get("economy_threshold", DEFAULT_ECONOMY_THRESHOLD),
     }
 
 

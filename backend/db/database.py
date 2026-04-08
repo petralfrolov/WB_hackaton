@@ -1,17 +1,14 @@
 """SQLAlchemy engine, session factory, and database initialisation."""
 
-from pathlib import Path
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-_DB_DIR = Path(__file__).resolve().parent.parent / "data"
-DB_PATH = _DB_DIR / "app.db"
+from config import DB_CONNECT_ARGS, DB_ECHO, DB_PATH
 
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-    echo=False,
+    connect_args=DB_CONNECT_ARGS,
+    echo=DB_ECHO,
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

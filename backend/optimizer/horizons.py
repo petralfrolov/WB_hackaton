@@ -32,22 +32,25 @@ import pandas as pd
 from scipy.optimize import milp, LinearConstraint, Bounds
 from scipy.sparse import csr_matrix
 
-from ml.prediction import (
+from config import (
+    DB_PERIOD_MINUTES,
+    DEFAULT_FLEET_AVAILABLE,
     DEFAULT_MODELS_DIR,
+    DEFAULT_PERIOD_MINUTES,
+    DEFAULT_ROUTE_DISTANCE_KM,
+    DEFAULT_SOLVER_TIME_LIMIT_SECONDS,
     DEFAULT_TRAIN_PATH,
+    DISPATCH_HORIZONS,
+)
+from ml.prediction import (
     load_models,
     prepare_feature_matrix,
     predict_for_route_timestamp,
 )
 
 # Горизонты планирования: (метка, смещение от «сейчас» в минутах)
-HORIZONS: List[tuple[str, int]] = [
-    ("A: now",   0),
-    ("B: +2h", 120),
-    ("C: +4h", 240),
-    ("D: +6h", 360),
-]
-PERIOD_MINUTES = 120  # длительность одного горизонта, мин
+HORIZONS: List[tuple[str, int]] = list(DISPATCH_HORIZONS)
+PERIOD_MINUTES = DEFAULT_PERIOD_MINUTES  # длительность одного горизонта, мин
 
 
 def make_horizons(granularity: float = 2.0) -> tuple:
@@ -91,10 +94,6 @@ def load_route_office_map(train_path: Path) -> Dict[str, str]:
     return {str(r): str(o) for r, o in zip(df["route_id"], df["office_from_id"])}
 
 
-# FleetManager always stores incoming-vehicle indices in 0.5h (30-min) steps.
-_DB_PERIOD_MINUTES = 30
-
-
 def _build_fleet_limits(
     vehicles: List[Dict],
     incoming: Optional[List[Dict]],
@@ -109,7 +108,7 @@ def _build_fleet_limits(
     Каждая запись увеличивает доступный парк начиная с этого горизонта и далее.
     """
     v_names = [v["vehicle_type"] for v in vehicles]
-    base = np.array([float(v.get("available", 1000)) for v in vehicles])  # (nV,)
+    base = np.array([float(v.get("available", DEFAULT_FLEET_AVAILABLE)) for v in vehicles])  # (nV,)
     fleet = np.tile(base[:, None], (1, nT))  # (nV, nT)
 
     for entry in (incoming or []):
@@ -122,7 +121,7 @@ def _build_fleet_limits(
             raise ValueError(f"incoming_vehicles: horizon_idx {h_stored} must be >= 0")
         vi = v_names.index(vtype)
         # Convert DB 30-min-based index to optimizer horizon index
-        minute_offset = h_stored * _DB_PERIOD_MINUTES
+        minute_offset = h_stored * DB_PERIOD_MINUTES
         h = round(minute_offset / period_minutes)
         if not (0 <= h < nT):
             # Entry falls outside the current planning window — skip silently
@@ -369,7 +368,7 @@ def solve_irp_milp(
     cost_vr = np.zeros((nV, nR))
     for vi, v in enumerate(vehicles):
         for ri, rid in enumerate(route_ids):
-            dist = (route_distances or {}).get(rid, 15.0)
+            dist = (route_distances or {}).get(rid, DEFAULT_ROUTE_DISTANCE_KM)
             fixed_dispatch = float(v.get("fixed_dispatch_cost") or 0)
             cost_vr[vi, ri] = v.get("cost_per_km", 0) * dist + fixed_dispatch
 
@@ -383,7 +382,7 @@ def solve_irp_milp(
         integrality=integrality,
         bounds=Bounds(lb=lb, ub=ub),
         constraints=LinearConstraint(A_sp, lb=lb_c_arr, ub=ub_c_arr),
-        options={"time_limit": 30.0, "disp": False},
+        options={"time_limit": DEFAULT_SOLVER_TIME_LIMIT_SECONDS, "disp": False},
     )
     if not result.success and result.x is None:
         raise RuntimeError(f"MILP solver failed: {result.message}")

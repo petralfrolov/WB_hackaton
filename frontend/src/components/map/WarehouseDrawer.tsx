@@ -54,14 +54,17 @@ export function WarehouseDrawer({ warehouse, onClose, routes }: WarehouseDrawerP
   const [metricDetail, setMetricDetail] = useState<'p_cover' | 'fill_rate' | 'cpo' | 'fleet_utilization' | 'capacity_shortfall' | null>(null)
 
   function deriveWarehouseStatus(result: ApiDispatchResponse): 'ok' | 'warning' | 'critical' {
-    let hasCritical = false, hasWarning = false
+    const shortfall = result.metrics?.fleet_capacity_shortfall ?? 0
+    let hasFullyMissed = false, hasPartiallyMissed = false
     for (const rp of result.routes) {
       for (const row of rp.plan) {
-        if (row.demand_new > 0 && row.vehicles_count === 0) hasCritical = true
-        else if (row.leftover_stock >= 1) hasWarning = true
+        if (row.demand_new > 0 && row.vehicles_count === 0) hasFullyMissed = true
+        else if (row.leftover_stock >= 1) hasPartiallyMissed = true
       }
     }
-    return hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
+    if (shortfall > 0 && hasFullyMissed) return 'critical'
+    if (shortfall > 0 && hasPartiallyMissed) return 'warning'
+    return 'ok'
   }
 
   useEffect(() => {

@@ -113,14 +113,18 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       const warehouseId = inner.slice(0, inner.length - suffix.length)
       try {
         const cached = JSON.parse(localStorage.getItem(k)!)
-        let hasCritical = false, hasWarning = false
+        const shortfall = cached.metrics?.fleet_capacity_shortfall ?? 0
+        let hasFullyMissed = false, hasPartiallyMissed = false
         for (const rp of cached.routes ?? []) {
           for (const row of rp.plan ?? []) {
-            if (row.demand_new > 0 && row.vehicles_count === 0) hasCritical = true
-            else if (row.leftover_stock >= 1) hasWarning = true
+            if (row.demand_new > 0 && row.vehicles_count === 0) hasFullyMissed = true
+            else if (row.leftover_stock >= 1) hasPartiallyMissed = true
           }
         }
-        statuses[warehouseId] = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
+        statuses[warehouseId] =
+          (shortfall > 0 && hasFullyMissed) ? 'critical'
+          : (shortfall > 0 && hasPartiallyMissed) ? 'warning'
+          : 'ok'
       } catch { /* corrupt entry, skip */ }
     }
     setWarehouseStatuses(statuses)
@@ -258,14 +262,18 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           // Cache to localStorage
           try { localStorage.setItem('dispatch_cache__' + w.id + suffix, JSON.stringify(result)) } catch { /* quota */ }
           // Derive status
-          let hasCritical = false, hasWarning = false
+          const shortfall = result.metrics?.fleet_capacity_shortfall ?? 0
+          let hasFullyMissed = false, hasPartiallyMissed = false
           for (const rp of result.routes) {
             for (const row of rp.plan) {
-              if (row.demand_new > 0 && row.vehicles_count === 0) hasCritical = true
-              else if (row.leftover_stock >= 1) hasWarning = true
+              if (row.demand_new > 0 && row.vehicles_count === 0) hasFullyMissed = true
+              else if (row.leftover_stock >= 1) hasPartiallyMissed = true
             }
           }
-          const status: 'ok' | 'warning' | 'critical' = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok'
+          const status: 'ok' | 'warning' | 'critical' =
+            (shortfall > 0 && hasFullyMissed) ? 'critical'
+            : (shortfall > 0 && hasPartiallyMissed) ? 'warning'
+            : 'ok'
           // Update state immediately for this warehouse
           setWarehouseStatuses(prev => ({ ...prev, [w.id]: status }))
           if (result.metrics) {

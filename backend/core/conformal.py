@@ -39,18 +39,16 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-NCS_DEFAULT_PATH = Path("data/non_conformity_scores.csv")
-NCS_NORM_PATH = Path("data/non_conformity_scores_norm.csv")
-NCS_ALLSTEPS_PATH = Path("data/non_conformity_scores_norm_allsteps.csv")
-
-HORIZONS = ("0-2h", "2-4h", "4-6h")
-
-# All 12 step horizons (step i covers [(i-4)*0.5, (i-4)*0.5+2] hours)
-ALLSTEP_HORIZONS = (
-    "-1.5-0.5h", "-1-1h", "-0.5-1.5h", "0-2h",
-    "0.5-2.5h", "1-3h", "1.5-3.5h", "2-4h",
-    "2.5-4.5h", "3-5h", "3.5-5.5h", "4-6h",
+from config import (
+    ALLSTEP_HORIZON_LABELS,
+    CONFORMAL_HORIZONS,
+    NCS_ALLSTEPS_PATH,
+    NCS_DEFAULT_PATH,
+    NCS_NORM_PATH,
 )
+
+HORIZONS = CONFORMAL_HORIZONS
+ALLSTEP_HORIZONS = tuple(ALLSTEP_HORIZON_LABELS)
 
 # Fallback calibration scores when a file is absent or a key is missing.
 # Medians intentionally grow with forecast horizon (realistically ~×1.7 each step).

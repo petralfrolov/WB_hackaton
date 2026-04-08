@@ -33,19 +33,30 @@ import lightgbm as lgb  # noqa: F401 – needed for pkl unpickling
 import numpy as np
 import pandas as pd
 
+from config import (
+    DEFAULT_MODELS_DIR as CONFIG_DEFAULT_MODELS_DIR,
+    DEFAULT_TRAIN_PATH as CONFIG_DEFAULT_TRAIN_PATH,
+    FORECAST_POINTS as CONFIG_FORECAST_POINTS,
+    HALFHOUR_SLOT_MINUTES,
+    LOOKBACK_HEADROOM_DAYS,
+    MAX_LAG_STEPS as CONFIG_MAX_LAG_STEPS,
+    TARGET_COLUMN,
+    TRACK_NAME,
+)
+
 logger = logging.getLogger(__name__)
 
 
 # -----------------------------
 # Hardcoded config (team track)
 # -----------------------------
-TRACK = "team"
-TARGET_COL = "target_2h"
-FORECAST_POINTS = 12
+TRACK = TRACK_NAME
+TARGET_COL = TARGET_COLUMN
+FORECAST_POINTS = CONFIG_FORECAST_POINTS
 FUTURE_TARGET_COLS = [f"target_step_{i}" for i in range(1, FORECAST_POINTS + 1)]
 
-DEFAULT_TRAIN_PATH = "data/train_team_track.parquet"
-DEFAULT_MODELS_DIR = "models/models"
+DEFAULT_TRAIN_PATH = str(CONFIG_DEFAULT_TRAIN_PATH)
+DEFAULT_MODELS_DIR = str(CONFIG_DEFAULT_MODELS_DIR)
 
 
 # ── Feature engineering (must exactly match exp66 training pipeline) ──────────
@@ -58,7 +69,7 @@ def _add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
     df["dow_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
     df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
-    df["halfhour_slot"] = df["hour"] * 2 + df["timestamp"].dt.minute // 30
+    df["halfhour_slot"] = df["hour"] * 2 + df["timestamp"].dt.minute // HALFHOUR_SLOT_MINUTES
     return df
 
 
@@ -374,9 +385,9 @@ def prepare_feature_matrix(train_path: Path) -> Tuple[pd.DataFrame, List[str]]:
 # ── Lazy (windowed) feature matrix preparation ────────────────────────────────
 
 #: Max lag used in feature engineering (target_lag_672 = 672 × 30 min = 14 days)
-_MAX_LAG_STEPS = 672
+_MAX_LAG_STEPS = CONFIG_MAX_LAG_STEPS
 _LAG_MINUTES = _MAX_LAG_STEPS * 30   # 20 160 min ≈ 14 days
-_LOOKBACK_DAYS = _LAG_MINUTES // (60 * 24) + 2  # 16 days for headroom
+_LOOKBACK_DAYS = _LAG_MINUTES // (60 * 24) + LOOKBACK_HEADROOM_DAYS
 
 
 def prepare_feature_matrix_for_route(

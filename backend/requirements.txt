@@ -10,3 +10,4 @@ python-multipart>=0.0.9
 scikit-learn>=1.4.0
 sqlalchemy>=2.0.0
 pyarrow
+pytest

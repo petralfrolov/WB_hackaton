@@ -7,10 +7,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from config import (
+    DEFAULT_CONFIDENCE_LEVEL,
+    DEFAULT_DISPATCH_CONCURRENCY,
+    DEFAULT_GRANULARITY_HOURS,
+    DEFAULT_MODELS_DIR,
+    DEFAULT_ROUTE_CORRELATION,
+    DEFAULT_TRAIN_PATH,
+)
 from core.conformal import NCS_DEFAULT_PATH, load_ncs, load_ncs_allsteps
 from ml.prediction import (
-    DEFAULT_MODELS_DIR,
-    DEFAULT_TRAIN_PATH,
     load_models,
 )
 from optimizer.horizons import load_route_office_map
@@ -21,22 +27,24 @@ from db.database import SessionLocal
 class AppState:
     """Singleton application state loaded once at startup and shared via dependency injection."""
     models: Any = None
-    train_path: Path = field(default_factory=lambda: Path(DEFAULT_TRAIN_PATH))
+    train_path: Path = field(default_factory=lambda: DEFAULT_TRAIN_PATH)
     office_map: Dict[str, str] = field(default_factory=dict)    # route_id → office_from_id
     office_routes_map: Dict[str, List[str]] = field(default_factory=dict)  # office_from_id → [route_ids]
     last_dispatch_by_warehouse: Dict[str, Dict] = field(default_factory=dict)
     last_dispatch: Optional[Dict] = None
     _dispatch_write_lock: threading.Lock = field(default_factory=threading.Lock)
     _warehouse_locks: Dict[str, threading.Lock] = field(default_factory=dict)
-    _dispatch_semaphore: threading.Semaphore = field(default_factory=lambda: threading.Semaphore(3))
+    _dispatch_semaphore: threading.Semaphore = field(
+        default_factory=lambda: threading.Semaphore(DEFAULT_DISPATCH_CONCURRENCY)
+    )
     _active_dispatches: int = 0
     _active_dispatches_lock: threading.Lock = field(default_factory=threading.Lock)
-    confidence_level: float = 0.9
-    route_correlation: float = 0.3
+    confidence_level: float = DEFAULT_CONFIDENCE_LEVEL
+    route_correlation: float = DEFAULT_ROUTE_CORRELATION
     ncs_scores: Any = field(default_factory=lambda: load_ncs()[0])
     ncs_normalized: bool = False
     ncs_allsteps: Any = field(default_factory=dict)
-    granularity: float = 2.0
+    granularity: float = DEFAULT_GRANULARITY_HOURS
 
     @property
     def dispatching(self) -> bool:
@@ -79,8 +87,8 @@ def _build_office_routes_map(office_map: Dict[str, str]) -> Dict[str, List[str]]
 
 
 def load_state(
-    train_path: Path = Path(DEFAULT_TRAIN_PATH),
-    models_dir: Path = Path(DEFAULT_MODELS_DIR),
+    train_path: Path = DEFAULT_TRAIN_PATH,
+    models_dir: Path = DEFAULT_MODELS_DIR,
 ) -> AppState:
     """Load ML models and NCS scores. DB data is read per-request via sessions."""
     global _state
@@ -105,10 +113,10 @@ def load_state(
         train_path=train_path,
         office_map=office_map,
         office_routes_map=office_routes_map,
-        confidence_level=float(settings.get("confidence_level", 0.9)),
+        confidence_level=float(settings.get("confidence_level", DEFAULT_CONFIDENCE_LEVEL)),
         ncs_scores=ncs_scores,
         ncs_normalized=ncs_normalized,
         ncs_allsteps=ncs_allsteps,
-        granularity=float(settings.get("granularity", 2.0)),
+        granularity=float(settings.get("granularity", DEFAULT_GRANULARITY_HOURS)),
     )
     return _state
