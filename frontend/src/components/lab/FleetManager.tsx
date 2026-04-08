@@ -211,7 +211,7 @@ export function FleetManager({ warehouses }: FleetManagerProps) {
                       {horizonDisplayLabel(label)}
                     </TableHead>
                   ))}
-                  <TableHead className="text-center w-10">Синхр.</TableHead>
+                  <TableHead className="text-center w-10">Уст. на все склады</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

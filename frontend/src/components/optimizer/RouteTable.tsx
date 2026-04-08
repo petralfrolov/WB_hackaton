@@ -459,7 +459,7 @@ export function RouteTable({
                 {fleetHorizonLabels.map(label => (
                   <TableHead key={label} className="text-right">{horizonDisplayLabel(label)}</TableHead>
                 ))}
-                {onSyncVehicle && <TableHead className="text-center">Синхр.</TableHead>}
+                {onSyncVehicle && <TableHead className="text-center">Уст. на все склады</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -523,7 +523,6 @@ export function RouteTable({
                         title="Скопировать количество ТС этого типа на все склады"
                       >
                         <RefreshCw className={`w-3 h-3 ${syncingType[row.type] ? 'animate-spin' : ''}`} />
-                        Синхр.
                       </button>
                     </TableCell>
                   )}
